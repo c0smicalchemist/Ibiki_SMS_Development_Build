@@ -47,6 +47,9 @@ export interface IStorage {
   // Credit Transaction methods
   createCreditTransaction(transaction: InsertCreditTransaction): Promise<CreditTransaction>;
   getCreditTransactionsByUserId(userId: string, limit?: number): Promise<CreditTransaction[]>;
+  
+  // Error logging methods
+  getErrorLogs(level?: string): Promise<any[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -263,6 +266,37 @@ export class MemStorage implements IStorage {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     
     return limit ? transactions.slice(0, limit) : transactions;
+  }
+
+  // Error logging methods
+  async getErrorLogs(level?: string): Promise<any[]> {
+    // Get failed message logs as error logs
+    const failedLogs = Array.from(this.messageLogs.values())
+      .filter((log) => log.status === 'failed')
+      .map((log) => {
+        const user = this.users.get(log.userId);
+        return {
+          id: log.id,
+          level: 'error',
+          message: `SMS delivery failed`,
+          endpoint: log.endpoint,
+          userId: log.userId,
+          userName: user?.name || 'Unknown',
+          details: log.responsePayload,
+          timestamp: log.createdAt.toISOString()
+        };
+      });
+
+    // Filter by level if specified
+    if (level && level !== 'all') {
+      return failedLogs.filter(log => log.level === level)
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 100);
+    }
+
+    return failedLogs
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 100);
   }
 }
 

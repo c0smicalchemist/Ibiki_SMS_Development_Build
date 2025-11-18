@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { Link } from "wouter";
+import ApiTestUtility from "@/components/ApiTestUtility";
+import ErrorLogsViewer from "@/components/ErrorLogsViewer";
 
 export default function AdminDashboard() {
   const { toast } = useToast();
@@ -145,6 +147,8 @@ export default function AdminDashboard() {
           <TabsList>
             <TabsTrigger value="clients" data-testid="tab-clients">{t('admin.tabs.clients')}</TabsTrigger>
             <TabsTrigger value="configuration" data-testid="tab-configuration">{t('admin.tabs.configuration')}</TabsTrigger>
+            <TabsTrigger value="testing" data-testid="tab-testing">API Testing</TabsTrigger>
+            <TabsTrigger value="logs" data-testid="tab-logs">Error Logs</TabsTrigger>
             <TabsTrigger value="monitoring" data-testid="tab-monitoring">{t('admin.tabs.monitoring')}</TabsTrigger>
           </TabsList>
 
@@ -287,6 +291,14 @@ export default function AdminDashboard() {
               </form>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="testing" className="space-y-4">
+          <ApiTestUtility />
+        </TabsContent>
+
+        <TabsContent value="logs" className="space-y-4">
+          <ErrorLogsViewer />
         </TabsContent>
 
         <TabsContent value="monitoring" className="space-y-4">

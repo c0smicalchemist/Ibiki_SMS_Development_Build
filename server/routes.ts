@@ -430,6 +430,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test API endpoint (admin only - uses ExtremeSMS directly, NOT client keys)
+  app.post("/api/admin/test-endpoint", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { endpoint, payload } = req.body;
+
+      // Get admin's ExtremeSMS API key
+      const extremeApiKey = await storage.getSystemConfig("extreme_api_key");
+      
+      if (!extremeApiKey || !extremeApiKey.value) {
+        return res.status(400).json({ error: "ExtremeSMS API key not configured" });
+      }
+
+      let response;
+
+      switch (endpoint) {
+        case "balance":
+          // Test balance check directly with ExtremeSMS
+          response = await axios.post("https://extremesms.net/api/v2/sms/checkbalance", {
+            api_key: extremeApiKey.value
+          });
+          break;
+        
+        case "sendsingle":
+          // Test with ExtremeSMS directly
+          if (!payload || !payload.recipient || !payload.message) {
+            return res.status(400).json({ error: "Missing recipient or message" });
+          }
+          response = await axios.post(
+            `${EXTREMESMS_BASE_URL}/api/v2/sms/sendsingle`,
+            { recipient: payload.recipient, message: payload.message },
+            {
+              headers: {
+                "Authorization": `Bearer ${extremeApiKey.value}`,
+                "Content-Type": "application/json"
+              }
+            }
+          );
+          break;
+
+        case "sendbulk":
+          if (!payload || !payload.recipients || !payload.content) {
+            return res.status(400).json({ error: "Missing recipients or content" });
+          }
+          response = await axios.post(
+            `${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulk`,
+            { recipients: payload.recipients, content: payload.content },
+            {
+              headers: {
+                "Authorization": `Bearer ${extremeApiKey.value}`,
+                "Content-Type": "application/json"
+              }
+            }
+          );
+          break;
+
+        case "sendbulkmulti":
+          if (!Array.isArray(payload) || payload.length === 0) {
+            return res.status(400).json({ error: "Invalid payload format" });
+          }
+          response = await axios.post(
+            `${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulkmulti`,
+            payload,
+            {
+              headers: {
+                "Authorization": `Bearer ${extremeApiKey.value}`,
+                "Content-Type": "application/json"
+              }
+            }
+          );
+          break;
+
+        default:
+          return res.status(400).json({ error: "Invalid endpoint" });
+      }
+
+      res.json({ success: true, data: response.data });
+    } catch (error: any) {
+      console.error("Test endpoint error:", error.response?.data || error.message);
+      res.status(500).json({ 
+        error: error.response?.data?.error || error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+  // Get error logs (admin only)
+  app.get("/api/admin/error-logs", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { level } = req.query;
+      
+      // Get message logs with errors
+      const logs = await storage.getErrorLogs(level as string);
+      
+      res.json({ success: true, logs });
+    } catch (error) {
+      console.error("Error logs fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch error logs" });
+    }
+  });
+
   // Add credits to client account (ADMIN ONLY)
   app.post("/api/admin/add-credits", authenticateToken, requireAdmin, async (req: any, res) => {
     try {
