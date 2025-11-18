@@ -11,6 +11,8 @@ import StatCard from "@/components/StatCard";
 
 export default function AdminDashboard() {
   const [extremeApiKey, setExtremeApiKey] = useState("");
+  const [extremeCost, setExtremeCost] = useState("0.01");
+  const [clientRate, setClientRate] = useState("0.02");
 
   const clients = [
     { id: 1, name: "Acme Corp", email: "admin@acme.com", apiKey: "ibk_live_abc...xyz", status: "active", messagesSent: 1250, lastActive: "2 hours ago" },
@@ -112,7 +114,7 @@ export default function AdminDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSaveConfig} className="space-y-4">
+              <form onSubmit={handleSaveConfig} className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="extremeApiKey">ExtremeSMS API Key</Label>
                   <Input
@@ -126,6 +128,53 @@ export default function AdminDashboard() {
                   <p className="text-xs text-muted-foreground">
                     This key is used to authenticate with ExtremeSMS on behalf of all clients
                   </p>
+                </div>
+
+                <div className="border-t pt-6 space-y-4">
+                  <h3 className="text-lg font-semibold">Pricing Configuration</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="extremeCost">ExtremeSMS Cost per SMS (USD)</Label>
+                      <Input
+                        id="extremeCost"
+                        type="number"
+                        step="0.0001"
+                        placeholder="0.01"
+                        value={extremeCost}
+                        onChange={(e) => setExtremeCost(e.target.value)}
+                        data-testid="input-extreme-cost"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        What ExtremeSMS charges you per message
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="clientRate">Client Rate per SMS (USD)</Label>
+                      <Input
+                        id="clientRate"
+                        type="number"
+                        step="0.0001"
+                        placeholder="0.02"
+                        value={clientRate}
+                        onChange={(e) => setClientRate(e.target.value)}
+                        data-testid="input-client-rate"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        What you charge your clients per message
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-muted/50 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Profit Margin per SMS:</span>
+                      <span className="text-lg font-bold text-primary" data-testid="text-profit-margin">
+                        ${(parseFloat(clientRate || "0") - parseFloat(extremeCost || "0")).toFixed(4)} USD
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex gap-3">

@@ -20,10 +20,10 @@ export default function ClientDashboard() {
           description="Last 30 days"
         />
         <StatCard
-          title="Current Balance"
+          title="Available Credits"
           value="$250.00"
           icon={DollarSign}
-          description="Credits remaining"
+          description="Current balance • $0.02 per SMS"
         />
         <StatCard
           title="API Status"
