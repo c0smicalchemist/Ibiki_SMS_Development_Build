@@ -605,6 +605,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get ExtremeSMS account balance
+  app.get("/api/admin/extremesms-balance", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const extremeApiKey = await storage.getSystemConfig("extreme_api_key");
+      
+      if (!extremeApiKey || !extremeApiKey.value) {
+        return res.status(400).json({ error: "ExtremeSMS API key not configured" });
+      }
+
+      const response = await axios.get(`${EXTREMESMS_BASE_URL}/api/v2/account/balance`, {
+        headers: {
+          "Authorization": `Bearer ${extremeApiKey.value}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.data && response.data.success) {
+        res.json({ 
+          success: true, 
+          balance: response.data.balance || 0,
+          currency: response.data.currency || 'USD'
+        });
+      } else {
+        res.status(400).json({ error: "ExtremeSMS API returned unexpected response" });
+      }
+    } catch (error: any) {
+      console.error("ExtremeSMS balance fetch error:", error.response?.data || error.message);
+      res.status(500).json({ 
+        error: "Failed to fetch balance from ExtremeSMS API",
+        details: error.response?.data?.message || error.message
+      });
+    }
+  });
+
   // Test ExtremeSMS API connection
   app.post("/api/admin/test-connection", authenticateToken, requireAdmin, async (req, res) => {
     try {
