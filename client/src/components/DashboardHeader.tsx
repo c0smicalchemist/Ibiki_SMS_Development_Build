@@ -3,7 +3,7 @@ import { LanguageToggle } from "./LanguageToggle";
 import { Button } from "./ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LogOut } from "lucide-react";
-import logoUrl from "@assets/Yubin_Dash-removebg-preview_1763444826522.png";
+import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.png";
 
 export function DashboardHeader() {
   const [, setLocation] = useLocation();
