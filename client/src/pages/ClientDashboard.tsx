@@ -1,21 +1,20 @@
 import { MessageSquare, DollarSign, Activity, ArrowLeft } from "lucide-react";
 import StatCard from "@/components/StatCard";
-import ApiKeyDisplay from "@/components/ApiKeyDisplay";
 import { Button } from "@/components/ui/button";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { AddCreditsDialog } from "@/components/AddCreditsDialog";
+import { ApiKeysManagement } from "@/components/ApiKeysManagement";
 
 export default function ClientDashboard() {
   const { t } = useLanguage();
-  const [, setLocation] = useLocation();
   const { data: profile, isLoading } = useQuery<{
     user: { id: string; email: string; name: string; company: string | null; role: string };
     credits: string;
     currency: string;
-    apiKeys: Array<{ id: string; displayKey: string; isActive: boolean; createdAt: Date; lastUsedAt: Date | null }>;
+    apiKeys: Array<{ id: string; displayKey: string; isActive: boolean; createdAt: string; lastUsedAt: string | null }>;
   }>({
     queryKey: ['/api/client/profile']
   });
@@ -26,7 +25,7 @@ export default function ClientDashboard() {
 
   const credits = profile?.credits || "0.00";
   const messageCount = messages?.messages?.length || 0;
-  const firstApiKey = profile?.apiKeys?.[0];
+  const apiKeys = profile?.apiKeys || [];
 
   if (isLoading) {
     return (
@@ -79,13 +78,7 @@ export default function ClientDashboard() {
           />
         </div>
 
-        {firstApiKey && (
-          <ApiKeyDisplay 
-            apiKey={firstApiKey.displayKey}
-            title={t('dashboard.apiKey.title')}
-            description="Your API key is shown in masked format for security. The full key was displayed once at signup."
-          />
-        )}
+        <ApiKeysManagement apiKeys={apiKeys} />
 
         <div className="flex gap-3">
           <Link href="/docs">

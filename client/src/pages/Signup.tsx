@@ -9,6 +9,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.png";
 
 export default function Signup() {
@@ -20,6 +21,8 @@ export default function Signup() {
     password: "",
     confirmPassword: ""
   });
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [apiKey, setApiKey] = useState("");
 
   const signupMutation = useMutation({
     mutationFn: async (data: { email: string; password: string; confirmPassword: string }) => {
@@ -30,11 +33,8 @@ export default function Signup() {
     },
     onSuccess: (data) => {
       localStorage.setItem('token', data.token);
-      toast({
-        title: "Account created!",
-        description: `Your API key: ${data.apiKey}. Save this - it won't be shown again!`
-      });
-      setLocation('/dashboard');
+      setApiKey(data.apiKey);
+      setShowApiKey(true);
     },
     onError: (error: any) => {
       toast({
@@ -125,6 +125,16 @@ export default function Signup() {
             </div>
           </CardContent>
         </Card>
+
+        <ApiKeyDialog
+          open={showApiKey}
+          onOpenChange={(open) => {
+            setShowApiKey(open);
+            if (!open) setLocation('/dashboard');
+          }}
+          apiKey={apiKey}
+          title="Account Created!"
+        />
       </div>
     </div>
   );

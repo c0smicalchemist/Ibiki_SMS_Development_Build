@@ -304,13 +304,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: key.id,
           displayKey: `${key.keyPrefix}...${key.keySuffix}`,
           isActive: key.isActive,
-          createdAt: key.createdAt,
-          lastUsedAt: key.lastUsedAt
+          createdAt: key.createdAt?.toISOString() || new Date().toISOString(),
+          lastUsedAt: key.lastUsedAt?.toISOString() || null
         }))
       });
     } catch (error) {
       console.error("Profile fetch error:", error);
       res.status(500).json({ error: "Failed to fetch profile" });
+    }
+  });
+
+  // Generate new API key
+  app.post("/api/client/generate-key", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+
+      // Generate new API key
+      const rawApiKey = `ibk_live_${crypto.randomBytes(24).toString("hex")}`;
+      const keyHash = crypto.createHash("sha256").update(rawApiKey).digest("hex");
+      const keyPrefix = rawApiKey.slice(0, 12);
+      const keySuffix = rawApiKey.slice(-4);
+
+      await storage.createApiKey({
+        userId,
+        keyHash,
+        keyPrefix,
+        keySuffix,
+        isActive: true
+      });
+
+      res.json({
+        success: true,
+        apiKey: rawApiKey, // Only returned once
+        message: "New API key generated successfully"
+      });
+    } catch (error) {
+      console.error("Generate key error:", error);
+      res.status(500).json({ error: "Failed to generate API key" });
+    }
+  });
+
+  // Revoke API key
+  app.post("/api/client/revoke-key", authenticateToken, async (req: any, res) => {
+    try {
+      const { keyId } = req.body;
+      const userId = req.user.userId;
+
+      if (!keyId) {
+        return res.status(400).json({ error: "Key ID is required" });
+      }
+
+      // Verify the key belongs to the user
+      const apiKeys = await storage.getApiKeysByUserId(userId);
+      const keyToRevoke = apiKeys.find(k => k.id === keyId);
+
+      if (!keyToRevoke) {
+        return res.status(404).json({ error: "API key not found" });
+      }
+
+      await storage.revokeApiKey(keyId);
+
+      res.json({
+        success: true,
+        message: "API key revoked successfully"
+      });
+    } catch (error) {
+      console.error("Revoke key error:", error);
+      res.status(500).json({ error: "Failed to revoke API key" });
     }
   });
 
