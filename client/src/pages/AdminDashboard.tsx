@@ -91,8 +91,32 @@ export default function AdminDashboard() {
     status: string;
     messagesSent: number;
     lastActive: string;
+    assignedPhoneNumber: string | null;
   }> }>({
     queryKey: ['/api/admin/clients']
+  });
+
+  const updatePhoneNumberMutation = useMutation({
+    mutationFn: async ({ userId, phoneNumber }: { userId: string; phoneNumber: string }) => {
+      return await apiRequest('/api/admin/update-phone-number', {
+        method: 'POST',
+        body: JSON.stringify({ userId, phoneNumber })
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
+      toast({
+        title: "Success",
+        description: "Phone number updated successfully"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update phone number",
+        variant: "destructive"
+      });
+    }
   });
 
   const { data: statsData } = useQuery<{ success: boolean; totalMessages: number; totalClients: number }>({
@@ -210,8 +234,8 @@ export default function AdminDashboard() {
                     <TableHead>API Key</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Messages Sent</TableHead>
+                    <TableHead>Assigned Number</TableHead>
                     <TableHead>Last Active</TableHead>
-                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -226,12 +250,25 @@ export default function AdminDashboard() {
                         </Badge>
                       </TableCell>
                       <TableCell>{client.messagesSent.toLocaleString()}</TableCell>
-                      <TableCell className="text-muted-foreground">{client.lastActive}</TableCell>
                       <TableCell>
-                        <Button size="sm" variant="ghost" data-testid={`button-view-${client.id}`}>
-                          View
-                        </Button>
+                        <Input
+                          type="text"
+                          placeholder="Phone number"
+                          defaultValue={client.assignedPhoneNumber || ""}
+                          onBlur={(e) => {
+                            const newPhone = e.target.value.trim();
+                            if (newPhone !== (client.assignedPhoneNumber || "")) {
+                              updatePhoneNumberMutation.mutate({ 
+                                userId: client.id, 
+                                phoneNumber: newPhone 
+                              });
+                            }
+                          }}
+                          className="w-32"
+                          data-testid={`input-phone-${client.id}`}
+                        />
                       </TableCell>
+                      <TableCell className="text-muted-foreground">{client.lastActive}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

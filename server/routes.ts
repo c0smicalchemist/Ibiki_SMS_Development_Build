@@ -599,6 +599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .map(async (user: User) => {
             const apiKeys = await storage.getApiKeysByUserId(user.id);
             const messageLogs = await storage.getMessageLogsByUserId(user.id);
+            const profile = await storage.getClientProfileByUserId(user.id);
             const displayKey = apiKeys[0] ? `ibk_live_${apiKeys[0].keyPrefix}...${apiKeys[0].keySuffix}` : 'No key';
             
             return {
@@ -610,7 +611,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               messagesSent: messageLogs.length,
               lastActive: apiKeys[0]?.lastUsedAt 
                 ? new Date(apiKeys[0].lastUsedAt).toLocaleDateString()
-                : 'Never'
+                : 'Never',
+              assignedPhoneNumber: profile?.assignedPhoneNumber || null
             };
           })
       );
@@ -876,6 +878,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Add credits error:", error);
       res.status(500).json({ error: "Failed to add credits" });
+    }
+  });
+
+  // Update client's assigned phone number (ADMIN ONLY)
+  app.post("/api/admin/update-phone-number", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { userId, phoneNumber } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+
+      // Phone number can be null to unassign
+      const profile = await storage.getClientProfileByUserId(userId);
+      if (!profile) {
+        return res.status(404).json({ error: "Client profile not found" });
+      }
+
+      // Update phone number
+      await storage.updateClientPhoneNumber(userId, phoneNumber || null);
+
+      res.json({ 
+        success: true, 
+        message: phoneNumber ? "Phone number assigned successfully" : "Phone number unassigned",
+        phoneNumber: phoneNumber || null
+      });
+    } catch (error) {
+      console.error("Update phone number error:", error);
+      res.status(500).json({ error: "Failed to update phone number" });
     }
   });
 
