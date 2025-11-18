@@ -3,23 +3,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Shield, Users, Activity, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
 import CodeBlock from "@/components/CodeBlock";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import logoUrl from "@assets/Yubin_Dash-removebg-preview_1763444826522.png";
 
 export default function Landing() {
+  const { t } = useLanguage();
+
   const features = [
     {
       icon: Shield,
-      title: "Secure API Proxy",
-      description: "Your API credentials stay hidden. We handle ExtremeSMS integration securely."
+      title: t('landing.features.secure'),
+      description: t('landing.features.secureDesc')
     },
     {
       icon: Users,
-      title: "Client Management",
-      description: "Easily manage multiple clients with individual API keys and usage tracking."
+      title: t('landing.features.flexible'),
+      description: t('landing.features.flexibleDesc')
     },
     {
       icon: Activity,
-      title: "Real-time Monitoring",
-      description: "Track API usage, delivery status, and system health in real-time."
+      title: t('landing.features.complete'),
+      description: t('landing.features.completeDesc')
     }
   ];
 
@@ -33,18 +38,16 @@ export default function Landing() {
       <header className="border-b border-border">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">I</span>
-              </div>
-              <span className="text-xl font-semibold">Ibiki SMS</span>
+            <div className="flex items-center gap-3">
+              <img src={logoUrl} alt="Yubin Dash" className="h-10 w-auto" />
             </div>
             <div className="flex items-center gap-3">
+              <LanguageToggle />
               <Link href="/login">
-                <Button variant="ghost" data-testid="button-login">Login</Button>
+                <Button variant="ghost" data-testid="button-login">{t('landing.login')}</Button>
               </Link>
               <Link href="/signup">
-                <Button data-testid="button-get-started">Get Started</Button>
+                <Button data-testid="button-get-started">{t('landing.cta')}</Button>
               </Link>
             </div>
           </div>
@@ -54,24 +57,21 @@ export default function Landing() {
       <section className="py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            SMS API Middleware
-            <br />
-            <span className="text-primary">Made Simple</span>
+            {t('landing.title')}
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
-            Ibiki SMS provides a secure API passthrough service. Connect your applications
-            seamlessly while we handle the complexity of SMS delivery.
+            {t('landing.subtitle')}
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Link href="/signup">
               <Button size="lg" data-testid="button-hero-signup">
-                Get Started
+                {t('landing.cta')}
                 <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
             </Link>
             <Link href="/docs">
               <Button size="lg" variant="outline" data-testid="button-view-docs">
-                View Documentation
+                {t('nav.docs')}
               </Button>
             </Link>
           </div>

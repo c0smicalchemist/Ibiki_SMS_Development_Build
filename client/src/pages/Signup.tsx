@@ -7,10 +7,14 @@ import { Link, useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import logoUrl from "@assets/Yubin_Dash-removebg-preview_1763444826522.png";
 
 export default function Signup() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -59,26 +63,22 @@ export default function Signup() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
+        <div className="flex items-center justify-between mb-6">
           <Link href="/">
-            <div className="inline-flex items-center gap-2 mb-4 cursor-pointer">
-              <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">I</span>
-              </div>
-              <span className="text-xl font-semibold">Ibiki SMS</span>
-            </div>
+            <img src={logoUrl} alt="Yubin Dash" className="h-12 w-auto cursor-pointer" />
           </Link>
+          <LanguageToggle />
         </div>
 
         <Card data-testid="card-signup">
           <CardHeader>
-            <CardTitle>Create your account</CardTitle>
-            <CardDescription>Get started with Ibiki SMS API access</CardDescription>
+            <CardTitle>{t('auth.signup.title')}</CardTitle>
+            <CardDescription>{t('auth.signup.subtitle')}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name">{t('auth.signup.name')}</Label>
                 <Input
                   id="name"
                   type="text"
@@ -91,7 +91,7 @@ export default function Signup() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t('auth.signup.email')}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -104,7 +104,7 @@ export default function Signup() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="company">Company</Label>
+                <Label htmlFor="company">{t('auth.signup.company')}</Label>
                 <Input
                   id="company"
                   type="text"
@@ -116,7 +116,7 @@ export default function Signup() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t('auth.signup.password')}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -128,7 +128,7 @@ export default function Signup() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword">{t('auth.signup.confirmPassword')}</Label>
                 <Input
                   id="confirmPassword"
                   type="password"
@@ -139,16 +139,16 @@ export default function Signup() {
                 />
               </div>
 
-              <Button type="submit" className="w-full" data-testid="button-signup">
-                Create Account
+              <Button type="submit" className="w-full" disabled={signupMutation.isPending} data-testid="button-signup">
+                {signupMutation.isPending ? t('common.loading') : t('auth.signup.submit')}
               </Button>
             </form>
 
             <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Already have an account? </span>
+              <span className="text-muted-foreground">{t('auth.signup.hasAccount')} </span>
               <Link href="/login">
                 <a className="text-primary hover:underline" data-testid="link-login">
-                  Sign in
+                  {t('auth.signup.loginLink')}
                 </a>
               </Link>
             </div>
