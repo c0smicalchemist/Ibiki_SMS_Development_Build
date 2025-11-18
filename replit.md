@@ -6,7 +6,20 @@ Ibiki SMS is a professional SMS API middleware platform that acts as a secure pa
 
 ## Recent Changes (November 18, 2025)
 
-### Version 9 (Latest - Password Reset via Email)
+### Version 10 (Latest - ExtremeSMS Balance Display)
+1. **Live Balance Monitoring**: Admin dashboard now displays real-time ExtremeSMS account balance
+   - New endpoint GET /api/admin/extremesms-balance
+   - Auto-refreshes every 30 seconds
+   - Shows balance with currency (e.g., "USD 1,234.56")
+   - Displays loading and error states appropriately
+   - Integrated as 4th stat card on admin dashboard
+2. **Security Hardening**:
+   - No sensitive data leaked in error messages or logs
+   - Only HTTP status codes logged for debugging
+   - Generic error messages to protect API credentials
+   - Axios validateStatus configured for proper error handling
+
+### Version 9 (Password Reset via Email)
 1. **Password Reset Feature**: Complete password reset flow with email notifications
    - Forgot password page with email input
    - Reset password page with token validation
