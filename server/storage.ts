@@ -77,11 +77,13 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
+    // First user is automatically promoted to admin
+    const isFirstUser = this.users.size === 0;
     const user: User = { 
       ...insertUser,
       id,
       company: insertUser.company ?? null,
-      role: insertUser.role ?? "client",
+      role: isFirstUser ? "admin" : (insertUser.role ?? "client"),
       isActive: insertUser.isActive ?? true,
       createdAt: new Date()
     };

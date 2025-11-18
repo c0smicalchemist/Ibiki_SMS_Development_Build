@@ -107,4 +107,7 @@ Preferred communication style: Simple, everyday language.
 - PM2 process manager for production server
 - Nginx reverse proxy for HTTPS/domain routing
 - Ubuntu/Debian Linux server environment
-- Automated deployment script (deploy.sh)
+- Automated 1-click deployment script (deploy.sh)
+- Complete deployment documentation (DEPLOYMENT.md, QUICKSTART.md)
+- First user auto-promoted to admin for easy setup
+- Server target: 151.243.109.79

@@ -1,23 +1,23 @@
-# Ibiki SMS - Deployment Guide
+# Yubin Dash - Deployment Guide
 
-Complete deployment guide for installing Ibiki SMS on your server at 151.243.109.79
+Complete deployment guide for installing Yubin Dash SMS API middleware on your Linux server (151.243.109.79)
 
 ## Prerequisites
 
 - Ubuntu/Debian Linux server (20.04 or later recommended)
 - Root or sudo access
-- Minimum 1GB RAM
-- Domain name pointing to your server (e.g., api.ibikisms.com)
+- Minimum 1GB RAM, 2GB recommended
+- Domain name pointing to your server (e.g., api.yubindash.com)
 
 ## Quick Start (1-Click Deployment)
 
 ### Step 1: Prepare Your Files
 
-1. Download/clone the Ibiki SMS codebase to your local machine
+1. Download/clone the Yubin Dash codebase to your local machine
 2. Upload the entire folder to your server:
 
 ```bash
-scp -r ibiki-sms root@151.243.109.79:/root/
+scp -r yubin-dash root@151.243.109.79:/root/
 ```
 
 Or use an FTP client like FileZilla to upload the folder.
@@ -27,7 +27,7 @@ Or use an FTP client like FileZilla to upload the folder.
 SSH into your server and run:
 
 ```bash
-cd /root/ibiki-sms
+cd /root/yubin-dash
 chmod +x deploy.sh
 sudo ./deploy.sh
 ```
@@ -52,21 +52,28 @@ Value: 151.243.109.79
 TTL: 3600
 ```
 
-### Step 4: Set Up SSL (Optional but Recommended)
+### Step 4: Set Up SSL (Recommended for Production)
 
 Install Certbot and get a free SSL certificate:
 
 ```bash
 sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d api.ibikisms.com
+sudo certbot --nginx -d api.yubindash.com
 ```
 
-Follow the prompts to complete SSL setup.
+Follow the prompts to complete SSL setup. Certbot will automatically configure Nginx for HTTPS.
 
-### Step 5: Configure ExtremeSMS
+### Step 5: Create Admin Account
 
-1. Navigate to `http://api.ibikisms.com/admin`
-2. Log in with admin credentials (create admin account first)
+1. Navigate to `http://api.yubindash.com/signup` (or your domain)
+2. Create your account with email and password
+3. **The first user is automatically promoted to admin!** No manual steps needed.
+4. Save your API key when displayed (only shown once)
+
+### Step 6: Configure ExtremeSMS
+
+1. Log in to your admin account
+2. Navigate to the Admin Dashboard
 3. Go to "Configuration" tab
 4. Enter your ExtremeSMS API key
 5. Set your pricing:
@@ -78,7 +85,7 @@ Follow the prompts to complete SSL setup.
 ## Installation Directory Structure
 
 ```
-/opt/ibiki-sms/
+/opt/yubin-dash/
 ├── client/               # Frontend source
 ├── server/               # Backend source
 ├── shared/               # Shared types
@@ -90,11 +97,12 @@ Follow the prompts to complete SSL setup.
 
 ## Environment Variables
 
-Edit `/opt/ibiki-sms/.env` to configure:
+Edit `/opt/yubin-dash/.env` to configure:
 
 ```bash
 # Security
 JWT_SECRET=your-generated-secret
+SESSION_SECRET=your-generated-secret
 
 # ExtremeSMS
 EXTREMESMS_API_KEY=your_key_here
@@ -110,54 +118,63 @@ PORT=3000
 After editing, restart the application:
 
 ```bash
-pm2 restart ibiki-sms
+pm2 restart yubin-dash
 ```
 
 ## Accessing the Application
 
-- **Client Portal**: `http://api.ibikisms.com/`
-- **Client Dashboard**: `http://api.ibikisms.com/dashboard`
-- **API Documentation**: `http://api.ibikisms.com/docs`
-- **Admin Dashboard**: `http://api.ibikisms.com/admin`
+- **Landing Page**: `http://api.yubindash.com/`
+- **Client Signup**: `http://api.yubindash.com/signup`
+- **Client Login**: `http://api.yubindash.com/login`
+- **Client Dashboard**: `http://api.yubindash.com/dashboard` (after login)
+- **Admin Dashboard**: Access after logging in with admin account
 
 ## Creating Admin Account
 
-The first user to sign up will need to be manually promoted to admin:
+**The first user to sign up is automatically promoted to admin!**
 
-1. Sign up at `/signup`
-2. SSH into server
-3. Access the application data (in-memory for development)
-4. Or modify the code to create admin user on first signup
+When you deploy the application for the first time:
+1. Navigate to the signup page
+2. Create your account with email and password
+3. You'll be automatically assigned the admin role
+4. All subsequent users will be created as regular clients
 
-**Recommended**: Create a dedicated signup endpoint for admin in production.
+**Important Notes:**
+- The application uses in-memory storage by default, so data is lost on restart
+- For production with persistent data, migrate to PostgreSQL (see section below)
+- Admin role grants access to:
+  - System configuration (ExtremeSMS API key, pricing)
+  - Client management (view all clients, manage credits)
+  - Monitoring and analytics
+  - Credit transaction history
 
 ## Managing the Application
 
 ### View Application Status
 ```bash
 pm2 status
-pm2 info ibiki-sms
+pm2 info yubin-dash
 ```
 
 ### View Logs
 ```bash
-pm2 logs ibiki-sms
-pm2 logs ibiki-sms --lines 100
+pm2 logs yubin-dash
+pm2 logs yubin-dash --lines 100
 ```
 
 ### Restart Application
 ```bash
-pm2 restart ibiki-sms
+pm2 restart yubin-dash
 ```
 
 ### Stop Application
 ```bash
-pm2 stop ibiki-sms
+pm2 stop yubin-dash
 ```
 
 ### Reload Application (Zero Downtime)
 ```bash
-pm2 reload ibiki-sms
+pm2 reload yubin-dash
 ```
 
 ### Monitor Application
@@ -169,7 +186,7 @@ pm2 monit
 
 Nginx configuration is located at:
 ```
-/etc/nginx/sites-available/ibiki-sms
+/etc/nginx/sites-available/yubin-dash
 ```
 
 Test configuration:
@@ -187,31 +204,31 @@ sudo systemctl reload nginx
 To update to a new version:
 
 ```bash
-cd /root/ibiki-sms
+cd /root/yubin-dash
 git pull  # or upload new files
-cd /opt/ibiki-sms
-sudo -u ibiki npm ci
-sudo -u ibiki npm run build
-pm2 restart ibiki-sms
+cd /opt/yubin-dash
+sudo -u yubin npm ci
+sudo -u yubin npm run build
+pm2 restart yubin-dash
 ```
 
 ## Backup and Maintenance
 
 ### Backup Environment File
 ```bash
-sudo cp /opt/ibiki-sms/.env /root/ibiki-sms-env-backup
+sudo cp /opt/yubin-dash/.env /root/yubin-dash-env-backup
 ```
 
 ### View Application Logs
 ```bash
-tail -f /var/log/ibiki-sms/combined.log
-tail -f /var/log/ibiki-sms/error.log
+tail -f /var/log/yubin-dash/combined.log
+tail -f /var/log/yubin-dash/error.log
 ```
 
 ### Monitor Disk Usage
 ```bash
 df -h
-du -sh /opt/ibiki-sms
+du -sh /opt/yubin-dash
 ```
 
 ## Troubleshooting
@@ -219,13 +236,13 @@ du -sh /opt/ibiki-sms
 ### Application Won't Start
 ```bash
 # Check logs
-pm2 logs ibiki-sms --lines 50
+pm2 logs yubin-dash --lines 50
 
 # Check if port is in use
 sudo lsof -i :3000
 
 # Verify environment file
-cat /opt/ibiki-sms/.env
+cat /opt/yubin-dash/.env
 ```
 
 ### Nginx 502 Bad Gateway
@@ -237,14 +254,14 @@ pm2 status
 sudo tail -f /var/log/nginx/error.log
 
 # Restart services
-pm2 restart ibiki-sms
+pm2 restart yubin-dash
 sudo systemctl restart nginx
 ```
 
 ### Cannot Access from Domain
 ```bash
 # Check DNS resolution
-nslookup api.ibikisms.com
+nslookup api.yubindash.com
 
 # Check firewall
 sudo ufw status
@@ -255,7 +272,7 @@ sudo systemctl status nginx
 
 ### ExtremeSMS API Not Working
 1. Verify API key in admin panel
-2. Check /var/log/ibiki-sms/error.log for API errors
+2. Check /var/log/yubin-dash/error.log for API errors
 3. Test connection using "Test Connection" button in admin panel
 4. Verify ExtremeSMS account has credits
 
@@ -283,7 +300,7 @@ sudo systemctl status nginx
 
 5. **Secure .env File**: Ensure proper permissions
    ```bash
-   sudo chmod 600 /opt/ibiki-sms/.env
+   sudo chmod 600 /opt/yubin-dash/.env
    ```
 
 ## Running Multiple Services
@@ -294,7 +311,7 @@ If you're running other services on the same server:
 2. Create separate Nginx server blocks
 3. Each service should have its own PM2 app name
 4. Consider using subdomains:
-   - `api.ibikisms.com` - Ibiki SMS
+   - `api.yubindash.com` - Yubin Dash
    - `other.domain.com` - Other service
 
 ## Performance Optimization
@@ -302,7 +319,7 @@ If you're running other services on the same server:
 For high-traffic scenarios:
 
 1. **Increase PM2 Instances**:
-   Edit `/opt/ibiki-sms/ecosystem.config.cjs`:
+   Edit `/opt/yubin-dash/ecosystem.config.cjs`:
    ```javascript
    instances: 'max'  // Use all CPU cores
    ```
@@ -316,7 +333,7 @@ For high-traffic scenarios:
 ## Support
 
 For issues or questions:
-- Check logs: `pm2 logs ibiki-sms`
+- Check logs: `pm2 logs yubin-dash`
 - Review Nginx logs: `/var/log/nginx/`
 - Verify configuration: Check `.env` file
 

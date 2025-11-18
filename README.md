@@ -1,6 +1,6 @@
-# Ibiki SMS API Middleware
+# Yubin Dash - SMS API Middleware
 
-A professional SMS API middleware platform that provides a secure passthrough service to ExtremeSMS. Hide your ExtremeSMS credentials from clients while managing pricing, credits, and usage tracking.
+A professional SMS API middleware platform that provides a secure passthrough service to ExtremeSMS. Hide your ExtremeSMS credentials from clients while managing pricing, credits, and usage tracking with multilingual support (English/Chinese).
 
 ## Features
 
@@ -11,6 +11,8 @@ A professional SMS API middleware platform that provides a secure passthrough se
 - **Complete API**: All 5 ExtremeSMS endpoints supported
 - **Admin Dashboard**: Monitor clients, configure settings, view activity
 - **Professional UI**: Clean, modern interface with dark mode support
+- **Multilingual**: Full English and Chinese language support
+- **Auto-Admin**: First user is automatically promoted to admin
 
 ## Quick Start
 
@@ -42,7 +44,7 @@ All endpoints mirror ExtremeSMS API with authentication:
 
 ### Authentication
 ```bash
-Authorization: Bearer YOUR_IBIKI_API_KEY
+Authorization: Bearer YOUR_YUBIN_API_KEY
 ```
 
 ### Endpoints
@@ -87,7 +89,7 @@ Configure ExtremeSMS and pricing via the admin panel at `/admin`:
 ## Project Structure
 
 ```
-ibiki-sms/
+yubin-dash/
 ├── client/                  # React frontend
 │   ├── src/
 │   │   ├── components/     # Reusable UI components
@@ -134,10 +136,10 @@ const axios = require('axios');
 
 // Send single SMS
 const response = await axios.post(
-  'https://api.ibikisms.com/api/v2/sms/sendsingle',
+  'https://api.yubindash.com/api/v2/sms/sendsingle',
   {
     recipient: '+1234567890',
-    message: 'Hello from Ibiki SMS!'
+    message: 'Hello from Yubin Dash!'
   },
   {
     headers: {
@@ -155,7 +157,7 @@ console.log(response.data);
 
 ```javascript
 const balance = await axios.get(
-  'https://api.ibikisms.com/api/v2/account/balance',
+  'https://api.yubindash.com/api/v2/account/balance',
   {
     headers: {
       'Authorization': 'Bearer ibk_live_your_api_key'
@@ -230,12 +232,12 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions.
 
 ### View Logs
 ```bash
-pm2 logs ibiki-sms
+pm2 logs yubin-dash
 ```
 
 ### Restart Application
 ```bash
-pm2 restart ibiki-sms
+pm2 restart yubin-dash
 ```
 
 ### Monitor Performance
@@ -251,7 +253,7 @@ pm2 status
 ## Troubleshooting
 
 ### Application Won't Start
-- Check logs: `pm2 logs ibiki-sms`
+- Check logs: `pm2 logs yubin-dash`
 - Verify .env file exists and is configured
 - Ensure port 3000 is available
 
@@ -282,9 +284,19 @@ Proprietary - All rights reserved
 ## Support
 
 For deployment assistance or issues:
-- Review logs in `/var/log/ibiki-sms/`
+- Review logs in `/var/log/yubin-dash/`
 - Check PM2 status: `pm2 status`
 - Verify Nginx configuration: `nginx -t`
+- See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed troubleshooting
+
+## Quick Deployment
+
+Upload to your server and run:
+```bash
+sudo ./deploy.sh
+```
+
+See [QUICKSTART.md](./QUICKSTART.md) for 3-step deployment guide.
 
 ---
 

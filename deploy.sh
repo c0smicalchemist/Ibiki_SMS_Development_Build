@@ -1,21 +1,21 @@
 #!/bin/bash
 
-# Ibiki SMS - 1-Click Deployment Script
-# This script deploys the Ibiki SMS application to your server
+# Yubin Dash - 1-Click Deployment Script
+# This script deploys the Yubin Dash SMS API middleware application to your server
 
 set -e  # Exit on any error
 
 echo "================================="
-echo "Ibiki SMS Deployment Script"
+echo "Yubin Dash Deployment Script"
 echo "================================="
 echo ""
 
 # Configuration
-APP_NAME="ibiki-sms"
+APP_NAME="yubin-dash"
 INSTALL_DIR="/opt/${APP_NAME}"
-APP_USER="${APP_USER:-ibiki}"
+APP_USER="${APP_USER:-yubin}"
 APP_PORT="${APP_PORT:-3000}"
-DOMAIN="${DOMAIN:-api.ibikisms.com}"
+DOMAIN="${DOMAIN:-api.yubindash.com}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -91,13 +91,14 @@ if [ ! -f "$INSTALL_DIR/.env" ]; then
     JWT_SECRET=$(openssl rand -hex 32)
     
     cat > "$INSTALL_DIR/.env" << EOF
-# Ibiki SMS Configuration
+# Yubin Dash Configuration
 NODE_ENV=production
 PORT=${APP_PORT}
 HOST=0.0.0.0
 
 # Security
 JWT_SECRET=${JWT_SECRET}
+SESSION_SECRET=${JWT_SECRET}
 
 # ExtremeSMS Configuration (set via admin panel after deployment)
 EXTREMESMS_API_KEY=
