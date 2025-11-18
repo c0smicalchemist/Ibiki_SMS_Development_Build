@@ -118,7 +118,7 @@ export default function ApiDocs() {
 
   const webhookInfo = {
     title: "Webhook Configuration (2-Way SMS)",
-    description: "Configure this webhook URL in your ExtremeSMS account to receive incoming messages:",
+    description: "Configure this webhook URL in your SMS provider account to receive incoming messages:",
     webhookUrl: "http://151.243.109.79/webhook/incoming-sms",
     payloadExample: `{
   "from": "XXXXXXXXXXX",
@@ -181,7 +181,7 @@ export default function ApiDocs() {
                 {webhookInfo.webhookUrl}
               </code>
               <div className="mt-4">
-                <p className="text-sm font-medium mb-2">ExtremeSMS will POST this payload when you receive SMS:</p>
+                <p className="text-sm font-medium mb-2">The system will POST this payload when you receive SMS:</p>
                 <pre className="bg-muted p-3 rounded text-xs font-mono overflow-x-auto">
                   {webhookInfo.payloadExample}
                 </pre>
