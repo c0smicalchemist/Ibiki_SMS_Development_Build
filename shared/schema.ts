@@ -12,9 +12,12 @@ export const users = pgTable("users", {
   company: text("company"),
   role: text("role").notNull().default("client"), // "admin" or "client"
   isActive: boolean("is_active").notNull().default(true),
+  resetToken: text("reset_token"), // Password reset token
+  resetTokenExpiry: timestamp("reset_token_expiry"), // Token expiration time
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   emailIdx: index("email_idx").on(table.email),
+  resetTokenIdx: index("reset_token_idx").on(table.resetToken),
 }));
 
 // Client API keys
