@@ -1,0 +1,47 @@
+
+      PORT: 3000
+-rw------- 1 ibiki ibiki 263 Nov 18 15:15 .env
+-rw-r--r-- 1 ibiki ibiki 640 Nov 18 05:49 .env.example
+root@server68521:~/ibiki-sms# pm2 list
+┌────┬──────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name         │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼──────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ ibiki-sms    │ default     │ 1.0.0   │ cluster │ 80967    │ 45s    │ 0    │ online    │ 0%       │ 86.9mb   │ root     │ disabled │
+└────┴──────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+root@server68521:~/ibiki-sms# sudo ss -tulpn | grep :6000
+root@server68521:~/ibiki-sms# curl http://localhost:6000
+curl: (7) Failed to connect to localhost port 6000 after 0 ms: Connection refused
+root@server68521:~/ibiki-sms# sudo systemctl status nginx
+● nginx.service - A high performance web server and a reverse proxy server
+     Loaded: loaded (/lib/systemd/system/nginx.service; enabled; vendor preset: enabled)
+     Active: active (running) since Tue 2025-11-18 08:17:07 UTC; 7h ago
+       Docs: man:nginx(8)
+    Process: 80908 ExecReload=/usr/sbin/nginx -g daemon on; master_process on; -s reload (code=exited, status=0/SUCCESS)
+   Main PID: 737 (nginx)
+      Tasks: 2 (limit: 2217)
+     Memory: 3.2M
+        CPU: 608ms
+     CGroup: /system.slice/nginx.service
+             ├─  737 "nginx: master process /usr/sbin/nginx -g daemon on; master_process on;"
+             └─80909 "nginx: worker process" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
+
+Nov 18 14:25:15 server68521.anon systemd[1]: Reloading A high performance web server and a reverse proxy server...
+Nov 18 14:25:15 server68521.anon systemd[1]: Reloaded A high performance web server and a reverse proxy server.
+Nov 18 14:32:52 server68521.anon systemd[1]: Reloading A high performance web server and a reverse proxy server...
+Nov 18 14:32:52 server68521.anon systemd[1]: Reloaded A high performance web server and a reverse proxy server.
+Nov 18 15:03:01 server68521.anon systemd[1]: Reloading A high performance web server and a reverse proxy server...
+Nov 18 15:03:01 server68521.anon systemd[1]: Reloaded A high performance web server and a reverse proxy server.
+Nov 18 15:09:51 server68521.anon systemd[1]: Reloading A high performance web server and a reverse proxy server...
+Nov 18 15:09:51 server68521.anon systemd[1]: Reloaded A high performance web server and a reverse proxy server.
+Nov 18 15:19:25 server68521.anon systemd[1]: Reloading A high performance web server and a reverse proxy server...
+Nov 18 15:19:25 server68521.anon systemd[1]: Reloaded A high performance web server and a reverse proxy server.
+root@server68521:~/ibiki-sms# pm2 logs ibiki-sms --lines 20
+[TAILING] Tailing last 20 lines for [ibiki-sms] process (change the value with --lines option)
+/var/log/ibiki-sms/error-0.log last 20 lines:
+/var/log/ibiki-sms/out-0.log last 20 lines:
+0|ibiki-sm | 2025-11-18T15:17:20: 3:17:20 PM [express] serving on port 6000
+0|ibiki-sm | 2025-11-18T15:19:16: 3:19:16 PM [express] serving on port 3000
+0|ibiki-sm | 2025-11-18T15:19:34: 3:19:34 PM [express] serving on port 3000
+
+^C
+root@server68521:~/ibiki-sms#
