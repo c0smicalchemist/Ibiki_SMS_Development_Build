@@ -65,7 +65,9 @@ pm2 logs ibiki-sms
 
 ## ✅ **After Running the Fix**
 
-Visit: `http://151.243.109.79:3100`
+Visit: `http://151.243.109.79` (no port needed - Nginx reverse proxy!)
+
+Or direct: `http://151.243.109.79:6000`
 
 You should see the Ibiki SMS landing page!
 

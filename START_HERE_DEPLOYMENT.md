@@ -88,7 +88,7 @@ The `deploy.sh` script now has:
 10. Starts application
 
 ### **After Deployment:**
-1. Visit http://151.243.109.79:3100
+1. Visit http://151.243.109.79 (no port needed - Nginx!)
 2. Create admin account
 3. Configure ExtremeSMS
 4. Start using!
@@ -140,11 +140,12 @@ curl http://localhost:3100  # Test locally
 ## 🎯 **WHAT YOU'LL HAVE AFTER DEPLOYMENT:**
 
 - **Service Name:** ibiki-sms
-- **Port:** 3100 (configurable)
+- **Internal Port:** 6000 (app runs here)
+- **External Access:** Port 80 via Nginx (http://IP)
 - **Location:** /opt/ibiki-sms/
 - **User:** ibiki
 - **Process Manager:** PM2
-- **Web Server:** Nginx
+- **Web Server:** Nginx reverse proxy
 - **Auto-start:** Yes (survives reboots)
 
 ---

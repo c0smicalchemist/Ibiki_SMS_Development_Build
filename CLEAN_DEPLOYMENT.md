@@ -143,7 +143,7 @@ chmod +x deploy.sh
 
 ### **Step 5: Run Deployment**
 
-#### **Option A: Default Deployment (Port 3100)**
+#### **Option A: Default Deployment (Port 6000, Nginx on Port 80)**
 
 ```bash
 sudo ./deploy.sh
@@ -153,7 +153,7 @@ sudo ./deploy.sh
 
 ```bash
 # Set environment variables first
-export APP_PORT=3100
+export APP_PORT=6000
 export DOMAIN=sms.yourdomain.com
 
 # Then deploy
@@ -189,7 +189,7 @@ Ibiki SMS Deployment Script
 =================================
 
 [✓] Checking system requirements...
-[✓] Port 3100 is available
+[✓] Port 6000 is available
 [✓] Node.js already installed: v20.x.x
 [✓] Created user: ibiki
 [✓] Installing application to /opt/ibiki-sms...
@@ -233,8 +233,11 @@ pm2 list
 ### **Step 2: Test Application Locally**
 
 ```bash
-# Test if server responds
-curl http://localhost:3100
+# Test direct port
+curl http://localhost:6000
+
+# Test via Nginx (recommended)
+curl http://localhost
 
 # Should return HTML (the landing page)
 ```
@@ -246,14 +249,19 @@ curl http://localhost:3100
 pm2 logs ibiki-sms
 
 # Should show:
-# Server running on http://0.0.0.0:3100
+# Server running on http://0.0.0.0:6000
 ```
 
 ### **Step 4: Test from Browser**
 
-**Without Domain:**
+**Via Nginx (recommended):**
 ```
-http://151.243.109.79:3100
+http://151.243.109.79
+```
+
+**Direct Port:**
+```
+http://151.243.109.79:6000
 ```
 
 **With Domain (after DNS setup):**
@@ -391,7 +399,7 @@ Click **"Test Connection"**
 
 Your services are now running:
 - 🎯 **Ibiki Dash:** Port 3000 (your existing service)
-- 📱 **Ibiki SMS:** Port 3100 (new SMS API)
+- 📱 **Ibiki SMS:** Port 6000 internal / Port 80 external via Nginx
 
 ---
 
@@ -473,12 +481,12 @@ pm2 restart ibiki-sms
 ### **Port Already in Use**
 
 ```bash
-# Find what's using port 3100
-sudo ss -ltnp | grep :3100
+# Find what's using port 6000
+sudo ss -ltnp | grep :6000
 
 # Use different port
 cd /root/ibiki-sms
-export APP_PORT=3200
+export APP_PORT=6100
 sudo ./deploy.sh
 ```
 
@@ -488,8 +496,9 @@ sudo ./deploy.sh
 # Check firewall
 sudo ufw status
 
-# Allow port (if firewall is active)
-sudo ufw allow 3100/tcp
+# Allow HTTP/HTTPS (if firewall is active)
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
 sudo ufw allow 'Nginx Full'
 
 # Check Nginx

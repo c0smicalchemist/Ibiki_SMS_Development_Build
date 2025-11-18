@@ -16,7 +16,7 @@ cd /root && unzip ibiki-sms.zip && cd ibiki-sms
 chmod +x deploy.sh && sudo ./deploy.sh
 ```
 
-**Done!** Visit: `http://151.243.109.79:3100`
+**Done!** Visit: `http://151.243.109.79` (no port needed!)
 
 ---
 
@@ -28,11 +28,12 @@ Read: **`DEPLOY_GUIDE.md`** - Complete step-by-step instructions
 
 ## ✅ **What Gets Deployed:**
 
-- Port: **3100** (Ibiki Dash uses 3000, no conflict!)
+- Internal Port: **6000** (app runs here)
+- External Access: **Port 80** via Nginx (http://IP_ADDRESS)
 - Location: `/opt/ibiki-sms/`
 - User: `ibiki`
 - Process Manager: PM2
-- Web Server: Nginx
+- Web Server: Nginx reverse proxy
 
 ---
 
@@ -47,10 +48,10 @@ cd ibiki-sms  # or cd IbikiGateway
 sudo ./deploy.sh
 ```
 
-### **"Port 3100 already in use"**
+### **"Port 6000 already in use"**
 Use a different port:
 ```bash
-export APP_PORT=3200
+export APP_PORT=6100
 sudo ./deploy.sh
 ```
 

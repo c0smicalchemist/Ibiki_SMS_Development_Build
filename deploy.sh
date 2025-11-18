@@ -14,8 +14,8 @@ echo ""
 APP_NAME="ibiki-sms"
 INSTALL_DIR="/opt/${APP_NAME}"
 APP_USER="${APP_USER:-ibiki}"
-APP_PORT="${APP_PORT:-3100}"  # Using 3100 to avoid conflict with common port 3000
-DOMAIN="${DOMAIN:-api.ibikisms.com}"
+APP_PORT="${APP_PORT:-6000}"  # Using 6000 as default port
+DOMAIN="${DOMAIN:-_}"  # Default to catch-all (IP address access)
 SKIP_NGINX="${SKIP_NGINX:-false}"  # Set to 'true' if you manage Nginx manually
 
 # Colors for output
@@ -308,10 +308,20 @@ if [ "$SKIP_NGINX" != "true" ]; then
 
     # Step 12: Create Nginx configuration
     log_info "Creating Nginx configuration..."
+    
+    # Determine server_name based on DOMAIN
+    if [ "$DOMAIN" = "_" ]; then
+        SERVER_NAME="_"
+        log_info "Configuring Nginx for IP address access (no domain)"
+    else
+        SERVER_NAME="${DOMAIN}"
+        log_info "Configuring Nginx for domain: ${DOMAIN}"
+    fi
+    
     cat > "/etc/nginx/sites-available/${APP_NAME}" << EOF
 server {
-    listen 80;
-    server_name ${DOMAIN} www.${DOMAIN};
+    listen 80 default_server;
+    server_name ${SERVER_NAME};
 
     # Increase client body size for file uploads
     client_max_body_size 10M;
@@ -340,6 +350,9 @@ server {
 }
 EOF
 
+    # Remove default Nginx site to avoid conflicts
+    rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+
     # Enable site
     ln -sf "/etc/nginx/sites-available/${APP_NAME}" "/etc/nginx/sites-enabled/${APP_NAME}"
     
@@ -364,15 +377,20 @@ log_info "Application deployed successfully!"
 echo ""
 echo "Service Information:"
 echo "  - Name: ${APP_NAME}"
-echo "  - Port: ${APP_PORT}"
+echo "  - Port: ${APP_PORT} (internal)"
 echo "  - Directory: ${INSTALL_DIR}"
 echo "  - User: ${APP_USER}"
 echo ""
 echo "Access your application:"
-echo "  - Local: http://localhost:${APP_PORT}"
-echo "  - Public IP: http://YOUR_SERVER_IP:${APP_PORT}"
 if [ "$SKIP_NGINX" != "true" ]; then
-    echo "  - Domain: http://${DOMAIN}"
+    echo "  - Via IP: http://YOUR_SERVER_IP"
+    if [ "$DOMAIN" != "_" ]; then
+        echo "  - Via Domain: http://${DOMAIN}"
+    fi
+    echo "  - Direct Port: http://YOUR_SERVER_IP:${APP_PORT}"
+else
+    echo "  - Local: http://localhost:${APP_PORT}"
+    echo "  - Public: http://YOUR_SERVER_IP:${APP_PORT}"
 fi
 echo ""
 echo "Useful commands:"
