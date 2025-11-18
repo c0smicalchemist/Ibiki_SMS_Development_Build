@@ -6,7 +6,26 @@ Ibiki SMS is a professional SMS API middleware platform that acts as a secure pa
 
 ## Recent Changes (November 18, 2025)
 
-### Version 8 (Latest - All Dummy Data Removed)
+### Version 9 (Latest - Password Reset via Email)
+1. **Password Reset Feature**: Complete password reset flow with email notifications
+   - Forgot password page with email input
+   - Reset password page with token validation
+   - Email sent via Resend integration with professional HTML template
+   - Secure token generation (1 hour expiration)
+   - "Forgot Password?" link on login page
+   - Success screens and error handling throughout
+2. **Database Schema Updates**: Added resetToken and resetTokenExpiry fields to users table
+3. **Backend API**: Three new endpoints for password reset flow
+   - POST /api/auth/forgot-password (sends reset email)
+   - GET /api/auth/verify-reset-token/:token (validates token)
+   - POST /api/auth/reset-password (updates password)
+4. **Security Features**:
+   - Tokens expire after 1 hour
+   - Email enumeration protection (always returns success)
+   - Password hashing with bcrypt
+   - Tokens cleared after successful reset
+
+### Version 8 (All Dummy Data Removed)
 1. **API Key Management**: Complete system for managing API keys
    - Copy button in signup dialog (full key shown once)
    - View all API keys in client dashboard (masked for security)
