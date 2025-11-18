@@ -1,0 +1,64 @@
+
+npm warn cleanup ]
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/tailwindcss/lib/util/color.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/recharts/es6/util/calculateViewBox.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/glob/dist/esm/index.d.ts.map'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/dom-helpers/esm/index.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/caniuse-lite/data/features/array-includes.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/root/ibiki-sms/node_modules/@babel/helpers/lib/helpers'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/root/ibiki-sms/node_modules/@babel/core/lib'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/@tailwindcss/typography/node_modules/postcss-selector-parser/dist/selectors/node.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/yaml/browser/dist/compose/composer.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/victory-vendor/lib-vendor/d3-shape/src/order/ascending.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/recharts/lib/util/calculateViewBox.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/root/ibiki-sms/node_modules/react-day-picker/src/contexts'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/glob/dist/commonjs/index.js.map'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/fast-glob/out/readers/async.d.ts'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/drizzle-orm/mysql-core/columns/common.cjs'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/caniuse-lite/data/features/arrow-functions.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/@types/react/ts5.0/jsx-dev-runtime.d.ts'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/@tanstack/query-core/build/modern/query.cjs'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/root/ibiki-sms/node_modules/victory-vendor/lib-vendor'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/tailwindcss/src/util/color.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/recharts/es6/cartesian/CartesianAxis.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/glob/dist/esm/index.js.map'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/fast-glob/out/providers/filters/deep.d.ts'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/dom-helpers/esm/insertAfter.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/d3-shape/src/curve/monotone.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/@types/react/ts5.0/jsx-runtime.d.ts'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/root/ibiki-sms/node_modules/@babel/helpers/lib/helpers'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/root/ibiki-sms/node_modules/@babel/core/lib'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/tailwindcss/lib/util/colorNames.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/root/ibiki-sms/node_modules/react-day-picker/src/types'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/fast-glob/out/providers/filters/entry.d.ts'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/d3-shape/src/curve/natural.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/root/ibiki-sms/node_modules/caniuse-lite/data/features/asmjs.js'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/root/ibiki-sms/node_modules/@tanstack/react-query/build/codemods/src/v5'
+npm error code EACCES
+npm error syscall mkdir
+npm error path /opt/ibiki-sms
+npm error errno -13
+npm error Error: EACCES: permission denied, mkdir '/opt/ibiki-sms'
+npm error     at async Object.mkdir (node:internal/fs/promises:858:10)
+npm error     at async makeTmp (/usr/lib/node_modules/npm/node_modules/cacache/lib/content/write.js:156:3)
+npm error     at async handleContent (/usr/lib/node_modules/npm/node_modules/cacache/lib/content/write.js:103:15) {
+npm error   errno: -13,
+npm error   code: 'EACCES',
+npm error   syscall: 'mkdir',
+npm error   path: '/opt/ibiki-sms'
+npm error }
+npm error
+npm error The operation was rejected by your operating system.
+npm error It is likely you do not have the permissions to access this file as the current user
+npm error
+npm error If you believe this might be a permissions issue, please double-check the
+npm error permissions of the file and its containing directories, or try running
+npm error the command again as root/Administrator.
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.6.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.6.2
+npm notice To update run: npm install -g npm@11.6.2
+npm notice
+npm error Log files were not written due to an error writing to the directory: /opt/ibiki-sms/.npm/_logs
+npm error You can rerun the command with `--loglevel=verbose` to see the logs in your terminal
+root@server68521:~/ibiki-sms#
