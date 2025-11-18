@@ -376,6 +376,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ============================================
+  // Webhook Routes (No authentication required)
+  // ============================================
+
+  // Incoming SMS webhook from ExtremeSMS
+  app.post("/webhook/incoming-sms", async (req, res) => {
+    try {
+      const payload = req.body;
+      console.log("Incoming SMS webhook received:", { 
+        from: payload.from, 
+        receiver: payload.receiver,
+        status: payload.status 
+      });
+
+      // Validate required fields
+      if (!payload.from || !payload.message || !payload.receiver || !payload.timestamp || !payload.messageId) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Find client by assigned phone number (receiver field)
+      let assignedUserId: string | null = null;
+      const clientProfile = await storage.getClientProfileByPhoneNumber(payload.receiver);
+      
+      if (clientProfile) {
+        assignedUserId = clientProfile.userId;
+      }
+
+      // Store incoming message
+      await storage.createIncomingMessage({
+        userId: assignedUserId,
+        from: payload.from,
+        firstname: payload.firstname || null,
+        lastname: payload.lastname || null,
+        business: payload.business || null,
+        message: payload.message,
+        status: payload.status,
+        matchedBlockWord: payload.matchedBlockWord || null,
+        receiver: payload.receiver,
+        usedmodem: payload.usedmodem || null,
+        port: payload.port || null,
+        timestamp: new Date(payload.timestamp),
+        messageId: payload.messageId
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Incoming message processed successfully" 
+      });
+    } catch (error) {
+      console.error("Webhook processing error:", error);
+      res.status(500).json({ error: "Failed to process incoming message" });
+    }
+  });
+
+  // ============================================
   // Client Dashboard Routes
   // ============================================
 
