@@ -1,0 +1,197 @@
+
+⚡ Done in 17ms
+root@server68521:/opt/ibiki-sms# pm2 restart ibiki-sms
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [ibiki-sms](ids: [ 1 ])
+[PM2] [ibiki-sms](1) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ ibiki-dash    │ default     │ 1.0.0   │ fork    │ 23138    │ 69s    │ 22   │ online    │ 0%       │ 79.3mb   │ root     │ disabled │
+│ 1  │ ibiki-sms     │ default     │ 1.0.0   │ cluster │ 23670    │ 0s     │ 0    │ online    │ 0%       │ 40.1mb   │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+root@server68521:/opt/ibiki-sms# ^C
+root@server68521:/opt/ibiki-sms# pm2 logs ibiki-sms --lines 50
+[TAILING] Tailing last 50 lines for [ibiki-sms] process (change the value with --lines option)
+/var/log/ibiki-sms/out-1.log last 50 lines:
+1|ibiki-sm | 2025-11-18T09:09:35: 9:09:35 AM [express] serving on port 5000
+
+/var/log/ibiki-sms/error-1.log last 50 lines:
+1|ibiki-sm |     at emit (node:internal/child_process:950:14)
+1|ibiki-sm |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+1|ibiki-sm | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sm |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sm |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sm |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sm |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sm |     at process.emit (node:events:536:35)
+1|ibiki-sm |     at emit (node:internal/child_process:950:14)
+1|ibiki-sm |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+1|ibiki-sm | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sm |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sm |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sm |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sm |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sm |     at process.emit (node:events:536:35)
+1|ibiki-sm |     at emit (node:internal/child_process:950:14)
+1|ibiki-sm |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+1|ibiki-sm | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sm |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sm |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sm |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sm |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sm |     at process.emit (node:events:536:35)
+1|ibiki-sm |     at emit (node:internal/child_process:950:14)
+1|ibiki-sm |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+1|ibiki-sm | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sm |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sm |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sm |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sm |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sm |     at process.emit (node:events:536:35)
+1|ibiki-sm |     at emit (node:internal/child_process:950:14)
+1|ibiki-sm |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+1|ibiki-sm | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sm |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sm |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sm |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sm |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sm |     at process.emit (node:events:536:35)
+1|ibiki-sm |     at emit (node:internal/child_process:950:14)
+1|ibiki-sm |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+1|ibiki-sm | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sm |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sm |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sm |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sm |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sm |     at process.emit (node:events:536:35)
+1|ibiki-sm |     at emit (node:internal/child_process:950:14)
+1|ibiki-sm |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+
+1|ibiki-sms  | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sms  |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sms  |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sms  |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sms  |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sms  |     at process.emit (node:events:536:35)
+1|ibiki-sms  |     at emit (node:internal/child_process:950:14)
+1|ibiki-sms  |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+1|ibiki-sms  | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sms  |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sms  |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sms  |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sms  |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sms  |     at process.emit (node:events:536:35)
+1|ibiki-sms  |     at emit (node:internal/child_process:950:14)
+1|ibiki-sms  |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+1|ibiki-sms  | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sms  |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sms  |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sms  |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sms  |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sms  |     at process.emit (node:events:536:35)
+1|ibiki-sms  |     at emit (node:internal/child_process:950:14)
+1|ibiki-sms  |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+1|ibiki-sms  | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sms  |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sms  |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sms  |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sms  |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sms  |     at process.emit (node:events:536:35)
+1|ibiki-sms  |     at emit (node:internal/child_process:950:14)
+1|ibiki-sms  |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+1|ibiki-sms  | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sms  |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sms  |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sms  |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sms  |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sms  |     at process.emit (node:events:536:35)
+1|ibiki-sms  |     at emit (node:internal/child_process:950:14)
+1|ibiki-sms  |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+sudo ss -tulpn | grep :60001|ibiki-sms  | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sms  |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sms  |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sms  |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sms  |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sms  |     at process.emit (node:events:536:35)
+1|ibiki-sms  |     at emit (node:internal/child_process:950:14)
+1|ibiki-sms  |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+
+1|ibiki-sms  | Error: bind EADDRINUSE 0.0.0.0:5000
+1|ibiki-sms  |     at listenOnPrimaryHandle (node:net:1989:18)
+1|ibiki-sms  |     at rr (node:internal/cluster/child:163:12)
+1|ibiki-sms  |     at Worker.<anonymous> (node:internal/cluster/child:113:7)
+1|ibiki-sms  |     at process.onInternalMessage (node:internal/cluster/utils:49:5)
+1|ibiki-sms  |     at process.emit (node:events:536:35)
+1|ibiki-sms  |     at emit (node:internal/child_process:950:14)
+1|ibiki-sms  |     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+^C
+root@server68521:/opt/ibiki-sms# sudo ss -tulpn | grep :6000
+root@server68521:/opt/ibiki-sms# curl http://localhost:6000
+curl: (7) Failed to connect to localhost port 6000 after 0 ms: Connection refused
+root@server68521:/opt/ibiki-sms# cat /etc/nginx/sites-available/ibiki-sms
+server {
+    listen 80;
+    server_name api.ibikisms.com www.api.ibikisms.com;
+
+    # Increase client body size for file uploads
+    client_max_body_size 10M;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    location / {
+        proxy_pass http://127.0.0.1:3100;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+root@server68521:/opt/ibiki-sms# sudo nginx -t
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+root@server68521:/opt/ibiki-sms# sudo tail -50 /var/log/nginx/error.log
+2025/11/18 06:47:41 [error] 790720#790720: *3363 client intended to send too large body: 10485761 bytes, client: 185.91.69.5, server: _, request: "POST / HTTP/1.1", host: "151.243.109.79"
+2025/11/18 06:59:32 [notice] 2057691#2057691: signal process started
+2025/11/18 07:17:02 [error] 2057692#2057692: *3370 connect() failed (111: Unknown error) while connecting to upstream, client: 20.65.195.30, server: api.ibikisms.com, request: "GET / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79"
+2025/11/18 07:19:25 [notice] 2065602#2065602: signal process started
+2025/11/18 07:22:18 [notice] 2067051#2067051: signal process started
+2025/11/18 07:35:11 [error] 2067052#2067052: *3372 connect() failed (111: Unknown error) while connecting to upstream, client: 103.157.224.118, server: api.ibikisms.com, request: "GET / HTTP/1.0", upstream: "http://127.0.0.1:3100/"
+2025/11/18 07:41:28 [error] 2067052#2067052: *3375 connect() failed (111: Unknown error) while connecting to upstream, client: 204.76.203.211, server: api.ibikisms.com, request: "GET /login.cgi?username=telecomadmin&psd=telecomadmin HTTP/1.1", upstream: "http://127.0.0.1:3100/login.cgi?username=telecomadmin&psd=telecomadmin", host: "151.243.109.79"
+2025/11/18 07:41:28 [error] 2067052#2067052: *3377 connect() failed (111: Unknown error) while connecting to upstream, client: 204.76.203.211, server: api.ibikisms.com, request: "GET /login.cgi?username=admin&psd=1234 HTTP/1.1", upstream: "http://127.0.0.1:3100/login.cgi?username=admin&psd=1234", host: "151.243.109.79"
+2025/11/18 07:41:28 [error] 2067052#2067052: *3379 connect() failed (111: Unknown error) while connecting to upstream, client: 204.76.203.211, server: api.ibikisms.com, request: "GET /login.cgi?username=awnfibre&psd=fibre@dm!n HTTP/1.1", upstream: "http://127.0.0.1:3100/login.cgi?username=awnfibre&psd=fibre@dm!n", host: "151.243.109.79"
+2025/11/18 07:41:28 [error] 2067052#2067052: *3381 connect() failed (111: Unknown error) while connecting to upstream, client: 204.76.203.211, server: api.ibikisms.com, request: "GET /login.cgi?username=admin&psd=admin HTTP/1.1", upstream: "http://127.0.0.1:3100/login.cgi?username=admin&psd=admin", host: "151.243.109.79"
+2025/11/18 08:27:06 [notice] 4826#4826: signal process started
+2025/11/18 08:53:09 [notice] 14957#14957: signal process started
+2025/11/18 08:56:25 [notice] 16265#16265: signal process started
+2025/11/18 08:59:00 [notice] 17307#17307: signal process started
+2025/11/18 09:00:35 [notice] 18130#18130: signal process started
+2025/11/18 09:01:31 [error] 18131#18131: *16 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "GET / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79"
+2025/11/18 09:01:32 [error] 18131#18131: *16 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "GET /favicon.ico HTTP/1.1", upstream: "http://127.0.0.1:3100/favicon.ico", host: "151.243.109.79", referrer: "http://151.243.109.79/"
+2025/11/18 09:01:32 [error] 18131#18131: *19 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "HEAD / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79", referrer: "http://151.243.109.79/"
+2025/11/18 09:02:29 [error] 18131#18131: *16 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "GET / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79"
+2025/11/18 09:02:30 [error] 18131#18131: *19 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "HEAD / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79", referrer: "http://151.243.109.79/"
+2025/11/18 09:02:30 [error] 18131#18131: *16 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "GET /favicon.ico HTTP/1.1", upstream: "http://127.0.0.1:3100/favicon.ico", host: "151.243.109.79", referrer: "http://151.243.109.79/"
+2025/11/18 09:02:47 [error] 18131#18131: *24 connect() failed (111: Unknown error) while connecting to upstream, client: 151.243.109.79, server: api.ibikisms.com, request: "GET / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79"
+2025/11/18 09:06:26 [error] 18131#18131: *26 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "GET / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79"
+2025/11/18 09:06:27 [error] 18131#18131: *26 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "GET /favicon.ico HTTP/1.1", upstream: "http://127.0.0.1:3100/favicon.ico", host: "151.243.109.79", referrer: "http://151.243.109.79/"
+2025/11/18 09:06:28 [error] 18131#18131: *29 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "HEAD / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79", referrer: "http://151.243.109.79/"
+2025/11/18 09:11:30 [error] 18131#18131: *31 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "GET / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79"
+2025/11/18 09:11:31 [error] 18131#18131: *31 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "GET /favicon.ico HTTP/1.1", upstream: "http://127.0.0.1:3100/favicon.ico", host: "151.243.109.79", referrer: "http://151.243.109.79/"
+2025/11/18 09:11:32 [error] 18131#18131: *34 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "HEAD / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79", referrer: "http://151.243.109.79/"
+2025/11/18 09:12:21 [error] 18131#18131: *31 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "GET / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79"
+2025/11/18 09:12:22 [error] 18131#18131: *31 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "GET /favicon.ico HTTP/1.1", upstream: "http://127.0.0.1:3100/favicon.ico", host: "151.243.109.79", referrer: "http://151.243.109.79/"
+2025/11/18 09:12:22 [error] 18131#18131: *34 connect() failed (111: Unknown error) while connecting to upstream, client: 103.25.57.57, server: api.ibikisms.com, request: "HEAD / HTTP/1.1", upstream: "http://127.0.0.1:3100/", host: "151.243.109.79", referrer: "http://151.243.109.79/"
+root@server68521:/opt/ibiki-sms#
