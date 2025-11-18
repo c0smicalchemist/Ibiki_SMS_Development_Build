@@ -301,7 +301,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currency: profile?.currency || "USD",
         apiKeys: apiKeys.map(key => ({
           id: key.id,
-          key: key.key,  // Full API key for display on client dashboard
           displayKey: `${key.keyPrefix}...${key.keySuffix}`,
           isActive: key.isActive,
           createdAt: key.createdAt,
@@ -335,10 +334,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allUsers = await storage.getAllUsers();
       const clients = await Promise.all(
         allUsers
-          .filter(user => user.role === 'client')
-          .map(async (user) => {
+          .filter((user: User) => user.role === 'client')
+          .map(async (user: User) => {
             const apiKeys = await storage.getApiKeysByUserId(user.id);
-            const messageLogs = await storage.getMessageLogsByClientId(user.id);
+            const messageLogs = await storage.getMessageLogsByUserId(user.id);
             const displayKey = apiKeys[0] ? `ibk_live_${apiKeys[0].keyPrefix}...${apiKeys[0].keySuffix}` : 'No key';
             
             return {
@@ -396,6 +395,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Config update error:", error);
       res.status(500).json({ error: "Failed to update configuration" });
+    }
+  });
+
+  // Test ExtremeSMS API connection
+  app.post("/api/admin/test-connection", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const extremeApiKey = await storage.getSystemConfig("extreme_api_key");
+      
+      if (!extremeApiKey || !extremeApiKey.value) {
+        return res.status(400).json({ error: "ExtremeSMS API key not configured" });
+      }
+
+      // Test the ExtremeSMS API by checking balance
+      const response = await axios.post("https://extremesms.net/api/v2/sms/checkbalance", {
+        api_key: extremeApiKey.value
+      });
+
+      if (response.data && response.data.status === "success") {
+        res.json({ 
+          success: true, 
+          message: `Connected successfully! Balance: ${response.data.balance || 'N/A'}` 
+        });
+      } else {
+        res.status(400).json({ error: "ExtremeSMS API returned unexpected response" });
+      }
+    } catch (error: any) {
+      console.error("ExtremeSMS test connection error:", error.response?.data || error.message);
+      res.status(500).json({ 
+        error: "Failed to connect to ExtremeSMS API",
+        details: error.response?.data?.message || error.message
+      });
     }
   });
 

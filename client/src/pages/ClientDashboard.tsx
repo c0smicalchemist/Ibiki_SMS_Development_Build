@@ -11,11 +11,16 @@ import { AddCreditsDialog } from "@/components/AddCreditsDialog";
 export default function ClientDashboard() {
   const { t } = useLanguage();
   const [, setLocation] = useLocation();
-  const { data: profile, isLoading } = useQuery({
+  const { data: profile, isLoading } = useQuery<{
+    user: { id: string; email: string; name: string; company: string | null; role: string };
+    credits: string;
+    currency: string;
+    apiKeys: Array<{ id: string; displayKey: string; isActive: boolean; createdAt: Date; lastUsedAt: Date | null }>;
+  }>({
     queryKey: ['/api/client/profile']
   });
 
-  const { data: messages } = useQuery({
+  const { data: messages } = useQuery<{ success: boolean; messages: any[] }>({
     queryKey: ['/api/client/messages']
   });
 
@@ -76,9 +81,9 @@ export default function ClientDashboard() {
 
         {firstApiKey && (
           <ApiKeyDisplay 
-            apiKey={firstApiKey.key}
+            apiKey={firstApiKey.displayKey}
             title={t('dashboard.apiKey.title')}
-            description="⚠️ Keep this key secure! Anyone with this key can send SMS using your credits. Copy it and store it safely."
+            description="Your API key is shown in masked format for security. The full key was displayed once at signup."
           />
         )}
 

@@ -21,8 +21,9 @@ export default function AdminDashboard() {
   const [extremeApiKey, setExtremeApiKey] = useState("");
   const [extremeCost, setExtremeCost] = useState("0.01");
   const [clientRate, setClientRate] = useState("0.02");
+  const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown');
 
-  const { data: config } = useQuery({
+  const { data: config } = useQuery<{ success: boolean; config: Record<string, string> }>({
     queryKey: ['/api/admin/config']
   });
 
@@ -57,7 +58,38 @@ export default function AdminDashboard() {
     }
   });
 
-  const { data: clientsData } = useQuery({
+  const testConnectionMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/admin/test-connection', {
+        method: 'POST'
+      });
+    },
+    onSuccess: (data: any) => {
+      setConnectionStatus('connected');
+      toast({
+        title: "Connection Successful",
+        description: data.message || "ExtremeSMS API is working correctly"
+      });
+    },
+    onError: (error: any) => {
+      setConnectionStatus('disconnected');
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Failed to connect to ExtremeSMS API",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const { data: clientsData } = useQuery<{ success: boolean; clients: Array<{
+    id: string;
+    name: string;
+    email: string;
+    apiKey: string;
+    status: string;
+    messagesSent: number;
+    lastActive: string;
+  }> }>({
     queryKey: ['/api/admin/clients']
   });
 
@@ -233,13 +265,24 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="flex gap-3">
-                  <Button type="submit" data-testid="button-save-config">
-                    Save Configuration
+                <div className="flex items-center gap-3">
+                  <Button type="submit" data-testid="button-save-config" disabled={saveConfigMutation.isPending}>
+                    {saveConfigMutation.isPending ? "Saving..." : "Save Configuration"}
                   </Button>
-                  <Button type="button" variant="outline" data-testid="button-test-connection">
-                    Test Connection
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    data-testid="button-test-connection"
+                    onClick={() => testConnectionMutation.mutate()}
+                    disabled={testConnectionMutation.isPending}
+                  >
+                    {testConnectionMutation.isPending ? "Testing..." : "Test Connection"}
                   </Button>
+                  {connectionStatus !== 'unknown' && (
+                    <Badge variant={connectionStatus === 'connected' ? 'default' : 'destructive'}>
+                      {connectionStatus === 'connected' ? '✓ Connected' : '✗ Disconnected'}
+                    </Badge>
+                  )}
                 </div>
               </form>
             </CardContent>

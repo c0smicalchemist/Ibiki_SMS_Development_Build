@@ -18,6 +18,7 @@ export interface IStorage {
   // User methods
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
   
@@ -26,6 +27,7 @@ export interface IStorage {
   getApiKeysByUserId(userId: string): Promise<ApiKey[]>;
   createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
   updateApiKeyLastUsed(id: string): Promise<void>;
+  revokeApiKey(id: string): Promise<void>;
   
   // Client Profile methods
   getClientProfileByUserId(userId: string): Promise<ClientProfile | undefined>;
@@ -91,6 +93,10 @@ export class MemStorage implements IStorage {
     return user;
   }
 
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
   async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
     const user = this.users.get(id);
     if (!user) return undefined;
@@ -130,6 +136,14 @@ export class MemStorage implements IStorage {
     const apiKey = this.apiKeys.get(id);
     if (apiKey) {
       apiKey.lastUsedAt = new Date();
+      this.apiKeys.set(id, apiKey);
+    }
+  }
+
+  async revokeApiKey(id: string): Promise<void> {
+    const apiKey = this.apiKeys.get(id);
+    if (apiKey) {
+      apiKey.isActive = false;
       this.apiKeys.set(id, apiKey);
     }
   }
