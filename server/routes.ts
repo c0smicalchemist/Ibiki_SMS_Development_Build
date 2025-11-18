@@ -1120,6 +1120,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get incoming messages (inbox)
+  app.get("/api/v2/sms/inbox", authenticateApiKey, async (req: any, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const messages = await storage.getIncomingMessagesByUserId(req.user.userId, limit);
+      
+      res.json({
+        success: true,
+        messages: messages.map(msg => ({
+          id: msg.id,
+          from: msg.from,
+          firstname: msg.firstname,
+          lastname: msg.lastname,
+          business: msg.business,
+          message: msg.message,
+          status: msg.status,
+          matchedBlockWord: msg.matchedBlockWord,
+          receiver: msg.receiver,
+          timestamp: msg.timestamp.toISOString(),
+          messageId: msg.messageId
+        })),
+        count: messages.length
+      });
+    } catch (error) {
+      console.error("Inbox fetch error:", error);
+      res.status(500).json({ success: false, error: "Failed to retrieve inbox" });
+    }
+  });
+
   // Get account balance
   app.get("/api/v2/account/balance", authenticateApiKey, async (req: any, res) => {
     try {
