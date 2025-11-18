@@ -7,10 +7,14 @@ import { Link, useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import logoUrl from "@assets/Yubin_Dash-removebg-preview_1763444826522.png";
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     email: "",
     password: ""
@@ -52,26 +56,22 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
+        <div className="flex items-center justify-between mb-6">
           <Link href="/">
-            <div className="inline-flex items-center gap-2 mb-4 cursor-pointer">
-              <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">I</span>
-              </div>
-              <span className="text-xl font-semibold">Ibiki SMS</span>
-            </div>
+            <img src={logoUrl} alt="Yubin Dash" className="h-12 w-auto cursor-pointer" />
           </Link>
+          <LanguageToggle />
         </div>
 
         <Card data-testid="card-login">
           <CardHeader>
-            <CardTitle>Welcome back</CardTitle>
-            <CardDescription>Sign in to your Ibiki SMS account</CardDescription>
+            <CardTitle>{t('auth.login.title')}</CardTitle>
+            <CardDescription>{t('auth.login.subtitle')}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t('auth.login.email')}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -84,7 +84,7 @@ export default function Login() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t('auth.login.password')}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -95,16 +95,16 @@ export default function Login() {
                 />
               </div>
 
-              <Button type="submit" className="w-full" data-testid="button-login">
-                Sign In
+              <Button type="submit" className="w-full" disabled={loginMutation.isPending} data-testid="button-login">
+                {loginMutation.isPending ? t('common.loading') : t('auth.login.submit')}
               </Button>
             </form>
 
             <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Don't have an account? </span>
+              <span className="text-muted-foreground">{t('auth.login.noAccount')} </span>
               <Link href="/signup">
                 <a className="text-primary hover:underline" data-testid="link-signup">
-                  Sign up
+                  {t('auth.login.signupLink')}
                 </a>
               </Link>
             </div>

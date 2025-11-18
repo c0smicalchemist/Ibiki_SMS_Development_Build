@@ -11,9 +11,12 @@ import StatCard from "@/components/StatCard";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { DashboardHeader } from "@/components/DashboardHeader";
 
 export default function AdminDashboard() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [extremeApiKey, setExtremeApiKey] = useState("");
   const [extremeCost, setExtremeCost] = useState("0.01");
   const [clientRate, setClientRate] = useState("0.02");
@@ -69,39 +72,41 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="p-6 space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold tracking-tight">Admin Dashboard</h1>
-        <p className="text-muted-foreground mt-2">Manage clients and system configuration</p>
-      </div>
+    <div className="min-h-screen bg-background">
+      <DashboardHeader />
+      <div className="p-6 space-y-8">
+        <div>
+          <h1 className="text-4xl font-bold tracking-tight">{t('admin.title')}</h1>
+          <p className="text-muted-foreground mt-2">{t('admin.subtitle')}</p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard
-          title="Total Clients"
-          value={clients.length}
-          icon={Users}
-          description="Active accounts"
-        />
-        <StatCard
-          title="Total Messages"
-          value="2,420"
-          icon={Activity}
-          description="Last 30 days"
-        />
-        <StatCard
-          title="System Status"
-          value="Healthy"
-          icon={Settings}
-          description="All services running"
-        />
-      </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <StatCard
+            title={t('admin.stats.totalClients')}
+            value={clients.length}
+            icon={Users}
+            description={t('admin.stats.activeAccounts')}
+          />
+          <StatCard
+            title={t('admin.stats.totalMessages')}
+            value="2,420"
+            icon={Activity}
+            description={t('admin.stats.last30Days')}
+          />
+          <StatCard
+            title={t('admin.stats.systemStatus')}
+            value={t('admin.stats.healthy')}
+            icon={Settings}
+            description={t('admin.stats.allRunning')}
+          />
+        </div>
 
-      <Tabs defaultValue="clients" data-testid="tabs-admin">
-        <TabsList>
-          <TabsTrigger value="clients" data-testid="tab-clients">Clients</TabsTrigger>
-          <TabsTrigger value="configuration" data-testid="tab-configuration">Configuration</TabsTrigger>
-          <TabsTrigger value="monitoring" data-testid="tab-monitoring">Monitoring</TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="clients" data-testid="tabs-admin">
+          <TabsList>
+            <TabsTrigger value="clients" data-testid="tab-clients">{t('admin.tabs.clients')}</TabsTrigger>
+            <TabsTrigger value="configuration" data-testid="tab-configuration">{t('admin.tabs.configuration')}</TabsTrigger>
+            <TabsTrigger value="monitoring" data-testid="tab-monitoring">{t('admin.tabs.monitoring')}</TabsTrigger>
+          </TabsList>
 
         <TabsContent value="clients" className="space-y-4">
           <Card>
@@ -255,6 +260,7 @@ export default function AdminDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }

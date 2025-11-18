@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Language } from '@/lib/i18n';
+import { Language, translations } from '@/lib/i18n';
 
 interface LanguageContextType {
   language: Language;
@@ -24,7 +24,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   };
 
   const t = (key: string): string => {
-    const { translations } = require('@/lib/i18n');
     return translations[language][key] || key;
   };
 
