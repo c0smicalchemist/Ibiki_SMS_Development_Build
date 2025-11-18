@@ -6,7 +6,30 @@ Ibiki SMS is a professional SMS API middleware platform that acts as a secure pa
 
 ## Recent Changes (November 18, 2025)
 
-### Version 10 (Latest - ExtremeSMS Balance Display)
+### Version 11 (Latest - 2-Way SMS Support)
+1. **Incoming SMS Management**: Complete 2-way SMS system with webhook integration
+   - New endpoint POST /webhook/incoming-sms receives incoming messages from ExtremeSMS
+   - Messages routed to clients based on assigned phone numbers
+   - Client API endpoint GET /api/v2/sms/inbox for external access (API key auth)
+   - Dashboard endpoint GET /api/client/inbox for UI access (JWT auth)
+   - Admin can assign phone numbers to clients via inline editing in client management table
+2. **Client Dashboard Inbox**: Live incoming message display
+   - Shows sender info (name, business, phone number)
+   - Auto-refreshes every 5 seconds
+   - Displays message status and timestamps
+   - Empty state when no messages or no assigned phone number
+3. **Database Schema**: New incomingMessages table with fields:
+   - userId (client association), from, firstname, lastname, business
+   - message, status, matchedBlockWord, receiver, usedmodem, port
+   - timestamp, messageId (ExtremeSMS reference)
+   - assignedPhoneNumber field added to clientProfiles for routing
+4. **API Documentation**: Updated with 2-way SMS info
+   - Inbox endpoint documentation with request/response examples
+   - Webhook configuration instructions for ExtremeSMS setup
+   - Example payload structure from ExtremeSMS
+   - Note about phone number assignment requirement
+
+### Version 10 (ExtremeSMS Balance Display)
 1. **Live Balance Monitoring**: Admin dashboard now displays real-time ExtremeSMS account balance
    - New endpoint GET /api/admin/extremesms-balance
    - Auto-refreshes every 30 seconds
@@ -162,10 +185,11 @@ Preferred communication style: Simple, everyday language.
 **Schema Design**:
 - `users` - Both admin and client accounts with role field
 - `apiKeys` - Client API credentials (hashed with prefix/suffix for display)
-- `clientProfiles` - Credit balances and custom markup per client
+- `clientProfiles` - Credit balances, custom markup, and assignedPhoneNumber per client
 - `systemConfig` - Key-value store for ExtremeSMS credentials and pricing
-- `messageLogs` - Audit trail of all SMS transactions
+- `messageLogs` - Audit trail of all outbound SMS transactions
 - `creditTransactions` - Financial transaction history
+- `incomingMessages` - Incoming SMS messages with sender info and routing data
 
 **Migrations**: Drizzle Kit for schema migrations stored in /migrations directory
 
