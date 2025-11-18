@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, Settings, Activity, ArrowLeft } from "lucide-react";
+import { Users, Settings, Activity, ArrowLeft, Wallet } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -114,9 +114,21 @@ export default function AdminDashboard() {
     refetchInterval: 5000 // Auto-refresh every 5 seconds
   });
 
+  const { data: balanceData, isLoading: balanceLoading, error: balanceError } = useQuery<{ 
+    success: boolean; 
+    balance: number;
+    currency: string;
+  }>({
+    queryKey: ['/api/admin/extremesms-balance'],
+    refetchInterval: 30000, // Auto-refresh every 30 seconds
+    retry: 2
+  });
+
   const clients = clientsData?.clients || [];
   const totalMessages = statsData?.totalMessages || 0;
   const totalClients = statsData?.totalClients || clients.length;
+  const extremeBalance = balanceData?.balance ?? null;
+  const balanceCurrency = balanceData?.currency || 'USD';
 
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,7 +155,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             title={t('admin.stats.totalClients')}
             value={totalClients}
@@ -155,6 +167,16 @@ export default function AdminDashboard() {
             value={totalMessages.toLocaleString()}
             icon={Activity}
             description={t('admin.stats.last30Days')}
+          />
+          <StatCard
+            title="ExtremeSMS Balance"
+            value={
+              balanceLoading ? "Loading..." : 
+              balanceError ? "Error" :
+              extremeBalance !== null ? `${balanceCurrency} ${extremeBalance.toLocaleString()}` : "N/A"
+            }
+            icon={Wallet}
+            description="Current account balance"
           />
           <StatCard
             title={t('admin.stats.systemStatus')}
