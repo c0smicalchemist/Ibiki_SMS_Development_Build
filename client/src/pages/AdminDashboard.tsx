@@ -91,29 +91,29 @@ export default function AdminDashboard() {
     status: string;
     messagesSent: number;
     lastActive: string;
-    assignedPhoneNumber: string | null;
+    assignedPhoneNumbers: string[];
   }> }>({
     queryKey: ['/api/admin/clients']
   });
 
-  const updatePhoneNumberMutation = useMutation({
-    mutationFn: async ({ userId, phoneNumber }: { userId: string; phoneNumber: string }) => {
-      return await apiRequest('/api/admin/update-phone-number', {
+  const updatePhoneNumbersMutation = useMutation({
+    mutationFn: async ({ userId, phoneNumbers }: { userId: string; phoneNumbers: string }) => {
+      return await apiRequest('/api/admin/update-phone-numbers', {
         method: 'POST',
-        body: JSON.stringify({ userId, phoneNumber })
+        body: JSON.stringify({ userId, phoneNumbers })
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
       toast({
         title: "Success",
-        description: "Phone number updated successfully"
+        description: "Phone numbers updated successfully"
       });
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to update phone number",
+        description: "Failed to update phone numbers",
         variant: "destructive"
       });
     }
@@ -234,7 +234,7 @@ export default function AdminDashboard() {
                     <TableHead>API Key</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Messages Sent</TableHead>
-                    <TableHead>Assigned Number</TableHead>
+                    <TableHead>Assigned Numbers</TableHead>
                     <TableHead>Last Active</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -253,19 +253,21 @@ export default function AdminDashboard() {
                       <TableCell>
                         <Input
                           type="text"
-                          placeholder="Phone number"
-                          defaultValue={client.assignedPhoneNumber || ""}
+                          placeholder="+1111, +2222, +3333"
+                          defaultValue={(client.assignedPhoneNumbers || []).join(', ')}
                           onBlur={(e) => {
-                            const newPhone = e.target.value.trim();
-                            if (newPhone !== (client.assignedPhoneNumber || "")) {
-                              updatePhoneNumberMutation.mutate({ 
+                            const newPhones = e.target.value.trim();
+                            const currentPhones = (client.assignedPhoneNumbers || []).join(', ');
+                            if (newPhones !== currentPhones) {
+                              updatePhoneNumbersMutation.mutate({ 
                                 userId: client.id, 
-                                phoneNumber: newPhone 
+                                phoneNumbers: newPhones 
                               });
                             }
                           }}
-                          className="w-32"
-                          data-testid={`input-phone-${client.id}`}
+                          className="w-48 font-mono text-xs"
+                          data-testid={`input-phones-${client.id}`}
+                          title="Enter multiple numbers separated by commas"
                         />
                       </TableCell>
                       <TableCell className="text-muted-foreground">{client.lastActive}</TableCell>

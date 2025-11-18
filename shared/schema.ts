@@ -42,7 +42,7 @@ export const clientProfiles = pgTable("client_profiles", {
   credits: decimal("credits", { precision: 10, scale: 2 }).notNull().default("0.00"),
   currency: text("currency").notNull().default("USD"),
   customMarkup: decimal("custom_markup", { precision: 10, scale: 4 }), // Optional custom markup for this client
-  assignedPhoneNumber: text("assigned_phone_number"), // Phone number assigned to this client for routing incoming SMS
+  assignedPhoneNumbers: text("assigned_phone_numbers").array(), // Array of phone numbers assigned to this client for routing incoming SMS
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

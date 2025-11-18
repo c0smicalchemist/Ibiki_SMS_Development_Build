@@ -42,7 +42,7 @@ export interface IStorage {
   getClientProfileByPhoneNumber(phoneNumber: string): Promise<ClientProfile | undefined>;
   createClientProfile(profile: InsertClientProfile): Promise<ClientProfile>;
   updateClientCredits(userId: string, newCredits: string): Promise<ClientProfile | undefined>;
-  updateClientPhoneNumber(userId: string, phoneNumber: string | null): Promise<ClientProfile | undefined>;
+  updateClientPhoneNumbers(userId: string, phoneNumbers: string[]): Promise<ClientProfile | undefined>;
   
   // System Config methods
   getSystemConfig(key: string): Promise<SystemConfig | undefined>;
@@ -235,7 +235,7 @@ export class MemStorage implements IStorage {
       credits: insertProfile.credits ?? "0.00",
       currency: insertProfile.currency ?? "USD",
       customMarkup: insertProfile.customMarkup ?? null,
-      assignedPhoneNumber: insertProfile.assignedPhoneNumber ?? null,
+      assignedPhoneNumbers: insertProfile.assignedPhoneNumbers ?? null,
       updatedAt: new Date()
     };
     this.clientProfiles.set(id, profile);
@@ -244,7 +244,7 @@ export class MemStorage implements IStorage {
 
   async getClientProfileByPhoneNumber(phoneNumber: string): Promise<ClientProfile | undefined> {
     return Array.from(this.clientProfiles.values()).find(
-      (profile) => profile.assignedPhoneNumber === phoneNumber,
+      (profile) => profile.assignedPhoneNumbers?.includes(phoneNumber),
     );
   }
 
@@ -260,13 +260,13 @@ export class MemStorage implements IStorage {
     return profile;
   }
 
-  async updateClientPhoneNumber(userId: string, phoneNumber: string | null): Promise<ClientProfile | undefined> {
+  async updateClientPhoneNumbers(userId: string, phoneNumbers: string[]): Promise<ClientProfile | undefined> {
     const profile = Array.from(this.clientProfiles.values()).find(
       (p) => p.userId === userId,
     );
     if (!profile) return undefined;
 
-    profile.assignedPhoneNumber = phoneNumber;
+    profile.assignedPhoneNumbers = phoneNumbers.length > 0 ? phoneNumbers : null;
     profile.updatedAt = new Date();
     this.clientProfiles.set(profile.id, profile);
     return profile;

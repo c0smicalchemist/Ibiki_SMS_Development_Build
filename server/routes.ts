@@ -641,7 +641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               lastActive: apiKeys[0]?.lastUsedAt 
                 ? new Date(apiKeys[0].lastUsedAt).toLocaleDateString()
                 : 'Never',
-              assignedPhoneNumber: profile?.assignedPhoneNumber || null
+              assignedPhoneNumbers: profile?.assignedPhoneNumbers || []
             };
           })
       );
@@ -910,32 +910,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update client's assigned phone number (ADMIN ONLY)
-  app.post("/api/admin/update-phone-number", authenticateToken, requireAdmin, async (req: any, res) => {
+  // Update client's assigned phone numbers (ADMIN ONLY)
+  app.post("/api/admin/update-phone-numbers", authenticateToken, requireAdmin, async (req: any, res) => {
     try {
-      const { userId, phoneNumber } = req.body;
+      const { userId, phoneNumbers } = req.body;
 
       if (!userId) {
         return res.status(400).json({ error: "userId is required" });
       }
 
-      // Phone number can be null to unassign
       const profile = await storage.getClientProfileByUserId(userId);
       if (!profile) {
         return res.status(404).json({ error: "Client profile not found" });
       }
 
-      // Update phone number
-      await storage.updateClientPhoneNumber(userId, phoneNumber || null);
+      // Convert string input to array if needed, filter out empty strings
+      let numbersArray: string[] = [];
+      if (typeof phoneNumbers === 'string') {
+        numbersArray = phoneNumbers.split(',').map(num => num.trim()).filter(num => num.length > 0);
+      } else if (Array.isArray(phoneNumbers)) {
+        numbersArray = phoneNumbers.filter(num => num && num.trim().length > 0);
+      }
+
+      // Update phone numbers
+      await storage.updateClientPhoneNumbers(userId, numbersArray);
 
       res.json({ 
         success: true, 
-        message: phoneNumber ? "Phone number assigned successfully" : "Phone number unassigned",
-        phoneNumber: phoneNumber || null
+        message: numbersArray.length > 0 ? `${numbersArray.length} phone number(s) assigned` : "Phone numbers unassigned",
+        phoneNumbers: numbersArray
       });
     } catch (error) {
-      console.error("Update phone number error:", error);
-      res.status(500).json({ error: "Failed to update phone number" });
+      console.error("Update phone numbers error:", error);
+      res.status(500).json({ error: "Failed to update phone numbers" });
     }
   });
 
