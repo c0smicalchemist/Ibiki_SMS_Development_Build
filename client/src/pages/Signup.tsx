@@ -22,7 +22,7 @@ export default function Signup() {
   });
 
   const signupMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string }) => {
+    mutationFn: async (data: { email: string; password: string; confirmPassword: string }) => {
       return await apiRequest('/api/auth/signup', {
         method: 'POST',
         body: JSON.stringify(data)
@@ -55,7 +55,7 @@ export default function Signup() {
       });
       return;
     }
-    signupMutation.mutate({ email: formData.email, password: formData.password });
+    signupMutation.mutate(formData);
   };
 
   return (
@@ -119,10 +119,8 @@ export default function Signup() {
 
             <div className="mt-6 text-center text-sm">
               <span className="text-muted-foreground">{t('auth.signup.hasAccount')} </span>
-              <Link href="/login">
-                <a className="text-primary hover:underline" data-testid="link-login">
-                  {t('auth.signup.loginLink')}
-                </a>
+              <Link href="/login" className="text-primary hover:underline" data-testid="link-login">
+                {t('auth.signup.loginLink')}
               </Link>
             </div>
           </CardContent>

@@ -102,10 +102,8 @@ export default function Login() {
 
             <div className="mt-6 text-center text-sm">
               <span className="text-muted-foreground">{t('auth.login.noAccount')} </span>
-              <Link href="/signup">
-                <a className="text-primary hover:underline" data-testid="link-signup">
-                  {t('auth.login.signupLink')}
-                </a>
+              <Link href="/signup" className="text-primary hover:underline" data-testid="link-signup">
+                {t('auth.login.signupLink')}
               </Link>
             </div>
           </CardContent>

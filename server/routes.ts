@@ -163,10 +163,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Signup
   app.post("/api/auth/signup", async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, confirmPassword } = req.body;
 
       if (!email || !password) {
         return res.status(400).json({ error: "Email and password are required" });
+      }
+
+      if (!confirmPassword) {
+        return res.status(400).json({ error: "Password confirmation is required" });
+      }
+
+      if (password !== confirmPassword) {
+        return res.status(400).json({ error: "Passwords do not match" });
       }
 
       const existingUser = await storage.getUserByEmail(email);
