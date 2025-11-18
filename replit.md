@@ -6,24 +6,26 @@ Ibiki SMS is a professional SMS API middleware platform that acts as a secure pa
 
 ## Recent Changes (November 18, 2025)
 
-### Version 8 (Latest)
+### Version 8 (Latest - All Dummy Data Removed)
 1. **API Key Management**: Complete system for managing API keys
    - Copy button in signup dialog (full key shown once)
    - View all API keys in client dashboard (masked for security)
    - Generate new API keys anytime
    - Revoke individual keys with confirmation dialog
    - Show key creation date and last used date
-2. **Live Data & Stats**: All statistics pull real data from database
+2. **100% Live Data - Zero Dummy Values**: All statistics pull real data from database
    - Total messages count from actual database (no dummy data)
    - Total clients count from actual user database
-   - Real message logs and usage tracking
+   - **Recent API Activity**: Live message logs with client names, timestamps, and status
+   - Auto-refresh every 5 seconds for real-time monitoring
+   - Proper empty states when no data exists yet
 3. **Fixed ExtremeSMS Integration**:
    - Test Connection uses correct GET /api/v2/account/balance endpoint
    - All test endpoints use Bearer authentication
    - Admin API testing utility works correctly
 4. **API Testing Utility**: Admin dashboard now has "API Testing" tab to test all endpoints
 5. **Error Log Viewer**: Monitor failed SMS deliveries and system errors with real-time auto-refresh
-6. **Security Fix**: Admin tests use ExtremeSMS key directly (not client keys)
+6. **Security**: All admin endpoints properly secured with requireAdmin middleware
 
 ### Version 7
 1. **API Documentation Updated**: Changed from api.ibikisms.com to http://151.243.109.79 (server IP)

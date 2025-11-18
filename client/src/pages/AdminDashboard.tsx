@@ -99,6 +99,21 @@ export default function AdminDashboard() {
     queryKey: ['/api/admin/stats']
   });
 
+  const { data: recentActivity } = useQuery<{ 
+    success: boolean; 
+    logs: Array<{
+      id: string;
+      endpoint: string;
+      clientName: string;
+      timestamp: string;
+      status: string;
+      recipient: string;
+    }>
+  }>({
+    queryKey: ['/api/admin/recent-activity'],
+    refetchInterval: 5000 // Auto-refresh every 5 seconds
+  });
+
   const clients = clientsData?.clients || [];
   const totalMessages = statsData?.totalMessages || 0;
   const totalClients = statsData?.totalClients || clients.length;
@@ -315,15 +330,32 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map((item) => (
-                  <div key={item} className="flex items-center justify-between p-3 rounded-lg border border-border" data-testid={`activity-${item}`}>
-                    <div>
-                      <p className="text-sm font-medium">POST /api/v2/sms/sendsingle</p>
-                      <p className="text-xs text-muted-foreground">Client: Acme Corp • 2 minutes ago</p>
+                {recentActivity?.logs && recentActivity.logs.length > 0 ? (
+                  recentActivity.logs.map((log) => (
+                    <div key={log.id} className="flex items-center justify-between p-3 rounded-lg border border-border" data-testid={`activity-${log.id}`}>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{log.endpoint}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Client: {log.clientName} • {new Date(log.timestamp).toLocaleString()}
+                        </p>
+                      </div>
+                      <Badge 
+                        className={
+                          log.status === 'delivered' || log.status === 'sent' || log.status === 'queued'
+                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                            : "bg-red-500/10 text-red-600 dark:text-red-400"
+                        }
+                      >
+                        {log.status}
+                      </Badge>
                     </div>
-                    <Badge className="bg-green-500/10 text-green-600 dark:text-green-400">200 OK</Badge>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="text-sm">No recent API activity</p>
+                    <p className="text-xs mt-1">Activity will appear here when clients use the API</p>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>

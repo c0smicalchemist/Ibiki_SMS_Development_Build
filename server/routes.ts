@@ -407,6 +407,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get recent API activity
+  app.get("/api/admin/recent-activity", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const recentLogs = await storage.getAllMessageLogs(10); // Get last 10 logs
+      
+      // Enrich logs with user information
+      const enrichedLogs = await Promise.all(
+        recentLogs.map(async (log) => {
+          const user = await storage.getUser(log.userId);
+          return {
+            id: log.id,
+            endpoint: log.endpoint,
+            clientName: user?.company || user?.name || 'Unknown',
+            timestamp: log.createdAt,
+            status: log.status,
+            recipient: log.recipient || (log.recipients && log.recipients.length > 0 ? `${log.recipients.length} recipients` : 'N/A'),
+          };
+        })
+      );
+
+      res.json({ success: true, logs: enrichedLogs });
+    } catch (error) {
+      console.error("Recent activity fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch recent activity" });
+    }
+  });
+
   // Get all clients
   app.get("/api/admin/clients", authenticateToken, requireAdmin, async (req, res) => {
     try {
