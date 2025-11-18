@@ -84,13 +84,18 @@ fi
 
 # Step 4: Copy application files
 log_info "Installing application to $INSTALL_DIR..."
+
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+
 if [ -d "$INSTALL_DIR" ]; then
     log_warn "Backing up existing installation..."
     mv "$INSTALL_DIR" "${INSTALL_DIR}.backup.$(date +%s)"
 fi
 
 mkdir -p "$INSTALL_DIR"
-cp -r . "$INSTALL_DIR/"
+cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/" 2>/dev/null || cp -r ./* "$INSTALL_DIR/"
 cd "$INSTALL_DIR"
 
 # Remove .git directory to save space

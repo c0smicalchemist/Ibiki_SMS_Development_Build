@@ -60,11 +60,11 @@ ibiki-sms/
 
 ```bash
 # Open Terminal on your computer
-# Navigate to your project folder
-cd ~/Downloads/ibiki-sms  # Adjust path as needed
+# Navigate to your EXTRACTED folder (whatever it's named!)
+cd ~/Downloads/IbikiGateway  # Or whatever your folder is called
 
-# Upload entire folder to server
-scp -r . root@151.243.109.79:/root/ibiki-sms/
+# Upload entire folder to server (using a temporary name)
+scp -r . root@151.243.109.79:/root/deploy-temp/
 
 # Enter password when prompted
 ```
@@ -116,10 +116,10 @@ ssh root@151.243.109.79
 
 Enter your password.
 
-### **Step 2: Navigate to Project**
+### **Step 2: Navigate to Uploaded Folder**
 
 ```bash
-cd /root/ibiki-sms
+cd /root/deploy-temp
 ```
 
 ### **Step 3: Verify Files**

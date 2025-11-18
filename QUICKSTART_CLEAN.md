@@ -9,8 +9,9 @@ For experienced users who want to deploy quickly.
 ## **STEP 1: Upload to Server**
 
 ```bash
-# From your computer (with project folder)
-scp -r ibiki-sms root@151.243.109.79:/root/
+# From your computer (in extracted folder - name doesn't matter!)
+# Could be "IbikiGateway", "ibiki-sms", or any other name
+scp -r . root@151.243.109.79:/root/deploy-temp/
 ```
 
 ---
@@ -21,13 +22,11 @@ scp -r ibiki-sms root@151.243.109.79:/root/
 # Connect to server
 ssh root@151.243.109.79
 
-# Navigate to folder
-cd /root/ibiki-sms
+# Navigate to upload folder
+cd /root/deploy-temp
 
-# Make script executable
+# Make script executable and deploy (default: port 3100)
 chmod +x deploy.sh
-
-# Deploy (default: port 3100)
 sudo ./deploy.sh
 ```
 

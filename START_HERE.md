@@ -48,8 +48,9 @@ If you want to start RIGHT NOW:
 ### **1. Upload to Server**
 
 ```bash
-# On your computer (where this folder is)
-scp -r . root@151.243.109.79:/root/ibiki-sms/
+# On your computer (in the extracted folder - any name is fine!)
+# The folder might be called IbikiGateway, ibiki-sms, or anything else
+scp -r . root@151.243.109.79:/root/deploy-temp/
 ```
 
 ### **2. SSH and Deploy**
@@ -58,10 +59,10 @@ scp -r . root@151.243.109.79:/root/ibiki-sms/
 # Connect
 ssh root@151.243.109.79
 
-# Navigate
-cd /root/ibiki-sms
+# Navigate to upload folder
+cd /root/deploy-temp
 
-# Deploy
+# Deploy (script will create /opt/ibiki-sms automatically)
 chmod +x deploy.sh
 sudo ./deploy.sh
 ```
