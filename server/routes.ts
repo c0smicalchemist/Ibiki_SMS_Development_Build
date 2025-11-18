@@ -389,6 +389,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin Routes
   // ============================================
 
+  // Get admin stats
+  app.get("/api/admin/stats", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const totalMessages = await storage.getTotalMessageCount();
+      const allUsers = await storage.getAllUsers();
+      const totalClients = allUsers.filter(u => u.role === 'client').length;
+
+      res.json({ 
+        success: true, 
+        totalMessages,
+        totalClients
+      });
+    } catch (error) {
+      console.error("Admin stats fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
   // Get all clients
   app.get("/api/admin/clients", authenticateToken, requireAdmin, async (req, res) => {
     try {
@@ -468,12 +486,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "ExtremeSMS API key not configured" });
       }
 
-      // Test the ExtremeSMS API by checking balance
-      const response = await axios.post("https://extremesms.net/api/v2/sms/checkbalance", {
-        api_key: extremeApiKey.value
+      // Test the ExtremeSMS API by checking balance using the correct endpoint
+      const response = await axios.get(`${EXTREMESMS_BASE_URL}/api/v2/account/balance`, {
+        headers: {
+          "Authorization": `Bearer ${extremeApiKey.value}`,
+          "Content-Type": "application/json"
+        }
       });
 
-      if (response.data && response.data.status === "success") {
+      if (response.data && response.data.success) {
         res.json({ 
           success: true, 
           message: `Connected successfully! Balance: ${response.data.balance || 'N/A'}` 
@@ -507,8 +528,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       switch (endpoint) {
         case "balance":
           // Test balance check directly with ExtremeSMS
-          response = await axios.post("https://extremesms.net/api/v2/sms/checkbalance", {
-            api_key: extremeApiKey.value
+          response = await axios.get(`${EXTREMESMS_BASE_URL}/api/v2/account/balance`, {
+            headers: {
+              "Authorization": `Bearer ${extremeApiKey.value}`,
+              "Content-Type": "application/json"
+            }
           });
           break;
         

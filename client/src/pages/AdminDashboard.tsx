@@ -95,7 +95,13 @@ export default function AdminDashboard() {
     queryKey: ['/api/admin/clients']
   });
 
+  const { data: statsData } = useQuery<{ success: boolean; totalMessages: number; totalClients: number }>({
+    queryKey: ['/api/admin/stats']
+  });
+
   const clients = clientsData?.clients || [];
+  const totalMessages = statsData?.totalMessages || 0;
+  const totalClients = statsData?.totalClients || clients.length;
 
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,13 +131,13 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <StatCard
             title={t('admin.stats.totalClients')}
-            value={clients.length}
+            value={totalClients}
             icon={Users}
             description={t('admin.stats.activeAccounts')}
           />
           <StatCard
             title={t('admin.stats.totalMessages')}
-            value="2,420"
+            value={totalMessages.toLocaleString()}
             icon={Activity}
             description={t('admin.stats.last30Days')}
           />

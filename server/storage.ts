@@ -43,6 +43,7 @@ export interface IStorage {
   createMessageLog(log: InsertMessageLog): Promise<MessageLog>;
   getMessageLogsByUserId(userId: string, limit?: number): Promise<MessageLog[]>;
   getMessageLogByMessageId(messageId: string): Promise<MessageLog | undefined>;
+  getAllMessageLogs(limit?: number): Promise<MessageLog[]>;
   
   // Credit Transaction methods
   createCreditTransaction(transaction: InsertCreditTransaction): Promise<CreditTransaction>;
@@ -50,6 +51,9 @@ export interface IStorage {
   
   // Error logging methods
   getErrorLogs(level?: string): Promise<any[]>;
+  
+  // Stats methods
+  getTotalMessageCount(): Promise<number>;
 }
 
 export class MemStorage implements IStorage {
@@ -245,6 +249,16 @@ export class MemStorage implements IStorage {
     return Array.from(this.messageLogs.values()).find(
       (log) => log.messageId === messageId,
     );
+  }
+
+  async getAllMessageLogs(limit: number = 1000): Promise<MessageLog[]> {
+    const logs = Array.from(this.messageLogs.values())
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return limit ? logs.slice(0, limit) : logs;
+  }
+
+  async getTotalMessageCount(): Promise<number> {
+    return this.messageLogs.size;
   }
 
   // Credit Transaction methods
