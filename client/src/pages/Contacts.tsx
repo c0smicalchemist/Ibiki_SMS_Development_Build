@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, UserPlus, Upload, Trash2, Edit, FolderPlus, Folder, ArrowLeft } from "lucide-react";
+import { Users, UserPlus, Upload, Trash2, Edit, FolderPlus, Folder, ArrowLeft, Download } from "lucide-react";
 import { Link } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,7 @@ interface ContactGroup {
   userId: string;
   name: string;
   description: string | null;
+  businessUnitPrefix: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,6 +44,7 @@ export default function Contacts() {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [groupName, setGroupName] = useState("");
   const [groupDescription, setGroupDescription] = useState("");
+  const [businessUnitPrefix, setBusinessUnitPrefix] = useState("");
   const [contactData, setContactData] = useState({
     phoneNumber: "",
     name: "",
@@ -69,7 +71,7 @@ export default function Contacts() {
 
   // Create group mutation
   const createGroupMutation = useMutation({
-    mutationFn: async (data: { name: string; description: string }) => {
+    mutationFn: async (data: { name: string; description: string; businessUnitPrefix?: string }) => {
       return await apiRequest('/api/contact-groups', {
         method: 'POST',
         body: JSON.stringify(data)
@@ -81,6 +83,7 @@ export default function Contacts() {
       setShowGroupDialog(false);
       setGroupName("");
       setGroupDescription("");
+      setBusinessUnitPrefix("");
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -175,6 +178,35 @@ export default function Contacts() {
     });
   };
 
+  const handleExportCSV = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/contacts/export/csv', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to export contacts');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'contacts-export.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({ title: "Success", description: "Contacts exported successfully" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to export contacts", variant: "destructive" });
+    }
+  };
+
   const filteredContacts = selectedGroup
     ? contacts.filter((c: Contact) => c.groupId === selectedGroup)
     : contacts;
@@ -229,11 +261,24 @@ export default function Contacts() {
                     data-testid="input-group-description"
                   />
                 </div>
+                <div>
+                  <Label htmlFor="business-prefix">Business Unit Prefix (Optional)</Label>
+                  <Input
+                    id="business-prefix"
+                    value={businessUnitPrefix}
+                    onChange={(e) => setBusinessUnitPrefix(e.target.value.toUpperCase())}
+                    placeholder="e.g., IBS, SALES, VIP"
+                    data-testid="input-business-prefix"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Used for CSV export. Contacts will be numbered sequentially (e.g., IBS_1, IBS_2, IBS_3)
+                  </p>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowGroupDialog(false)}>Cancel</Button>
                 <Button
-                  onClick={() => createGroupMutation.mutate({ name: groupName, description: groupDescription })}
+                  onClick={() => createGroupMutation.mutate({ name: groupName, description: groupDescription, businessUnitPrefix: businessUnitPrefix || undefined })}
                   disabled={!groupName || createGroupMutation.isPending}
                   data-testid="button-save-group"
                 >
@@ -242,6 +287,11 @@ export default function Contacts() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          <Button variant="outline" onClick={handleExportCSV} data-testid="button-export-csv">
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
 
           <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
             <DialogTrigger asChild>
@@ -421,16 +471,22 @@ export default function Contacts() {
               All Contacts ({contacts.length})
             </Button>
             {groups.map((group: ContactGroup) => (
-              <Button
-                key={group.id}
-                variant={selectedGroup === group.id ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setSelectedGroup(group.id)}
-                data-testid={`button-group-${group.id}`}
-              >
-                <Folder className="h-4 w-4 mr-2" />
-                {group.name} ({contacts.filter((c: Contact) => c.groupId === group.id).length})
-              </Button>
+              <div key={group.id} className="space-y-1">
+                <Button
+                  variant={selectedGroup === group.id ? "secondary" : "ghost"}
+                  className="w-full justify-start"
+                  onClick={() => setSelectedGroup(group.id)}
+                  data-testid={`button-group-${group.id}`}
+                >
+                  <Folder className="h-4 w-4 mr-2" />
+                  <span className="flex-1 text-left">{group.name} ({contacts.filter((c: Contact) => c.groupId === group.id).length})</span>
+                </Button>
+                {group.businessUnitPrefix && (
+                  <div className="pl-6 text-xs text-muted-foreground">
+                    Business: {group.businessUnitPrefix}_*
+                  </div>
+                )}
+              </div>
             ))}
           </CardContent>
         </Card>

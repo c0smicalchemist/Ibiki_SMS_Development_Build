@@ -143,6 +143,7 @@ export const contactGroups = pgTable("contact_groups", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
+  businessUnitPrefix: text("business_unit_prefix"), // Prefix for CSV export (e.g., "IBS", "SALES")
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({

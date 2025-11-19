@@ -1874,6 +1874,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Export contacts as CSV with Business Unit IDs
+  app.get("/api/contacts/export/csv", authenticateToken, async (req: any, res) => {
+    try {
+      const contacts = await storage.getContactsByUserId(req.user.userId);
+      const groups = await storage.getContactGroupsByUserId(req.user.userId);
+      
+      // Create a map of groupId -> businessUnitPrefix
+      const groupPrefixMap = new Map<string, string>();
+      groups.forEach((group: any) => {
+        if (group.businessUnitPrefix) {
+          groupPrefixMap.set(group.id, group.businessUnitPrefix);
+        }
+      });
+      
+      // Build CSV rows
+      const csvRows = ['NAME,PHONE NUMBER,BUSINESS,ACTIONS'];
+      
+      // Track counters for each business unit prefix
+      const prefixCounters = new Map<string, number>();
+      
+      contacts.forEach((contact: any) => {
+        const name = contact.name || 'No name';
+        const phone = contact.phoneNumber;
+        let business = '';
+        
+        // Generate sequential Business ID if contact has a group with prefix
+        if (contact.groupId && groupPrefixMap.has(contact.groupId)) {
+          const prefix = groupPrefixMap.get(contact.groupId)!;
+          
+          // Initialize or increment counter for this prefix
+          if (!prefixCounters.has(prefix)) {
+            prefixCounters.set(prefix, 1);
+          } else {
+            prefixCounters.set(prefix, prefixCounters.get(prefix)! + 1);
+          }
+          
+          business = `${prefix}_${prefixCounters.get(prefix)}`;
+        }
+        
+        // CSV row: "Name,PhoneNumber,Business,Actions"
+        csvRows.push(`${name},${phone},${business},`);
+      });
+      
+      const csvContent = csvRows.join('\n');
+      
+      // Set headers for CSV download
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=contacts-export.csv');
+      res.send(csvContent);
+    } catch (error) {
+      console.error("Export contacts CSV error:", error);
+      res.status(500).json({ error: "Failed to export contacts" });
+    }
+  });
+
   // Web UI SMS Sending (calls ExtremeSMS via existing proxy logic)
   app.post("/api/web/sms/send-single", authenticateToken, async (req: any, res) => {
     try {
