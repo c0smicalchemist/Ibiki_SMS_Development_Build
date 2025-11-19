@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, UserPlus, Upload, Trash2, Edit, FolderPlus, Folder } from "lucide-react";
+import { Users, UserPlus, Upload, Trash2, Edit, FolderPlus, Folder, ArrowLeft } from "lucide-react";
+import { Link } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
@@ -181,9 +182,16 @@ export default function Contacts() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Contacts</h1>
-          <p className="text-muted-foreground">Manage your contact list and groups</p>
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard">
+            <Button variant="ghost" size="icon" data-testid="button-back">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold">Contacts</h1>
+            <p className="text-muted-foreground">Manage your contact list and groups</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}>

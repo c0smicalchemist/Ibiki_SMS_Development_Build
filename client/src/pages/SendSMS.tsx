@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Users, List } from "lucide-react";
+import { Send, Users, List, ArrowLeft } from "lucide-react";
+import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 
 interface Contact {
@@ -169,9 +170,16 @@ export default function SendSMS() {
 
   return (
     <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Send SMS</h1>
-        <p className="text-muted-foreground">Send single or bulk SMS messages to your contacts</p>
+      <div className="mb-6 flex items-center gap-4">
+        <Link href="/dashboard">
+          <Button variant="ghost" size="icon" data-testid="button-back">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-3xl font-bold">Send SMS</h1>
+          <p className="text-muted-foreground">Send single or bulk SMS messages to your contacts</p>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

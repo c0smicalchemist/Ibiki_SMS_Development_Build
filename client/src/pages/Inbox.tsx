@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Inbox as InboxIcon, Reply, MessageSquare } from "lucide-react";
+import { Inbox as InboxIcon, Reply, MessageSquare, ArrowLeft } from "lucide-react";
+import { Link } from "wouter";
 import { format } from "date-fns";
 
 interface IncomingMessage {
@@ -88,12 +89,19 @@ export default function Inbox() {
 
   return (
     <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <InboxIcon className="h-8 w-8" />
-          Inbox
-        </h1>
-        <p className="text-muted-foreground">View and reply to incoming SMS messages</p>
+      <div className="mb-6 flex items-center gap-4">
+        <Link href="/dashboard">
+          <Button variant="ghost" size="icon" data-testid="button-back">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <InboxIcon className="h-8 w-8" />
+            Inbox
+          </h1>
+          <p className="text-muted-foreground">View and reply to incoming SMS messages</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
