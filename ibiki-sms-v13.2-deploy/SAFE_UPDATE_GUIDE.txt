@@ -1,0 +1,316 @@
+================================================================================
+  ⚠️  CRITICAL: SAFE UPDATE FOR SERVERS WITH EXISTING CLIENTS
+  DO NOT WIPE YOUR CLIENT DATA!
+================================================================================
+
+🚨 **YOU HAVE EXISTING CLIENTS - READ THIS FIRST!**
+
+You mentioned you now have multiple clients signed up. This means:
+  ❌ DO NOT use full-deploy.sh (will wipe all client data!)
+  ✅ USE update.sh (preserves all client data!)
+
+================================================================================
+  🎯 QUICK UPDATE GUIDE
+================================================================================
+
+DOWNLOAD THESE 8 FILES:
+  1. ibiki-sms-v13.0-FINAL-part-01.tar.gz.part (10 MB)
+  2. ibiki-sms-v13.0-FINAL-part-02.tar.gz.part (10 MB)
+  3. ibiki-sms-v13.0-FINAL-part-03.tar.gz.part (10 MB)
+  4. ibiki-sms-v13.0-FINAL-part-04.tar.gz.part (10 MB)
+  5. ibiki-sms-v13.0-FINAL-part-05.tar.gz.part (10 MB)
+  6. ibiki-sms-v13.0-FINAL-part-06.tar.gz.part (10 MB)
+  7. ibiki-sms-v13.0-FINAL-part-07.tar.gz.part (10 MB)
+  8. ibiki-sms-v13.0-FINAL-part-08.tar.gz.part (3.2 MB)
+
+UPLOAD TO SERVER:
+```bash
+# Create update directory
+ssh root@151.243.109.79
+mkdir /root/ibiki-update
+exit
+
+# Upload all parts
+scp ibiki-sms-v13.0-FINAL-part-*.tar.gz.part root@151.243.109.79:/root/ibiki-update/
+```
+
+ON THE SERVER:
+```bash
+ssh root@151.243.109.79
+cd /root/ibiki-update
+
+# Reassemble
+cat ibiki-sms-v13.0-FINAL-part-*.tar.gz.part > update.tar.gz
+
+# Extract
+tar -xzf update.tar.gz
+
+# CRITICAL: Backup .env first!
+cp /root/ibiki-sms/.env /root/.env.backup
+
+# Stop app
+PM2_HOME=/home/ibiki/.pm2 pm2 stop ibiki-sms
+
+# Backup current app
+cp -r /root/ibiki-sms /root/ibiki-sms.backup
+
+# Copy new code
+cp -r /root/ibiki-update/ibiki-sms/* /root/ibiki-sms/
+
+# Restore .env (CRITICAL!)
+cp /root/.env.backup /root/ibiki-sms/.env
+
+# Run safe update
+cd /root/ibiki-sms
+chmod +x update.sh
+./update.sh
+```
+
+THAT'S IT! ✅
+
+Your clients can continue using their accounts - NO re-signup needed!
+
+================================================================================
+  ✅ WHAT GETS PRESERVED
+================================================================================
+
+The update.sh script preserves:
+  ✅ All user accounts (admin + clients)
+  ✅ All API keys
+  ✅ All client credit balances
+  ✅ All message logs
+  ✅ All credit transactions
+  ✅ All incoming messages
+  ✅ All system configuration
+  ✅ Database connection (.env)
+  ✅ PostgreSQL data
+
+YOUR CLIENTS WON'T NOTICE ANYTHING!
+  - Same login credentials
+  - Same API keys
+  - Same credit balances
+  - Same message history
+  - Just new features available!
+
+================================================================================
+  🆕 WHAT GETS UPDATED
+================================================================================
+
+The update adds:
+  ✅ NEW API endpoint: GET /api/v2/sms/messages
+     - Check status of ALL messages (not just one)
+  ✅ Bug fixes (Pool import, schema imports)
+  ✅ Updated API documentation
+  ✅ Performance improvements
+
+================================================================================
+  🚨 WHAT NOT TO DO
+================================================================================
+
+❌ DO NOT RUN: ./full-deploy.sh
+   - This will recreate the database
+   - All users will be deleted
+   - All clients will need to re-signup
+   - All data will be lost
+
+❌ DO NOT RUN: sudo -u postgres dropdb ibiki_sms
+   - This deletes your database
+   - All data lost forever
+
+❌ DO NOT DELETE: /root/ibiki-sms/.env
+   - Contains database credentials
+   - Without it, app can't connect to database
+
+❌ DO NOT SKIP: Backing up .env
+   - Critical for preserving data connection
+
+================================================================================
+  ✅ WHAT TO DO
+================================================================================
+
+✅ DO RUN: ./update.sh
+   - Safe update script
+   - Preserves all data
+   - Updates code only
+
+✅ DO BACKUP: .env file
+   - Before any update
+   - Contains database credentials
+
+✅ DO TEST: After update
+   - Have clients try to login
+   - Verify their data is intact
+   - Check new features work
+
+✅ DO VERIFY: Database integrity
+   ```bash
+   sudo -u postgres psql ibiki_sms -c "SELECT COUNT(*) FROM users;"
+   ```
+   Should show same number of users as before update!
+
+================================================================================
+  📋 VERIFICATION CHECKLIST
+================================================================================
+
+After running ./update.sh, verify:
+
+[ ] Application is running
+    PM2_HOME=/home/ibiki/.pm2 pm2 status
+    → Should show "online"
+
+[ ] No errors in logs
+    PM2_HOME=/home/ibiki/.pm2 pm2 logs ibiki-sms --lines 20
+    → Should NOT see errors
+
+[ ] Website loads
+    http://151.243.109.79
+    → Should see landing page
+
+[ ] Existing clients can login
+    → Use existing email/password
+    → Should work without re-signup
+
+[ ] Client data intact
+    → Check dashboard shows correct credit balance
+    → Check message history is preserved
+    → Check API keys still work
+
+[ ] New endpoint works
+    curl -X GET "http://151.243.109.79/api/v2/sms/messages" \
+      -H "Authorization: Bearer CLIENT_API_KEY"
+    → Should return list of messages
+
+[ ] All users still in database
+    sudo -u postgres psql ibiki_sms -c "SELECT email, role FROM users;"
+    → Should see all your users
+
+================================================================================
+  🔄 UPDATE FREQUENCY
+================================================================================
+
+How often should you update?
+
+WHEN TO UPDATE:
+  ✅ New features you want to use
+  ✅ Security fixes
+  ✅ Bug fixes affecting your clients
+  ✅ Performance improvements
+
+HOW TO UPDATE:
+  ✅ ALWAYS use update.sh (never full-deploy.sh)
+  ✅ ALWAYS backup .env first
+  ✅ ALWAYS test after update
+  ✅ ALWAYS verify clients can still login
+
+DOWNTIME:
+  - Minimal (just PM2 restart)
+  - Usually 5-10 seconds
+  - Clients might get one failed request
+  - They just retry and it works
+
+================================================================================
+  🆘 IF SOMETHING GOES WRONG
+================================================================================
+
+If update fails, ROLLBACK:
+
+```bash
+# Stop new version
+PM2_HOME=/home/ibiki/.pm2 pm2 stop ibiki-sms
+
+# Remove new version
+rm -rf /root/ibiki-sms
+
+# Restore backup
+mv /root/ibiki-sms.backup /root/ibiki-sms
+
+# Start old version
+cd /root/ibiki-sms
+PM2_HOME=/home/ibiki/.pm2 pm2 start npm --name ibiki-sms -- start
+```
+
+Everything back to normal! No data lost!
+
+================================================================================
+  💾 REGULAR BACKUPS (RECOMMENDED)
+================================================================================
+
+In addition to update backups, create regular backups:
+
+WEEKLY DATABASE BACKUP:
+```bash
+# Create backup
+sudo -u postgres pg_dump ibiki_sms > /root/backup-$(date +%Y%m%d).sql
+
+# Verify backup
+ls -lh /root/backup-*.sql
+```
+
+RESTORE FROM BACKUP (if needed):
+```bash
+# Drop current database (only if corrupted!)
+sudo -u postgres dropdb ibiki_sms
+
+# Recreate
+sudo -u postgres createdb ibiki_sms
+
+# Restore
+sudo -u postgres psql ibiki_sms < /root/backup-YYYYMMDD.sql
+```
+
+BACKUP .ENV:
+```bash
+cp /root/ibiki-sms/.env /root/.env.backup-$(date +%Y%m%d)
+```
+
+================================================================================
+  📊 CURRENT vs FUTURE DEPLOYMENTS
+================================================================================
+
+SITUATION 1: FRESH SERVER (No clients yet)
+  ✅ Use: full-deploy.sh
+  - Sets up everything from scratch
+  - Creates new database
+  - Installs PostgreSQL
+  - Configures everything
+
+SITUATION 2: SERVER WITH CLIENTS (Your current situation!)
+  ✅ Use: update.sh
+  - Updates code only
+  - Preserves all data
+  - Safe schema updates
+  - No client interruption
+
+REMEMBER:
+  - full-deploy.sh = FRESH INSTALL ONLY
+  - update.sh = FOR UPDATES WITH EXISTING DATA
+
+================================================================================
+  🎉 SUMMARY
+================================================================================
+
+YOU HAVE EXISTING CLIENTS, SO:
+
+1. ✅ Download v13.0 FINAL package (8 parts)
+2. ✅ Upload to /root/ibiki-update
+3. ✅ Backup .env file
+4. ✅ Extract package
+5. ✅ Stop app, backup current app
+6. ✅ Copy new code over old
+7. ✅ Restore .env
+8. ✅ Run ./update.sh
+9. ✅ Verify clients can still login
+10. ✅ Enjoy new features!
+
+TIME: 10-15 minutes
+DOWNTIME: 5-10 seconds
+DATA LOSS: ZERO ✅
+
+Your clients won't even notice - they can continue using their existing
+accounts without any interruption!
+
+Read UPDATE_INSTRUCTIONS.txt for complete step-by-step guide.
+
+🎉 Safe updating with zero data loss! 🚀
+
+================================================================================

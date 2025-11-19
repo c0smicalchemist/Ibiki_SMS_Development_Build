@@ -1,0 +1,344 @@
+=============================================================================
+IBIKI SMS v13.1 - DEPLOYMENT PACKAGE MANIFEST
+=============================================================================
+
+This document lists all files needed for the v13.1 deployment package.
+
+=============================================================================
+HOW TO CREATE THE PACKAGE
+=============================================================================
+
+You can download this entire project from Replit, or create a package with
+these specific files listed below.
+
+Method 1: Download Entire Project (Recommended)
+------------------------------------------------
+1. In Replit, click the three dots menu (⋮)
+2. Select "Download as ZIP"
+3. Extract on your server
+4. Follow UPDATE_INSTRUCTIONS_v13.1.txt
+
+Method 2: Select Files Manually (If download limit issues)
+-----------------------------------------------------------
+Use the file list below to include only essential files.
+
+=============================================================================
+REQUIRED FILES - CORE APPLICATION
+=============================================================================
+
+Root Configuration Files:
+  ✅ package.json
+  ✅ package-lock.json
+  ✅ tsconfig.json
+  ✅ vite.config.ts
+  ✅ tailwind.config.ts
+  ✅ postcss.config.js
+  ✅ drizzle.config.ts
+  ✅ .env.example
+
+Deployment Scripts:
+  ✅ update.sh (CRITICAL - use this script)
+  ✅ full-deploy.sh (reference only - DON'T USE)
+  ✅ setup-postgres.sh (if needed for PostgreSQL setup)
+
+Documentation:
+  ✅ UPDATE_INSTRUCTIONS_v13.1.txt (CRITICAL - read first)
+  ✅ CRITICAL_FIXES_v13.1.txt
+  ✅ BUSINESS_FIELD_ROUTING_GUIDE.txt
+  ✅ API_STATUS_ENDPOINT_GUIDE.txt
+  ✅ SAFE_UPDATE_GUIDE.txt
+  ✅ LOGIN_FIX_GUIDE.md
+  ✅ replit.md
+
+=============================================================================
+REQUIRED FILES - SERVER (Backend)
+=============================================================================
+
+server/
+  ✅ server/index.ts (main entry point)
+  ✅ server/routes.ts (all API endpoints)
+  ✅ server/storage.ts (database layer)
+  ✅ server/vite.ts (Vite dev server)
+  ✅ server/auth.ts (authentication middleware)
+
+=============================================================================
+REQUIRED FILES - SHARED
+=============================================================================
+
+shared/
+  ✅ shared/schema.ts (CRITICAL - includes new clientContacts table)
+
+=============================================================================
+REQUIRED FILES - CLIENT (Frontend)
+=============================================================================
+
+client/
+  client/index.html
+  client/src/
+    ✅ client/src/main.tsx
+    ✅ client/src/App.tsx
+    ✅ client/src/index.css
+
+  client/src/components/
+    ✅ client/src/components/theme-provider.tsx
+    
+  client/src/components/ui/ (Shadcn components)
+    ✅ All files in this directory
+    
+  client/src/hooks/
+    ✅ client/src/hooks/use-toast.ts
+    ✅ client/src/hooks/use-mobile.tsx
+    
+  client/src/lib/
+    ✅ client/src/lib/utils.ts
+    ✅ client/src/lib/queryClient.ts
+    ✅ client/src/lib/translations.ts
+    
+  client/src/pages/
+    ✅ client/src/pages/auth-page.tsx
+    ✅ client/src/pages/admin-dashboard.tsx
+    ✅ client/src/pages/client-dashboard.tsx
+    ✅ client/src/pages/forgot-password-page.tsx
+    ✅ client/src/pages/reset-password-page.tsx
+    ✅ client/src/pages/not-found.tsx
+
+=============================================================================
+REQUIRED FILES - ASSETS
+=============================================================================
+
+attached_assets/
+  ✅ attached_assets/Yubin_Dash_NOBG_1763476645991.png (logo)
+
+=============================================================================
+OPTIONAL FILES (Not Required for Deployment)
+=============================================================================
+
+These files are NOT needed on the production server:
+
+❌ node_modules/ (will be installed by npm install)
+❌ .git/ (version control - not needed)
+❌ .replit (Replit-specific config)
+❌ replit.nix (Replit-specific config)
+❌ dist/ (will be built during deployment)
+❌ .env (NEVER include - has secrets!)
+❌ .env.backup (local backup only)
+❌ /tmp/ (temporary logs)
+
+=============================================================================
+FILE SIZE ESTIMATE
+=============================================================================
+
+Approximate sizes (excluding node_modules):
+- Source code: ~5-10 MB
+- Documentation: ~1 MB
+- Assets: ~1 MB
+- Total: ~10-15 MB
+
+With node_modules after npm install: ~200-300 MB
+
+=============================================================================
+DEPLOYMENT PACKAGE STRUCTURE
+=============================================================================
+
+Your package should look like this after extraction:
+
+ibiki-sms-v13.1/
+├── package.json
+├── package-lock.json
+├── tsconfig.json
+├── vite.config.ts
+├── tailwind.config.ts
+├── postcss.config.js
+├── drizzle.config.ts
+├── .env.example
+├── update.sh ⭐ (USE THIS SCRIPT)
+├── full-deploy.sh
+├── setup-postgres.sh
+├── UPDATE_INSTRUCTIONS_v13.1.txt ⭐ (READ THIS FIRST)
+├── CRITICAL_FIXES_v13.1.txt
+├── BUSINESS_FIELD_ROUTING_GUIDE.txt
+├── API_STATUS_ENDPOINT_GUIDE.txt
+├── SAFE_UPDATE_GUIDE.txt
+├── LOGIN_FIX_GUIDE.md
+├── replit.md
+├── server/
+│   ├── index.ts
+│   ├── routes.ts ⭐ (UPDATED - webhook auth, routing fixes)
+│   ├── storage.ts ⭐ (UPDATED - new findClientByRecipient method)
+│   ├── vite.ts
+│   └── auth.ts
+├── shared/
+│   └── schema.ts ⭐ (UPDATED - new clientContacts table)
+├── client/
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx
+│       ├── App.tsx
+│       ├── index.css
+│       ├── components/
+│       ├── hooks/
+│       ├── lib/
+│       └── pages/
+└── attached_assets/
+    └── Yubin_Dash_NOBG_1763476645991.png
+
+=============================================================================
+CRITICAL FILES FOR v13.1 UPDATE
+=============================================================================
+
+These files contain the v13.1 changes and MUST be included:
+
+⭐ server/routes.ts
+   - Webhook authentication with WEBHOOK_SECRET
+   - Fixed conversation tracking (uses findClientByRecipient)
+   - Atomic contact upload with backup/restore
+   - Contact management endpoints
+
+⭐ server/storage.ts
+   - New findClientByRecipient() method for correct routing
+   - Contact management methods (create, get, delete)
+
+⭐ shared/schema.ts
+   - New clientContacts table definition
+   - Business field for routing
+
+⭐ .env.example
+   - Added WEBHOOK_SECRET configuration
+   - Updated comments and instructions
+
+=============================================================================
+CHECKSUM VERIFICATION (Optional)
+=============================================================================
+
+After transferring files to the server, you can verify integrity:
+
+```bash
+# On server, after upload
+cd /root/ibiki-sms
+
+# Check critical files exist
+ls -lh update.sh
+ls -lh server/routes.ts
+ls -lh server/storage.ts
+ls -lh shared/schema.ts
+
+# Check update script is executable
+test -x update.sh && echo "✅ update.sh is executable" || echo "❌ Need: chmod +x update.sh"
+
+# Check package.json exists
+test -f package.json && echo "✅ package.json found" || echo "❌ Missing package.json"
+```
+
+=============================================================================
+UPLOAD METHODS
+=============================================================================
+
+Method 1: SCP (Secure Copy)
+----------------------------
+From your local machine:
+```bash
+scp -r ibiki-sms-v13.1/* root@151.243.109.79:/root/ibiki-sms/
+```
+
+Method 2: SFTP (Interactive)
+-----------------------------
+```bash
+sftp root@151.243.109.79
+cd /root/ibiki-sms
+put -r *
+exit
+```
+
+Method 3: rsync (Best for updates)
+-----------------------------------
+```bash
+rsync -avz --progress ibiki-sms-v13.1/* root@151.243.109.79:/root/ibiki-sms/
+```
+
+Method 4: Git (If you use version control)
+-------------------------------------------
+```bash
+# On server
+cd /root/ibiki-sms
+git pull origin main
+```
+
+=============================================================================
+AFTER UPLOAD - NEXT STEPS
+=============================================================================
+
+1. ✅ SSH into server: ssh root@151.243.109.79
+2. ✅ Navigate to directory: cd /root/ibiki-sms
+3. ✅ Backup .env: cp .env .env.BACKUP_BEFORE_v13.1
+4. ✅ Add WEBHOOK_SECRET to .env: nano .env
+5. ✅ Make script executable: chmod +x update.sh
+6. ✅ Run update: ./update.sh
+7. ✅ Follow steps in UPDATE_INSTRUCTIONS_v13.1.txt
+
+=============================================================================
+DOWNLOAD FROM REPLIT
+=============================================================================
+
+To download this project from Replit:
+
+Option A: Direct Download
+1. Click on the three dots (⋮) in top-left of Replit IDE
+2. Select "Download as ZIP"
+3. Wait for download to complete
+4. Extract ZIP file on your machine
+5. Transfer to server using one of the upload methods above
+
+Option B: Git Clone (if you forked to GitHub)
+1. Click "Version Control" in left sidebar
+2. Click "Create a Git Repository"
+3. Push to GitHub
+4. Clone on your server:
+   ```bash
+   git clone https://github.com/yourusername/ibiki-sms.git
+   cd ibiki-sms
+   ```
+
+Option C: Replit Download Tool (if size limits)
+1. Open Replit Shell
+2. Create archive:
+   ```bash
+   tar -czf ibiki-sms-v13.1.tar.gz \
+     --exclude='node_modules' \
+     --exclude='.git' \
+     --exclude='dist' \
+     --exclude='/tmp' \
+     .
+   ```
+3. Download the .tar.gz file
+4. Extract and upload to server
+
+=============================================================================
+TROUBLESHOOTING PACKAGE ISSUES
+=============================================================================
+
+Problem: "Download failed" or "File too large"
+Solution: Use Option C above (tar.gz with exclusions)
+
+Problem: "Missing files after upload"
+Solution: Verify with `ls -la` on server, re-upload missing files
+
+Problem: "Permission denied" when running update.sh
+Solution: `chmod +x update.sh`
+
+Problem: "npm install fails"
+Solution: Delete node_modules, run npm install again
+
+Problem: Files uploaded but update fails
+Solution: Check UPDATE_INSTRUCTIONS_v13.1.txt for step-by-step guide
+
+=============================================================================
+SUPPORT
+=============================================================================
+
+If you encounter issues:
+1. Check UPDATE_INSTRUCTIONS_v13.1.txt (step-by-step guide)
+2. Check CRITICAL_FIXES_v13.1.txt (what changed)
+3. Check server logs: pm2 logs ibiki-sms
+4. Verify .env has all required variables
+
+=============================================================================

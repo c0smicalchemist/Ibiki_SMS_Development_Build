@@ -1,0 +1,122 @@
+=============================================================================
+IBIKI SMS v13.1 - QUICK DEPLOYMENT GUIDE
+=============================================================================
+
+⚠️  IMPORTANT: You have active users! This update is 100% SAFE.
+✅ All existing users, API keys, credits, and data will be preserved.
+
+=============================================================================
+QUICK START (5 STEPS)
+=============================================================================
+
+STEP 1: Download Project from Replit
+-------------------------------------
+In Replit:
+- Click the three dots (⋮) menu in top-left
+- Select "Download as ZIP"
+- Extract the ZIP file on your computer
+
+STEP 2: Upload to Your Server
+------------------------------
+```bash
+# From your computer, upload to server
+scp -r ibiki-sms-v13.1/* root@151.243.109.79:/root/ibiki-sms/
+```
+
+STEP 3: Add WEBHOOK_SECRET
+---------------------------
+```bash
+# SSH into server
+ssh root@151.243.109.79
+cd /root/ibiki-sms
+
+# Backup your current .env (CRITICAL!)
+cp .env .env.BACKUP_BEFORE_v13.1
+
+# Generate secret
+openssl rand -hex 32
+# Output: a1b2c3d4e5f6g7h8... (copy this)
+
+# Edit .env and add WEBHOOK_SECRET
+nano .env
+# Add line: WEBHOOK_SECRET=a1b2c3d4e5f6g7h8...
+# Save: Ctrl+X, Y, Enter
+```
+
+STEP 4: Run Safe Update Script
+-------------------------------
+```bash
+# Make script executable
+chmod +x update.sh
+
+# Run update (preserves all data)
+./update.sh
+
+# When prompted, press Y for both questions
+```
+
+STEP 5: Update ExtremeSMS Webhook
+----------------------------------
+1. Login to ExtremeSMS dashboard
+2. Go to Settings → Webhooks
+3. Update incoming SMS webhook URL to:
+   http://151.243.109.79:5000/webhook/incoming-sms?secret=YOUR_WEBHOOK_SECRET
+   (Replace YOUR_WEBHOOK_SECRET with value from your .env)
+4. Save
+
+=============================================================================
+VERIFICATION
+=============================================================================
+
+After deployment, verify:
+
+1. Check application is running:
+   ```bash
+   pm2 status
+   # Should show: ibiki-sms | online
+   ```
+
+2. Check logs (should be no errors):
+   ```bash
+   pm2 logs ibiki-sms --lines 30
+   ```
+
+3. Test in browser:
+   - Open: http://151.243.109.79
+   - Login with existing account
+   - Verify dashboard works
+
+4. Test existing user:
+   - Ask a client to login
+   - Their account should work unchanged
+
+=============================================================================
+WHAT'S NEW IN v13.1
+=============================================================================
+
+✅ Security: Webhook authentication prevents message spoofing
+✅ Fixed: Conversation tracking now routes incoming SMS correctly
+✅ Safety: Contact upload has automatic backup/restore
+✅ Feature: Business field routing for ExtremeSMS contacts
+✅ Feature: Message status check API already working
+
+=============================================================================
+NEED HELP?
+=============================================================================
+
+For detailed instructions, see:
+- UPDATE_INSTRUCTIONS_v13.1.txt (comprehensive step-by-step)
+- CRITICAL_FIXES_v13.1.txt (what was fixed and why)
+- DEPLOYMENT_PACKAGE_v13.1.txt (file manifest)
+
+=============================================================================
+KEY REMINDERS
+=============================================================================
+
+✅ Use update.sh (NOT full-deploy.sh!)
+✅ Backup .env before editing
+✅ Add WEBHOOK_SECRET to .env
+✅ Update ExtremeSMS webhook URL
+✅ All user data is preserved automatically
+
+=============================================================================

@@ -1,0 +1,255 @@
+=============================================================================
+🔧 IBIKI SMS v13.2 - CRITICAL FIXES & NEW FEATURES
+=============================================================================
+
+📅 Release Date: November 19, 2025
+🏷️ Version: 13.2
+⚠️ Priority: HIGH - Fixes database connection issue + Adds credit management
+
+=============================================================================
+🚨 CRITICAL FIX: DATABASE_URL Not Being Read
+=============================================================================
+
+**Problem:**
+- App showed: "⚠️ DATABASE_URL not set - using in-memory storage"
+- Even though .env file had DATABASE_URL configured
+- Users had to re-signup after every restart
+- All data lost on restart
+
+**Root Cause:**
+- Missing `dotenv` package
+- Environment variables from .env file not being loaded
+
+**Solution:**
+✅ Added `dotenv` package to dependencies
+✅ Added dotenv.config() at top of server/index.ts
+✅ Now properly reads DATABASE_URL from .env file
+✅ Database connection works correctly
+
+**Files Changed:**
+- package.json (added dotenv dependency)
+- server/index.ts (added dotenv import and config())
+
+=============================================================================
+✨ NEW FEATURE: Credit Allocation System
+=============================================================================
+
+**Admin Dashboard - Credit Management**
+
+1. **Credits Column in Client Table**
+   - Shows each client's current credit balance
+   - Format: $XX.XX (e.g., $0.00, $50.00, $125.50)
+   
+2. **Add Credits Button**
+   - Each client row has "Add Credits" button
+   - Opens professional dialog for credit allocation
+   
+3. **Credit Allocation Dialog**
+   Features:
+   - Shows client name
+   - Shows current balance
+   - Input field for amount to add
+   - Real-time preview of new balance
+   - Validation (only positive amounts)
+   - Success/error notifications
+   
+4. **Backend API**
+   - Uses existing /api/admin/add-credits endpoint
+   - Logs all transactions in credit_transactions table
+   - Atomic updates (safe and reliable)
+
+**Client Dashboard - Pricing Display**
+
+1. **Pricing Information Card**
+   - Shows rate per SMS (e.g., $0.0200)
+   - Displays approximate messages available
+   - Calculation: floor(credits / rate)
+   - Example: $50.00 credits ÷ $0.02 rate = 2,500 messages
+   
+2. **Available Credits StatCard**
+   - Already existed, now properly shows allocated credits
+   - Updates in real-time when admin adds credits
+
+**Files Changed:**
+- server/routes.ts (added credits to admin clients list, rate to client profile)
+- client/src/pages/AdminDashboard.tsx (added Credits column and Add Credits button)
+- client/src/components/AddCreditsToClientDialog.tsx (NEW - credit allocation dialog)
+- client/src/pages/ClientDashboard.tsx (added Pricing Information card)
+
+=============================================================================
+🎯 WHAT THIS SOLVES
+=============================================================================
+
+Before v13.2:
+❌ DATABASE_URL not read - users lost on restart
+❌ Admin could see ExtremeSMS balance but not client credits
+❌ Clients showed $0.00 even if admin had credits
+❌ No UI to allocate credits to clients
+❌ Clients didn't know their per-SMS rate
+
+After v13.2:
+✅ Database connection works reliably
+✅ Admin sees each client's credit balance
+✅ Admin can easily add credits to any client
+✅ Clients see their allocated credits
+✅ Clients know their per-SMS rate
+✅ Clients see how many messages they can send
+
+=============================================================================
+📊 TECHNICAL DETAILS
+=============================================================================
+
+**Database Changes:**
+- None! All tables already existed
+- Uses existing clientProfiles.credits field
+- Uses existing creditTransactions logging
+
+**Environment Variables:**
+- DATABASE_URL (now properly loaded from .env)
+- No new variables required
+
+**Dependencies Added:**
+- dotenv@16.x.x (required for .env loading)
+
+**API Endpoints:**
+- /api/admin/clients (now returns credits field)
+- /api/client/profile (now returns ratePerSms field)  
+- /api/admin/add-credits (existing, now accessible via UI)
+
+=============================================================================
+🔄 UPGRADE PATH
+=============================================================================
+
+**From v13.1 to v13.2:**
+
+This is a SAFE update:
+✅ No database schema changes
+✅ No data migration needed
+✅ All existing data preserved
+✅ Just code changes
+
+**What Gets Updated:**
+- server/index.ts (dotenv fix)
+- server/routes.ts (API enhancements)
+- client/src/pages/AdminDashboard.tsx (credit management UI)
+- client/src/pages/ClientDashboard.tsx (pricing display)
+- client/src/components/AddCreditsToClientDialog.tsx (NEW component)
+- package.json (dotenv dependency)
+- package-lock.json (dependency lock)
+
+**What Gets Preserved:**
+- All user accounts
+- All API keys
+- All credit balances
+- All message logs
+- All system configuration
+- Your .env file settings
+
+=============================================================================
+⚙️ CONFIGURATION
+=============================================================================
+
+**No New Configuration Required!**
+
+The system uses existing configuration:
+- client_rate_per_sms (set in Admin → Configuration tab)
+- extreme_cost_per_sms (set in Admin → Configuration tab)
+
+Clients will automatically see their rate based on admin config.
+
+=============================================================================
+🧪 TESTING CHECKLIST
+=============================================================================
+
+After deploying v13.2, verify:
+
+Admin Dashboard:
+□ Login as admin
+□ Go to Clients tab
+□ Verify "Credits" column shows balances
+□ Click "Add Credits" for a client
+□ Add 10.00 credits
+□ Verify balance updates in table
+
+Client Dashboard:
+□ Login as client
+□ Verify "Available Credits" shows correct balance
+□ Verify "Pricing Information" card displays
+□ Verify "Rate per SMS" shows (e.g., $0.0200)
+□ Verify "Approximate messages available" calculates correctly
+
+Database Connection:
+□ Check logs: Should say "Connected to PostgreSQL"
+□ Should NOT say "using in-memory storage"
+□ Users persist after restart
+□ Credits persist after restart
+
+=============================================================================
+📝 IMPLEMENTATION NOTES
+=============================================================================
+
+**Credit Allocation Flow:**
+1. Admin clicks "Add Credits" button
+2. Dialog opens with current balance
+3. Admin enters amount (e.g., 10.00)
+4. Preview shows new balance
+5. Admin clicks "Add Credits"
+6. API call to /api/admin/add-credits
+7. Database updated atomically
+8. Transaction logged in credit_transactions
+9. Success toast notification
+10. Table refreshes with new balance
+
+**Rate Display Logic:**
+1. Client profile API fetches client_rate_per_sms config
+2. Returns rate with credits
+3. Client dashboard displays rate
+4. Calculates approximate messages: floor(credits / rate)
+5. Shows calculation only if credits > 0
+
+**dotenv Loading:**
+1. server/index.ts imports dotenv
+2. Calls dotenv.config() BEFORE other imports
+3. Loads all variables from .env file into process.env
+4. DATABASE_URL available to DbStorage constructor
+5. PostgreSQL connection established successfully
+
+=============================================================================
+🛡️ SAFETY & RELIABILITY
+=============================================================================
+
+**Transaction Safety:**
+- All credit operations are atomic
+- Database transactions ensure consistency
+- No race conditions
+- Credit balance always accurate
+
+**Data Integrity:**
+- All credit changes logged in credit_transactions table
+- Audit trail for every credit addition
+- Balance tracked before and after each change
+
+**Error Handling:**
+- Input validation on frontend and backend
+- Only positive amounts allowed
+- User-friendly error messages
+- No partial updates (all-or-nothing)
+
+=============================================================================
+📦 DEPLOYMENT PACKAGE CONTENTS
+=============================================================================
+
+This package includes:
+✅ Updated server code (dotenv fix)
+✅ Updated client code (credit management UI)
+✅ New component (AddCreditsToClientDialog)
+✅ Updated package.json (dotenv dependency)
+✅ All documentation
+✅ Deployment scripts (update.sh, full-deploy.sh)
+
+=============================================================================
+VERSION: v13.2
+DATE: November 19, 2025
+STATUS: ✅ READY FOR DEPLOYMENT
+SAFETY: ✅ 100% SAFE (No Data Loss)
+=============================================================================

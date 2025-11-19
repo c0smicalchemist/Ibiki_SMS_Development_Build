@@ -1,3 +1,22 @@
+#!/bin/bash
+
+# Ibiki SMS - Deployment Fix Script
+# Run this on your server to fix the build issues
+
+set -e
+
+echo "================================="
+echo "Ibiki SMS - Deployment Fix"
+echo "================================="
+echo ""
+
+# Navigate to the application directory
+cd /root/IbikiGateway || { echo "Error: IbikiGateway folder not found!"; exit 1; }
+
+echo "[1/6] Updating build configuration..."
+
+# Fix the build script in package.json
+cat > package.json.tmp << 'EOF'
 {
   "name": "rest-express",
   "version": "1.0.0",
@@ -5,7 +24,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --external:vite --external:@vitejs/* --external:@replit/* --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push"
@@ -51,7 +70,6 @@
     "cmdk": "^1.1.1",
     "connect-pg-simple": "^10.0.0",
     "date-fns": "^3.6.0",
-    "dotenv": "^17.2.3",
     "drizzle-orm": "^0.39.1",
     "drizzle-zod": "^0.7.0",
     "embla-carousel-react": "^8.6.0",
@@ -72,7 +90,6 @@
     "react-icons": "^5.4.0",
     "react-resizable-panels": "^2.1.7",
     "recharts": "^2.15.2",
-    "resend": "^6.5.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "tw-animate-css": "^1.2.5",
@@ -111,3 +128,111 @@
     "bufferutil": "^4.0.8"
   }
 }
+EOF
+
+mv package.json.tmp package.json
+
+echo "[2/6] Installing dependencies..."
+npm ci --production=false
+
+echo "[3/6] Building frontend..."
+npm run build 2>&1 | head -20
+
+echo "[4/6] Checking build output..."
+if [ -f "dist/index.js" ]; then
+    echo "✓ Build successful!"
+    ls -lh dist/index.js
+else
+    echo "✗ Build failed - dist/index.js not found"
+    exit 1
+fi
+
+echo "[5/6] Installing to /opt/ibiki-sms..."
+# Create application user if doesn't exist
+if ! id -u ibiki &>/dev/null; then
+    useradd -r -s /bin/false ibiki
+    echo "✓ Created ibiki user"
+fi
+
+# Copy to /opt
+rm -rf /opt/ibiki-sms
+mkdir -p /opt/ibiki-sms
+cp -r * /opt/ibiki-sms/
+chown -R ibiki:ibiki /opt/ibiki-sms
+
+# Create .env if doesn't exist
+if [ ! -f /opt/ibiki-sms/.env ]; then
+    JWT_SECRET=$(openssl rand -hex 32)
+    cat > /opt/ibiki-sms/.env << ENVEOF
+NODE_ENV=production
+PORT=3100
+HOST=0.0.0.0
+JWT_SECRET=${JWT_SECRET}
+SESSION_SECRET=${JWT_SECRET}
+LOG_LEVEL=info
+ENVEOF
+    chmod 600 /opt/ibiki-sms/.env
+    chown ibiki:ibiki /opt/ibiki-sms/.env
+    echo "✓ Created .env file"
+fi
+
+echo "[6/6] Starting with PM2..."
+# Install PM2 if not present
+if ! command -v pm2 &> /dev/null; then
+    npm install -g pm2
+    echo "✓ Installed PM2"
+fi
+
+# Create ecosystem config
+cat > /opt/ibiki-sms/ecosystem.config.cjs << 'ECOEOF'
+module.exports = {
+  apps: [{
+    name: 'ibiki-sms',
+    script: './dist/index.js',
+    cwd: '/opt/ibiki-sms',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '1G',
+    env: {
+      NODE_ENV: 'production'
+    },
+    error_file: '/var/log/ibiki-sms/error.log',
+    out_file: '/var/log/ibiki-sms/out.log',
+    log_file: '/var/log/ibiki-sms/combined.log',
+    time: true
+  }]
+};
+ECOEOF
+
+# Create log directory
+mkdir -p /var/log/ibiki-sms
+chown ibiki:ibiki /var/log/ibiki-sms
+
+# Stop old instance if running
+pm2 delete ibiki-sms 2>/dev/null || true
+
+# Start application
+cd /opt/ibiki-sms
+sudo -u ibiki pm2 start ecosystem.config.cjs
+sudo -u ibiki pm2 save
+
+echo ""
+echo "================================="
+echo "✓ Deployment Complete!"
+echo "================================="
+echo ""
+echo "Application Status:"
+pm2 list
+echo ""
+echo "Test the application:"
+echo "  curl http://localhost:3100"
+echo ""
+echo "View logs:"
+echo "  pm2 logs ibiki-sms"
+echo ""
+echo "Next steps:"
+echo "1. Configure Nginx (if needed)"
+echo "2. Set up SSL with certbot"
+echo "3. Create admin account"
+echo "================================="
