@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, Settings, Activity, ArrowLeft, Wallet, Copy, CheckCircle } from "lucide-react";
+import { Users, Settings, Activity, ArrowLeft, Wallet, Copy, CheckCircle, Send, Inbox as InboxIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -210,6 +210,48 @@ export default function AdminDashboard() {
             icon={Settings}
             description={t('admin.stats.allRunning')}
           />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="hover-elevate active-elevate-2 cursor-pointer">
+            <Link href="/send-sms">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Send className="h-5 w-5" />
+                  Send SMS
+                </CardTitle>
+                <CardDescription>
+                  Send single or bulk SMS messages
+                </CardDescription>
+              </CardHeader>
+            </Link>
+          </Card>
+          <Card className="hover-elevate active-elevate-2 cursor-pointer">
+            <Link href="/inbox">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <InboxIcon className="h-5 w-5" />
+                  Inbox
+                </CardTitle>
+                <CardDescription>
+                  View and reply to incoming messages
+                </CardDescription>
+              </CardHeader>
+            </Link>
+          </Card>
+          <Card className="hover-elevate active-elevate-2 cursor-pointer">
+            <Link href="/contacts">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Contacts
+                </CardTitle>
+                <CardDescription>
+                  Manage your contact list
+                </CardDescription>
+              </CardHeader>
+            </Link>
+          </Card>
         </div>
 
         <Tabs defaultValue="clients" data-testid="tabs-admin">
