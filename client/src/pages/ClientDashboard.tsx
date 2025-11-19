@@ -1,4 +1,4 @@
-import { MessageSquare, DollarSign, Activity, ArrowLeft, Inbox } from "lucide-react";
+import { MessageSquare, DollarSign, Activity, ArrowLeft, Inbox, Send, Users } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -205,6 +205,48 @@ export default function ClientDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <Card className="hover-elevate active-elevate-2 cursor-pointer">
+            <Link href="/send-sms">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Send className="h-5 w-5" />
+                  Send SMS
+                </CardTitle>
+                <CardDescription>
+                  Send single or bulk SMS messages
+                </CardDescription>
+              </CardHeader>
+            </Link>
+          </Card>
+          <Card className="hover-elevate active-elevate-2 cursor-pointer">
+            <Link href="/inbox">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Inbox className="h-5 w-5" />
+                  Inbox
+                </CardTitle>
+                <CardDescription>
+                  View and reply to incoming messages
+                </CardDescription>
+              </CardHeader>
+            </Link>
+          </Card>
+          <Card className="hover-elevate active-elevate-2 cursor-pointer">
+            <Link href="/contacts">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Contacts
+                </CardTitle>
+                <CardDescription>
+                  Manage your contact list
+                </CardDescription>
+              </CardHeader>
+            </Link>
+          </Card>
+        </div>
 
         <div className="flex gap-3">
           <Link href="/docs">

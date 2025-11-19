@@ -15,6 +15,10 @@ import {
   type InsertIncomingMessage,
   type ClientContact,
   type InsertClientContact,
+  type ContactGroup,
+  type InsertContactGroup,
+  type Contact,
+  type InsertContact,
   users,
   apiKeys,
   clientProfiles,
@@ -22,7 +26,9 @@ import {
   messageLogs,
   creditTransactions,
   incomingMessages,
-  clientContacts
+  clientContacts,
+  contactGroups,
+  contacts
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from 'drizzle-orm/neon-serverless';
@@ -90,6 +96,23 @@ export interface IStorage {
   deleteClientContact(id: string): Promise<void>;
   deleteClientContactsByUserId(userId: string): Promise<void>;
   
+  // Contact Group methods (address book feature)
+  createContactGroup(group: InsertContactGroup): Promise<ContactGroup>;
+  getContactGroupsByUserId(userId: string): Promise<ContactGroup[]>;
+  getContactGroup(id: string): Promise<ContactGroup | undefined>;
+  updateContactGroup(id: string, updates: Partial<ContactGroup>): Promise<ContactGroup | undefined>;
+  deleteContactGroup(id: string): Promise<void>;
+  
+  // Contact methods (address book feature)
+  createContact(contact: InsertContact): Promise<Contact>;
+  createContactsBulk(contacts: InsertContact[]): Promise<Contact[]>;
+  getContactsByUserId(userId: string): Promise<Contact[]>;
+  getContactsByGroupId(groupId: string): Promise<Contact[]>;
+  getContact(id: string): Promise<Contact | undefined>;
+  updateContact(id: string, updates: Partial<Contact>): Promise<Contact | undefined>;
+  deleteContact(id: string): Promise<void>;
+  deleteContactsByGroupId(groupId: string): Promise<void>;
+  
   // Error logging methods
   getErrorLogs(level?: string): Promise<any[]>;
   
@@ -106,6 +129,8 @@ export class MemStorage implements IStorage {
   private creditTransactions: Map<string, CreditTransaction>;
   private incomingMessages: Map<string, IncomingMessage>;
   private clientContacts: Map<string, ClientContact>;
+  private contactGroups: Map<string, ContactGroup>;
+  private contacts: Map<string, Contact>;
 
   constructor() {
     this.users = new Map();
@@ -116,6 +141,8 @@ export class MemStorage implements IStorage {
     this.creditTransactions = new Map();
     this.incomingMessages = new Map();
     this.clientContacts = new Map();
+    this.contactGroups = new Map();
+    this.contacts = new Map();
   }
 
   // User methods
@@ -526,6 +553,100 @@ export class MemStorage implements IStorage {
     }
   }
 
+  // Contact Group methods (address book feature)
+  async createContactGroup(insertGroup: InsertContactGroup): Promise<ContactGroup> {
+    const id = randomUUID();
+    const group: ContactGroup = {
+      ...insertGroup,
+      id,
+      description: insertGroup.description ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.contactGroups.set(id, group);
+    return group;
+  }
+
+  async getContactGroupsByUserId(userId: string): Promise<ContactGroup[]> {
+    return Array.from(this.contactGroups.values()).filter((group) => group.userId === userId);
+  }
+
+  async getContactGroup(id: string): Promise<ContactGroup | undefined> {
+    return this.contactGroups.get(id);
+  }
+
+  async updateContactGroup(id: string, updates: Partial<ContactGroup>): Promise<ContactGroup | undefined> {
+    const group = this.contactGroups.get(id);
+    if (!group) return undefined;
+    const updatedGroup = { ...group, ...updates, updatedAt: new Date() };
+    this.contactGroups.set(id, updatedGroup);
+    return updatedGroup;
+  }
+
+  async deleteContactGroup(id: string): Promise<void> {
+    this.contactGroups.delete(id);
+  }
+
+  // Contact methods (address book feature)
+  async createContact(insertContact: InsertContact): Promise<Contact> {
+    const id = randomUUID();
+    const contact: Contact = {
+      ...insertContact,
+      id,
+      groupId: insertContact.groupId ?? null,
+      name: insertContact.name ?? null,
+      email: insertContact.email ?? null,
+      notes: insertContact.notes ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.contacts.set(id, contact);
+    return contact;
+  }
+
+  async createContactsBulk(insertContacts: InsertContact[]): Promise<Contact[]> {
+    const created: Contact[] = [];
+    for (const insertContact of insertContacts) {
+      const contact = await this.createContact(insertContact);
+      created.push(contact);
+    }
+    return created;
+  }
+
+  async getContactsByUserId(userId: string): Promise<Contact[]> {
+    return Array.from(this.contacts.values()).filter((contact) => contact.userId === userId);
+  }
+
+  async getContactsByGroupId(groupId: string): Promise<Contact[]> {
+    return Array.from(this.contacts.values()).filter((contact) => contact.groupId === groupId);
+  }
+
+  async getContact(id: string): Promise<Contact | undefined> {
+    return this.contacts.get(id);
+  }
+
+  async updateContact(id: string, updates: Partial<Contact>): Promise<Contact | undefined> {
+    const contact = this.contacts.get(id);
+    if (!contact) return undefined;
+    const updatedContact = { ...contact, ...updates, updatedAt: new Date() };
+    this.contacts.set(id, updatedContact);
+    return updatedContact;
+  }
+
+  async deleteContact(id: string): Promise<void> {
+    this.contacts.delete(id);
+  }
+
+  async deleteContactsByGroupId(groupId: string): Promise<void> {
+    const contactsToDelete = Array.from(this.contacts.entries())
+      .filter(([_, contact]) => contact.groupId === groupId)
+      .map(([id, _]) => id);
+    
+    for (const id of contactsToDelete) {
+      this.contacts.delete(id);
+    }
+  }
+
   // Error logging methods
   async getErrorLogs(level?: string): Promise<any[]> {
     // Get failed message logs as error logs
@@ -913,6 +1034,74 @@ export class DbStorage implements IStorage {
 
   async deleteClientContactsByUserId(userId: string): Promise<void> {
     await this.db.delete(clientContacts).where(eq(clientContacts.userId, userId));
+  }
+
+  // Contact Group methods (address book feature)
+  async createContactGroup(insertGroup: InsertContactGroup): Promise<ContactGroup> {
+    const result = await this.db.insert(contactGroups).values(insertGroup).returning();
+    return result[0];
+  }
+
+  async getContactGroupsByUserId(userId: string): Promise<ContactGroup[]> {
+    return this.db.select().from(contactGroups).where(eq(contactGroups.userId, userId));
+  }
+
+  async getContactGroup(id: string): Promise<ContactGroup | undefined> {
+    const result = await this.db.select().from(contactGroups).where(eq(contactGroups.id, id));
+    return result[0];
+  }
+
+  async updateContactGroup(id: string, updates: Partial<ContactGroup>): Promise<ContactGroup | undefined> {
+    const result = await this.db.update(contactGroups)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(contactGroups.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteContactGroup(id: string): Promise<void> {
+    await this.db.delete(contactGroups).where(eq(contactGroups.id, id));
+  }
+
+  // Contact methods (address book feature)
+  async createContact(insertContact: InsertContact): Promise<Contact> {
+    const result = await this.db.insert(contacts).values(insertContact).returning();
+    return result[0];
+  }
+
+  async createContactsBulk(insertContacts: InsertContact[]): Promise<Contact[]> {
+    if (insertContacts.length === 0) return [];
+    const result = await this.db.insert(contacts).values(insertContacts).returning();
+    return result;
+  }
+
+  async getContactsByUserId(userId: string): Promise<Contact[]> {
+    return this.db.select().from(contacts).where(eq(contacts.userId, userId));
+  }
+
+  async getContactsByGroupId(groupId: string): Promise<Contact[]> {
+    return this.db.select().from(contacts).where(eq(contacts.groupId, groupId));
+  }
+
+  async getContact(id: string): Promise<Contact | undefined> {
+    const result = await this.db.select().from(contacts).where(eq(contacts.id, id));
+    return result[0];
+  }
+
+  async updateContact(id: string, updates: Partial<Contact>): Promise<Contact | undefined> {
+    const result = await this.db.update(contacts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(contacts.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteContact(id: string): Promise<void> {
+    await this.db.delete(contacts).where(eq(contacts.id, id));
+  }
+
+  async deleteContactsByGroupId(groupId: string): Promise<void> {
+    await this.db.delete(contacts).where(eq(contacts.groupId, groupId));
   }
 
   // Error logging methods

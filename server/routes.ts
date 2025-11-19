@@ -2,7 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import express from "express";
 import { storage } from "./storage";
-import { type User } from "@shared/schema";
+import { type User, insertContactSchema, insertContactGroupSchema } from "@shared/schema";
+import { z } from "zod";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import axios from "axios";
@@ -162,6 +163,16 @@ async function getExtremeApiKey() {
     throw new Error("ExtremeSMS API key not configured");
   }
   return config.value;
+}
+
+async function getExtremeSMSCredentials() {
+  // For now, use the API key as both username and password
+  // This can be extended to use separate username/password configs if needed
+  const apiKey = await getExtremeApiKey();
+  return {
+    extremeUsername: apiKey,
+    extremePassword: apiKey
+  };
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1675,6 +1686,353 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Balance check error:", error);
       res.status(500).json({ success: false, error: "Failed to get balance" });
+    }
+  });
+
+  // ===== WEB UI ROUTES FOR SMS SENDING =====
+  
+  // Contact Groups API
+  app.get("/api/contact-groups", authenticateToken, async (req: any, res) => {
+    try {
+      const groups = await storage.getContactGroupsByUserId(req.user.userId);
+      res.json({ success: true, groups });
+    } catch (error) {
+      console.error("Get contact groups error:", error);
+      res.status(500).json({ error: "Failed to retrieve contact groups" });
+    }
+  });
+
+  app.post("/api/contact-groups", authenticateToken, async (req: any, res) => {
+    try {
+      const { name, description } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: "Group name is required" });
+      }
+      const group = await storage.createContactGroup({
+        userId: req.user.userId,
+        name,
+        description: description || null
+      });
+      res.json({ success: true, group });
+    } catch (error) {
+      console.error("Create contact group error:", error);
+      res.status(500).json({ error: "Failed to create contact group" });
+    }
+  });
+
+  app.put("/api/contact-groups/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description } = req.body;
+      
+      // Verify ownership
+      const group = await storage.getContactGroup(id);
+      if (!group) {
+        return res.status(404).json({ error: "Group not found" });
+      }
+      if (group.userId !== req.user.userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      const updated = await storage.updateContactGroup(id, { name, description });
+      res.json({ success: true, group: updated });
+    } catch (error) {
+      console.error("Update contact group error:", error);
+      res.status(500).json({ error: "Failed to update contact group" });
+    }
+  });
+
+  app.delete("/api/contact-groups/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Verify ownership
+      const group = await storage.getContactGroup(id);
+      if (!group) {
+        return res.status(404).json({ error: "Group not found" });
+      }
+      if (group.userId !== req.user.userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      // Delete associated contacts
+      await storage.deleteContactsByGroupId(id);
+      await storage.deleteContactGroup(id);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete contact group error:", error);
+      res.status(500).json({ error: "Failed to delete contact group" });
+    }
+  });
+
+  // Contacts API
+  app.get("/api/contacts", authenticateToken, async (req: any, res) => {
+    try {
+      const contacts = await storage.getContactsByUserId(req.user.userId);
+      res.json({ success: true, contacts });
+    } catch (error) {
+      console.error("Get contacts error:", error);
+      res.status(500).json({ error: "Failed to retrieve contacts" });
+    }
+  });
+
+  app.post("/api/contacts", authenticateToken, async (req: any, res) => {
+    try {
+      const contactSchema = insertContactSchema.extend({
+        userId: z.string().optional()
+      }).omit({ userId: true });
+      
+      const validated = contactSchema.parse({
+        ...req.body,
+        phoneNumber: req.body.phoneNumber,
+        name: req.body.name || null,
+        email: req.body.email || null,
+        notes: req.body.notes || null,
+        groupId: req.body.groupId || null
+      });
+      
+      const contact = await storage.createContact({
+        ...validated,
+        userId: req.user.userId
+      });
+      res.json({ success: true, contact });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Create contact error:", error);
+      res.status(500).json({ error: "Failed to create contact" });
+    }
+  });
+
+  app.post("/api/contacts/import-csv", authenticateToken, async (req: any, res) => {
+    try {
+      const { contacts, groupId } = req.body;
+      
+      if (!Array.isArray(contacts) || contacts.length === 0) {
+        return res.status(400).json({ error: "Contacts array is required" });
+      }
+
+      const insertContacts = contacts.map(c => ({
+        userId: req.user.userId,
+        phoneNumber: c.phoneNumber,
+        name: c.name || null,
+        email: c.email || null,
+        notes: c.notes || null,
+        groupId: groupId || null
+      }));
+
+      const created = await storage.createContactsBulk(insertContacts);
+      res.json({ success: true, count: created.length, contacts: created });
+    } catch (error) {
+      console.error("Import contacts error:", error);
+      res.status(500).json({ error: "Failed to import contacts" });
+    }
+  });
+
+  app.put("/api/contacts/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { phoneNumber, name, email, notes, groupId } = req.body;
+      
+      // Verify ownership
+      const contact = await storage.getContact(id);
+      if (!contact) {
+        return res.status(404).json({ error: "Contact not found" });
+      }
+      if (contact.userId !== req.user.userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      const updated = await storage.updateContact(id, { phoneNumber, name, email, notes, groupId });
+      res.json({ success: true, contact: updated });
+    } catch (error) {
+      console.error("Update contact error:", error);
+      res.status(500).json({ error: "Failed to update contact" });
+    }
+  });
+
+  app.delete("/api/contacts/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Verify ownership
+      const contact = await storage.getContact(id);
+      if (!contact) {
+        return res.status(404).json({ error: "Contact not found" });
+      }
+      if (contact.userId !== req.user.userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      await storage.deleteContact(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete contact error:", error);
+      res.status(500).json({ error: "Failed to delete contact" });
+    }
+  });
+
+  // Web UI SMS Sending (calls ExtremeSMS via existing proxy logic)
+  app.post("/api/web/sms/send-single", authenticateToken, async (req: any, res) => {
+    try {
+      const { to, message } = req.body;
+      
+      if (!to || !message) {
+        return res.status(400).json({ error: "Recipient and message are required" });
+      }
+
+      const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
+      
+      const response = await axios.post('https://extremesms.net/api2/api/sms/send-single', {
+        username: extremeUsername,
+        password: extremePassword,
+        to,
+        message
+      });
+
+      // Deduct credits and log
+      await deductCreditsAndLog(
+        req.user.userId,
+        1,
+        'web-ui-single',
+        response.data.messageId || 'unknown',
+        'sent',
+        { to, message },
+        response.data,
+        to
+      );
+
+      res.json({ success: true, data: response.data });
+    } catch (error: any) {
+      console.error("Web UI send single error:", error);
+      res.status(500).json({ error: error.message || "Failed to send SMS" });
+    }
+  });
+
+  app.post("/api/web/sms/send-bulk", authenticateToken, async (req: any, res) => {
+    try {
+      const { recipients, message } = req.body;
+      
+      if (!recipients || !Array.isArray(recipients) || recipients.length === 0 || !message) {
+        return res.status(400).json({ error: "Recipients array and message are required" });
+      }
+
+      const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
+      
+      const response = await axios.post('https://extremesms.net/api2/api/sms/send-bulk', {
+        username: extremeUsername,
+        password: extremePassword,
+        recipients,
+        message
+      });
+
+      // Deduct credits and log
+      await deductCreditsAndLog(
+        req.user.userId,
+        recipients.length,
+        'web-ui-bulk',
+        response.data.messageId || 'unknown',
+        'sent',
+        { recipients, message },
+        response.data,
+        undefined,
+        recipients
+      );
+
+      res.json({ success: true, data: response.data });
+    } catch (error: any) {
+      console.error("Web UI send bulk error:", error);
+      res.status(500).json({ error: error.message || "Failed to send bulk SMS" });
+    }
+  });
+
+  app.post("/api/web/sms/send-bulk-multi", authenticateToken, async (req: any, res) => {
+    try {
+      const { messages } = req.body;
+      
+      if (!messages || !Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ error: "Messages array is required" });
+      }
+
+      const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
+      
+      const response = await axios.post('https://extremesms.net/api2/api/sms/send-bulk-multi', {
+        username: extremeUsername,
+        password: extremePassword,
+        messages
+      });
+
+      // Deduct credits and log
+      await deductCreditsAndLog(
+        req.user.userId,
+        messages.length,
+        'web-ui-bulk-multi',
+        response.data.messageId || 'unknown',
+        'sent',
+        { messages },
+        response.data
+      );
+
+      res.json({ success: true, data: response.data });
+    } catch (error: any) {
+      console.error("Web UI send bulk multi error:", error);
+      res.status(500).json({ error: error.message || "Failed to send bulk multi SMS" });
+    }
+  });
+
+  // Web UI Inbox
+  app.get("/api/web/inbox", authenticateToken, async (req: any, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const messages = await storage.getIncomingMessagesByUserId(req.user.userId, limit);
+      
+      res.json({
+        success: true,
+        messages,
+        count: messages.length
+      });
+    } catch (error) {
+      console.error("Web UI inbox error:", error);
+      res.status(500).json({ error: "Failed to retrieve inbox" });
+    }
+  });
+
+  // Reply to incoming message
+  app.post("/api/web/inbox/reply", authenticateToken, async (req: any, res) => {
+    try {
+      const { to, message } = req.body;
+      
+      if (!to || !message) {
+        return res.status(400).json({ error: "Recipient and message are required" });
+      }
+
+      const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
+      
+      const response = await axios.post('https://extremesms.net/api2/api/sms/send-single', {
+        username: extremeUsername,
+        password: extremePassword,
+        to,
+        message
+      });
+
+      // Deduct credits and log
+      await deductCreditsAndLog(
+        req.user.userId,
+        1,
+        'web-ui-reply',
+        response.data.messageId || 'unknown',
+        'sent',
+        { to, message },
+        response.data,
+        to
+      );
+
+      res.json({ success: true, data: response.data });
+    } catch (error: any) {
+      console.error("Web UI reply error:", error);
+      res.status(500).json({ error: error.message || "Failed to send reply" });
     }
   });
 

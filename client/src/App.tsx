@@ -13,6 +13,9 @@ import ResetPassword from "@/pages/ResetPassword";
 import ClientDashboard from "@/pages/ClientDashboard";
 import ApiDocs from "@/pages/ApiDocs";
 import AdminDashboard from "@/pages/AdminDashboard";
+import Contacts from "@/pages/Contacts";
+import SendSMS from "@/pages/SendSMS";
+import Inbox from "@/pages/Inbox";
 
 function Router() {
   return (
@@ -25,6 +28,9 @@ function Router() {
       <Route path="/dashboard" component={ClientDashboard} />
       <Route path="/docs" component={ApiDocs} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/contacts" component={Contacts} />
+      <Route path="/send-sms" component={SendSMS} />
+      <Route path="/inbox" component={Inbox} />
       <Route component={NotFound} />
     </Switch>
   );

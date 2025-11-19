@@ -137,6 +137,35 @@ export const clientContacts = pgTable("client_contacts", {
   phoneUserIdx: index("contact_phone_user_idx").on(table.phoneNumber, table.userId),
 }));
 
+// Contact groups for organizing contacts (address book feature)
+export const contactGroups = pgTable("contact_groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index("group_user_id_idx").on(table.userId),
+}));
+
+// Contacts (address book feature)
+export const contacts = pgTable("contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  groupId: varchar("group_id").references(() => contactGroups.id, { onDelete: "set null" }),
+  phoneNumber: text("phone_number").notNull(),
+  name: text("name"),
+  email: text("email"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index("contacts_user_id_idx").on(table.userId),
+  groupIdIdx: index("contacts_group_id_idx").on(table.groupId),
+  phoneIdx: index("contacts_phone_idx").on(table.phoneNumber),
+}));
+
 // Zod schemas and types
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -180,6 +209,18 @@ export const insertClientContactSchema = createInsertSchema(clientContacts).omit
   updatedAt: true,
 });
 
+export const insertContactGroupSchema = createInsertSchema(contactGroups).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertContactSchema = createInsertSchema(contacts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
@@ -203,3 +244,9 @@ export type InsertIncomingMessage = z.infer<typeof insertIncomingMessageSchema>;
 
 export type ClientContact = typeof clientContacts.$inferSelect;
 export type InsertClientContact = z.infer<typeof insertClientContactSchema>;
+
+export type ContactGroup = typeof contactGroups.$inferSelect;
+export type InsertContactGroup = z.infer<typeof insertContactGroupSchema>;
+
+export type Contact = typeof contacts.$inferSelect;
+export type InsertContact = z.infer<typeof insertContactSchema>;
