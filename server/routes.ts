@@ -1704,14 +1704,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/contact-groups", authenticateToken, async (req: any, res) => {
     try {
-      const { name, description } = req.body;
+      const { name, description, businessUnitPrefix } = req.body;
       if (!name) {
         return res.status(400).json({ error: "Group name is required" });
       }
       const group = await storage.createContactGroup({
         userId: req.user.userId,
         name,
-        description: description || null
+        description: description || null,
+        businessUnitPrefix: businessUnitPrefix || null
       });
       res.json({ success: true, group });
     } catch (error) {
@@ -1723,7 +1724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/contact-groups/:id", authenticateToken, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { name, description } = req.body;
+      const { name, description, businessUnitPrefix } = req.body;
       
       // Verify ownership
       const group = await storage.getContactGroup(id);
@@ -1734,7 +1735,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Unauthorized" });
       }
       
-      const updated = await storage.updateContactGroup(id, { name, description });
+      const updated = await storage.updateContactGroup(id, { name, description, businessUnitPrefix });
       res.json({ success: true, group: updated });
     } catch (error) {
       console.error("Update contact group error:", error);
