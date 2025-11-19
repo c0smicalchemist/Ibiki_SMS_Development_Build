@@ -284,12 +284,12 @@ export default function Contacts() {
                 <div className="space-y-4">
                   <div>
                     <Label>Select Group (Optional)</Label>
-                    <Select value={selectedGroup || ""} onValueChange={setSelectedGroup}>
+                    <Select value={selectedGroup || "ungrouped"} onValueChange={(val) => setSelectedGroup(val === "ungrouped" ? null : val)}>
                       <SelectTrigger data-testid="select-import-group">
                         <SelectValue placeholder="No group (ungrouped)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No group</SelectItem>
+                        <SelectItem value="ungrouped">No group</SelectItem>
                         {groups.map((group: ContactGroup) => (
                           <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
                         ))}
@@ -368,12 +368,12 @@ export default function Contacts() {
                 </div>
                 <div>
                   <Label>Group</Label>
-                  <Select value={contactData.groupId} onValueChange={(value) => setContactData({ ...contactData, groupId: value })}>
+                  <Select value={contactData.groupId || "ungrouped"} onValueChange={(value) => setContactData({ ...contactData, groupId: value === "ungrouped" ? "" : value })}>
                     <SelectTrigger data-testid="select-contact-group">
                       <SelectValue placeholder="Select a group" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No group</SelectItem>
+                      <SelectItem value="ungrouped">No group</SelectItem>
                       {groups.map((group: ContactGroup) => (
                         <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
                       ))}
