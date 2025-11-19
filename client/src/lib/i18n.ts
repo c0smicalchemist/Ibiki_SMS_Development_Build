@@ -279,6 +279,45 @@ export const translations = {
     // World Clock
     'worldClock.title': 'World Clock',
     
+    // Webhook Routing Documentation
+    'webhookDocs.title': '2-Way SMS Webhook Routing',
+    'webhookDocs.subtitle': 'Understanding how incoming SMS messages are routed from ExtremeSMS to your clients',
+    
+    // ExtremeSMS Section
+    'webhookDocs.extremeSms.title': 'How ExtremeSMS Works',
+    'webhookDocs.extremeSms.description': 'ExtremeSMS provides a basic webhook that sends all incoming messages to a single URL',
+    'webhookDocs.extremeSms.setupTitle': 'Setup Instructions',
+    'webhookDocs.extremeSms.step1': 'Login to your SMS provider account',
+    'webhookDocs.extremeSms.step2': 'Navigate to Settings → Webhooks or Incoming Messages',
+    'webhookDocs.extremeSms.step3': 'Paste the webhook URL above',
+    'webhookDocs.extremeSms.step4': 'Select "POST" as the method',
+    'webhookDocs.extremeSms.step5': 'Save the configuration',
+    'webhookDocs.extremeSms.step6': 'Test by sending an SMS to one of your numbers',
+    'webhookDocs.extremeSms.payloadTitle': 'Expected Payload Format',
+    
+    // Ibiki Section
+    'webhookDocs.ibiki.title': 'How Ibiki Routes Messages',
+    'webhookDocs.ibiki.description': 'Ibiki provides intelligent automatic routing to deliver messages to the correct client',
+    'webhookDocs.ibiki.howItWorks': 'How It Works',
+    'webhookDocs.ibiki.automaticTitle': 'Automatic Routing',
+    'webhookDocs.ibiki.automaticDesc': 'When someone replies to your client\'s phone number, the SMS provider sends the message to this webhook. The system automatically routes it to the correct client based on their assigned phone numbers.',
+    'webhookDocs.ibiki.multipleTitle': 'Multiple Numbers Support',
+    'webhookDocs.ibiki.multipleDesc': 'Each client can have multiple phone numbers assigned. ALL replies to ANY of their numbers will be delivered to their inbox.',
+    'webhookDocs.ibiki.dashboardTitle': 'Client Dashboard',
+    'webhookDocs.ibiki.dashboardDesc': 'Clients see incoming messages in their dashboard with auto-refresh every 5 seconds. No technical setup required on their end.',
+    'webhookDocs.ibiki.routingTitle': 'Routing Flow',
+    'webhookDocs.ibiki.routing1': 'ExtremeSMS receives incoming SMS and sends POST request to Ibiki webhook',
+    'webhookDocs.ibiki.routing2': 'Ibiki extracts the "receiver" field (the phone number that received the message)',
+    'webhookDocs.ibiki.routing3': 'System checks which client has this phone number assigned in their profile',
+    'webhookDocs.ibiki.routing4': 'Message is stored in that client\'s inbox with sender details (from, firstname, lastname, business)',
+    'webhookDocs.ibiki.routing5': 'Client sees the message in their dashboard inbox instantly',
+    'webhookDocs.ibiki.importantTitle': 'Important:',
+    'webhookDocs.ibiki.importantDesc': 'Assign phone numbers to your clients in the "Client Management" tab. Messages will only be routed if the receiver number matches a client\'s assigned numbers.',
+    
+    // Webhook Configuration
+    'webhookDocs.webhook.configTitle': 'Configure this webhook URL in ExtremeSMS:',
+    'webhookDocs.webhook.configDesc': 'Method: POST | All incoming messages will be automatically routed to the correct client',
+    
     // Common
     'common.loading': 'Loading...',
     'common.error': 'Error',
@@ -570,6 +609,45 @@ export const translations = {
     
     // World Clock
     'worldClock.title': '世界时钟',
+    
+    // Webhook Routing Documentation
+    'webhookDocs.title': '双向短信Webhook路由',
+    'webhookDocs.subtitle': '了解来电短信如何从ExtremeSMS路由到您的客户',
+    
+    // ExtremeSMS Section
+    'webhookDocs.extremeSms.title': 'ExtremeSMS的工作方式',
+    'webhookDocs.extremeSms.description': 'ExtremeSMS提供一个基本的webhook，将所有来电消息发送到单个URL',
+    'webhookDocs.extremeSms.setupTitle': '设置说明',
+    'webhookDocs.extremeSms.step1': '登录您的短信提供商账户',
+    'webhookDocs.extremeSms.step2': '导航至 设置 → Webhooks 或 来电消息',
+    'webhookDocs.extremeSms.step3': '粘贴上面的webhook URL',
+    'webhookDocs.extremeSms.step4': '选择"POST"作为方法',
+    'webhookDocs.extremeSms.step5': '保存配置',
+    'webhookDocs.extremeSms.step6': '通过向您的号码之一发送短信进行测试',
+    'webhookDocs.extremeSms.payloadTitle': '预期的负载格式',
+    
+    // Ibiki Section
+    'webhookDocs.ibiki.title': 'Ibiki如何路由消息',
+    'webhookDocs.ibiki.description': 'Ibiki提供智能自动路由，将消息传递给正确的客户',
+    'webhookDocs.ibiki.howItWorks': '工作原理',
+    'webhookDocs.ibiki.automaticTitle': '自动路由',
+    'webhookDocs.ibiki.automaticDesc': '当有人回复您客户的电话号码时，短信提供商将消息发送到此webhook。系统会根据分配的电话号码自动将其路由到正确的客户。',
+    'webhookDocs.ibiki.multipleTitle': '多号码支持',
+    'webhookDocs.ibiki.multipleDesc': '每个客户可以分配多个电话号码。对他们任何号码的所有回复都将传递到他们的收件箱。',
+    'webhookDocs.ibiki.dashboardTitle': '客户仪表板',
+    'webhookDocs.ibiki.dashboardDesc': '客户在其仪表板中看到来电消息，每5秒自动刷新一次。他们无需进行技术设置。',
+    'webhookDocs.ibiki.routingTitle': '路由流程',
+    'webhookDocs.ibiki.routing1': 'ExtremeSMS接收来电短信并向Ibiki webhook发送POST请求',
+    'webhookDocs.ibiki.routing2': 'Ibiki提取"receiver"字段（接收消息的电话号码）',
+    'webhookDocs.ibiki.routing3': '系统检查哪个客户在其个人资料中分配了此电话号码',
+    'webhookDocs.ibiki.routing4': '消息存储在该客户的收件箱中，包含发件人详细信息（来自、名字、姓氏、业务）',
+    'webhookDocs.ibiki.routing5': '客户立即在其仪表板收件箱中看到消息',
+    'webhookDocs.ibiki.importantTitle': '重要提示：',
+    'webhookDocs.ibiki.importantDesc': '在"客户管理"选项卡中为您的客户分配电话号码。只有当接收者号码与客户分配的号码匹配时，消息才会被路由。',
+    
+    // Webhook Configuration
+    'webhookDocs.webhook.configTitle': '在ExtremeSMS中配置此webhook URL：',
+    'webhookDocs.webhook.configDesc': '方法：POST | 所有来电消息将自动路由到正确的客户',
     
     // Common
     'common.loading': '加载中...',

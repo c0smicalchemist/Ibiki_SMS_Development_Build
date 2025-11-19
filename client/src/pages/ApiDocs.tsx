@@ -1,6 +1,7 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, ArrowLeft } from "lucide-react";
 import ApiEndpointCard from "@/components/ApiEndpointCard";
+import { WebhookRoutingDocs } from "@/components/WebhookRoutingDocs";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -197,29 +198,8 @@ export default function ApiDocs() {
         ))}
       </div>
 
-      <div className="space-y-6 mt-12">
-        <h2 className="text-2xl font-semibold">2-Way SMS (Webhooks)</h2>
-        <Alert>
-          <Info className="w-4 h-4" />
-          <AlertDescription>
-            <div className="space-y-3">
-              <p><strong>{webhookInfo.title}</strong></p>
-              <p className="text-sm">{webhookInfo.description}</p>
-              <code className="block bg-muted p-3 rounded text-sm font-mono">
-                {webhookInfo.webhookUrl}
-              </code>
-              <div className="mt-4">
-                <p className="text-sm font-medium mb-2">{t('docs.webhook.payloadInfo')}</p>
-                <pre className="bg-muted p-3 rounded text-xs font-mono overflow-x-auto">
-                  {webhookInfo.payloadExample}
-                </pre>
-              </div>
-              <p className="text-sm text-muted-foreground mt-3">
-                <strong>{t('docs.webhook.note')}</strong> {t('docs.webhook.noteText')}
-              </p>
-            </div>
-          </AlertDescription>
-        </Alert>
+      <div className="mt-12">
+        <WebhookRoutingDocs />
       </div>
     </div>
   );
