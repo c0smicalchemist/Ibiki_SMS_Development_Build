@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Inbox as InboxIcon, Reply, MessageSquare, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
+import { ClientSelector } from "@/components/ClientSelector";
+import { DashboardHeader } from "@/components/DashboardHeader";
 
 interface IncomingMessage {
   id: string;
@@ -31,10 +33,43 @@ export default function Inbox() {
   const [selectedMessage, setSelectedMessage] = useState<IncomingMessage | null>(null);
   const [replyText, setReplyText] = useState("");
   const [showReplyDialog, setShowReplyDialog] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(() => {
+    return localStorage.getItem('selectedClientId');
+  });
+
+  // Store selected client in localStorage
+  useEffect(() => {
+    if (selectedClientId) {
+      localStorage.setItem('selectedClientId', selectedClientId);
+    } else {
+      localStorage.removeItem('selectedClientId');
+    }
+  }, [selectedClientId]);
+
+  // Fetch current user profile
+  const { data: profile } = useQuery<{
+    user: { id: string; email: string; name: string; company: string | null; role: string };
+  }>({
+    queryKey: ['/api/client/profile']
+  });
+
+  const isAdmin = profile?.user?.role === 'admin';
+  const effectiveUserId = isAdmin && selectedClientId ? selectedClientId : undefined;
 
   // Fetch inbox messages
   const { data: inboxData, isLoading } = useQuery({
-    queryKey: ["/api/web/inbox"],
+    queryKey: ["/api/web/inbox", effectiveUserId],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      const url = effectiveUserId 
+        ? `/api/web/inbox?userId=${effectiveUserId}`
+        : '/api/web/inbox';
+      const response = await fetch(url, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}
+      });
+      if (!response.ok) throw new Error('Failed to fetch messages');
+      return response.json();
+    },
     refetchInterval: 10000, // Refresh every 10 seconds
   });
 
@@ -42,7 +77,7 @@ export default function Inbox() {
 
   // Reply mutation
   const replyMutation = useMutation({
-    mutationFn: async (data: { to: string; message: string }) => {
+    mutationFn: async (data: { to: string; message: string; userId?: string }) => {
       return await apiRequest('/api/web/inbox/reply', {
         method: 'POST',
         body: JSON.stringify(data)
@@ -53,7 +88,7 @@ export default function Inbox() {
       setShowReplyDialog(false);
       setReplyText("");
       setSelectedMessage(null);
-      queryClient.invalidateQueries({ queryKey: ['/api/web/inbox'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/web/inbox', effectiveUserId] });
       queryClient.invalidateQueries({ queryKey: ['/api/client/messages'] });
     },
     onError: (error: any) => {
@@ -72,10 +107,14 @@ export default function Inbox() {
       toast({ title: "Error", description: "Please enter a reply message", variant: "destructive" });
       return;
     }
-    replyMutation.mutate({
+    const payload: { to: string; message: string; userId?: string } = {
       to: selectedMessage.from,
       message: replyText
-    });
+    };
+    if (effectiveUserId) {
+      payload.userId = effectiveUserId;
+    }
+    replyMutation.mutate(payload);
   };
 
   // Group messages by sender
@@ -88,21 +127,38 @@ export default function Inbox() {
   }, {});
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-6 flex items-center gap-4">
-        <Link href="/dashboard">
-          <Button variant="ghost" size="icon" data-testid="button-back">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <InboxIcon className="h-8 w-8" />
-            Inbox
-          </h1>
-          <p className="text-muted-foreground">View and reply to incoming SMS messages</p>
+    <div className="min-h-screen bg-background">
+      <DashboardHeader />
+      <div className="container mx-auto p-6 space-y-6">
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Admin Mode</CardTitle>
+              <CardDescription>Select which client's inbox to view</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ClientSelector 
+                selectedClientId={selectedClientId}
+                onClientChange={setSelectedClientId}
+              />
+            </CardContent>
+          </Card>
+        )}
+        
+        <div className="mb-6 flex items-center gap-4">
+          <Link href={isAdmin ? "/admin" : "/dashboard"}>
+            <Button variant="ghost" size="icon" data-testid="button-back">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <InboxIcon className="h-8 w-8" />
+              Inbox
+            </h1>
+            <p className="text-muted-foreground">View and reply to incoming SMS messages</p>
+          </div>
         </div>
-      </div>
 
       <div className="grid grid-cols-1 gap-4">
         {isLoading ? (
@@ -224,6 +280,7 @@ export default function Inbox() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

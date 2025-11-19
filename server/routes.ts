@@ -1694,6 +1694,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Contact Groups API
   app.get("/api/contact-groups", authenticateToken, async (req: any, res) => {
     try {
+      // Check if userId parameter is being used by non-admin
+      if (req.query.userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
+      
       // Admin can query on behalf of another user
       const targetUserId = (req.user.role === 'admin' && req.query.userId) 
         ? req.query.userId 
@@ -1709,6 +1714,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/contact-groups", authenticateToken, async (req: any, res) => {
     try {
       const { name, description, businessUnitPrefix, userId } = req.body;
+      
+      // Check if userId parameter is being used by non-admin
+      if (userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
+      
       if (!name) {
         return res.status(400).json({ error: "Group name is required" });
       }
@@ -1778,6 +1789,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Contacts API
   app.get("/api/contacts", authenticateToken, async (req: any, res) => {
     try {
+      // Check if userId parameter is being used by non-admin
+      if (req.query.userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
+      
       // Admin can query on behalf of another user
       const targetUserId = (req.user.role === 'admin' && req.query.userId) 
         ? req.query.userId 
@@ -1792,6 +1808,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/contacts", authenticateToken, async (req: any, res) => {
     try {
+      // Check if userId parameter is being used by non-admin
+      if (req.body.userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
+      
       const contactSchema = insertContactSchema.extend({
         userId: z.string().optional()
       }).omit({ userId: true });
@@ -1827,6 +1848,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/contacts/import-csv", authenticateToken, async (req: any, res) => {
     try {
       const { contacts, groupId, userId } = req.body;
+      
+      // Check if userId parameter is being used by non-admin
+      if (userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
       
       if (!Array.isArray(contacts) || contacts.length === 0) {
         return res.status(400).json({ error: "Contacts array is required" });
@@ -1880,13 +1906,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Verify ownership
+      // Check if userId parameter is being used by non-admin
+      if (req.query.userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
+      
+      // Admin can delete on behalf of another user
+      const targetUserId = (req.user.role === 'admin' && req.query.userId) 
+        ? req.query.userId 
+        : req.user.userId;
+      
+      // Verify ownership against effective user
       const contact = await storage.getContact(id);
       if (!contact) {
         return res.status(404).json({ error: "Contact not found" });
       }
-      if (contact.userId !== req.user.userId) {
-        return res.status(403).json({ error: "Unauthorized" });
+      if (contact.userId !== targetUserId) {
+        return res.status(403).json({ error: "Unauthorized: Cannot delete another user's contact" });
       }
       
       await storage.deleteContact(id);
@@ -1900,8 +1936,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Export contacts as CSV with Business Unit IDs
   app.get("/api/contacts/export/csv", authenticateToken, async (req: any, res) => {
     try {
-      const contacts = await storage.getContactsByUserId(req.user.userId);
-      const groups = await storage.getContactGroupsByUserId(req.user.userId);
+      // Check if userId parameter is being used by non-admin
+      if (req.query.userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
+      
+      // Admin can export on behalf of another user
+      const targetUserId = (req.user.role === 'admin' && req.query.userId) 
+        ? req.query.userId 
+        : req.user.userId;
+      
+      const contacts = await storage.getContactsByUserId(targetUserId);
+      const groups = await storage.getContactGroupsByUserId(targetUserId);
       
       // Create a map of groupId -> businessUnitPrefix
       const groupPrefixMap = new Map<string, string>();
@@ -1955,11 +2001,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Web UI SMS Sending (calls ExtremeSMS via existing proxy logic)
   app.post("/api/web/sms/send-single", authenticateToken, async (req: any, res) => {
     try {
-      const { to, message } = req.body;
+      const { to, message, userId } = req.body;
+      
+      // Check if userId parameter is being used by non-admin
+      if (userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
       
       if (!to || !message) {
         return res.status(400).json({ error: "Recipient and message are required" });
       }
+
+      // Admin can send on behalf of another user
+      const targetUserId = (req.user.role === 'admin' && userId) 
+        ? userId 
+        : req.user.userId;
 
       const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
       
@@ -1970,9 +2026,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message
       });
 
-      // Deduct credits and log
+      // Deduct credits and log using targetUserId
       await deductCreditsAndLog(
-        req.user.userId,
+        targetUserId,
         1,
         'web-ui-single',
         response.data.messageId || 'unknown',
@@ -1991,11 +2047,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/web/sms/send-bulk", authenticateToken, async (req: any, res) => {
     try {
-      const { recipients, message } = req.body;
+      const { recipients, message, userId } = req.body;
+      
+      // Check if userId parameter is being used by non-admin
+      if (userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
       
       if (!recipients || !Array.isArray(recipients) || recipients.length === 0 || !message) {
         return res.status(400).json({ error: "Recipients array and message are required" });
       }
+
+      // Admin can send on behalf of another user
+      const targetUserId = (req.user.role === 'admin' && userId) 
+        ? userId 
+        : req.user.userId;
 
       const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
       
@@ -2006,9 +2072,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message
       });
 
-      // Deduct credits and log
+      // Deduct credits and log using targetUserId
       await deductCreditsAndLog(
-        req.user.userId,
+        targetUserId,
         recipients.length,
         'web-ui-bulk',
         response.data.messageId || 'unknown',
@@ -2028,11 +2094,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/web/sms/send-bulk-multi", authenticateToken, async (req: any, res) => {
     try {
-      const { messages } = req.body;
+      const { messages, userId } = req.body;
+      
+      // Check if userId parameter is being used by non-admin
+      if (userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
       
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: "Messages array is required" });
       }
+
+      // Admin can send on behalf of another user
+      const targetUserId = (req.user.role === 'admin' && userId) 
+        ? userId 
+        : req.user.userId;
 
       const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
       
@@ -2042,9 +2118,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messages
       });
 
-      // Deduct credits and log
+      // Deduct credits and log using targetUserId
       await deductCreditsAndLog(
-        req.user.userId,
+        targetUserId,
         messages.length,
         'web-ui-bulk-multi',
         response.data.messageId || 'unknown',
@@ -2063,8 +2139,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Web UI Inbox
   app.get("/api/web/inbox", authenticateToken, async (req: any, res) => {
     try {
+      // Check if userId parameter is being used by non-admin
+      if (req.query.userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
+      
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
-      const messages = await storage.getIncomingMessagesByUserId(req.user.userId, limit);
+      
+      // Admin can query on behalf of another user
+      const targetUserId = (req.user.role === 'admin' && req.query.userId) 
+        ? req.query.userId 
+        : req.user.userId;
+      
+      const messages = await storage.getIncomingMessagesByUserId(targetUserId, limit);
       
       res.json({
         success: true,
@@ -2080,11 +2167,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reply to incoming message
   app.post("/api/web/inbox/reply", authenticateToken, async (req: any, res) => {
     try {
-      const { to, message } = req.body;
+      const { to, message, userId } = req.body;
+      
+      // Check if userId parameter is being used by non-admin
+      if (userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
       
       if (!to || !message) {
         return res.status(400).json({ error: "Recipient and message are required" });
       }
+
+      // Admin can send reply on behalf of another user
+      const targetUserId = (req.user.role === 'admin' && userId) 
+        ? userId 
+        : req.user.userId;
 
       const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
       
@@ -2095,9 +2192,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message
       });
 
-      // Deduct credits and log
+      // Deduct credits and log using targetUserId
       await deductCreditsAndLog(
-        req.user.userId,
+        targetUserId,
         1,
         'web-ui-reply',
         response.data.messageId || 'unknown',

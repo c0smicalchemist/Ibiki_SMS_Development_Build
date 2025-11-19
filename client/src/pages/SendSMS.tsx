@@ -72,10 +72,13 @@ export default function SendSMS() {
   const { data: contactsData } = useQuery({
     queryKey: ["/api/contacts", effectiveUserId],
     queryFn: async () => {
+      const token = localStorage.getItem('token');
       const url = effectiveUserId 
         ? `/api/contacts?userId=${effectiveUserId}`
         : '/api/contacts';
-      const response = await fetch(url, { credentials: 'include' });
+      const response = await fetch(url, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}
+      });
       if (!response.ok) throw new Error('Failed to fetch contacts');
       return response.json();
     }
@@ -84,10 +87,13 @@ export default function SendSMS() {
   const { data: groupsData } = useQuery({
     queryKey: ["/api/contact-groups", effectiveUserId],
     queryFn: async () => {
+      const token = localStorage.getItem('token');
       const url = effectiveUserId 
         ? `/api/contact-groups?userId=${effectiveUserId}`
         : '/api/contact-groups';
-      const response = await fetch(url, { credentials: 'include' });
+      const response = await fetch(url, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}
+      });
       if (!response.ok) throw new Error('Failed to fetch groups');
       return response.json();
     }
@@ -98,7 +104,7 @@ export default function SendSMS() {
 
   // Send single SMS mutation
   const sendSingleMutation = useMutation({
-    mutationFn: async (data: { to: string; message: string }) => {
+    mutationFn: async (data: { to: string; message: string; userId?: string }) => {
       return await apiRequest('/api/web/sms/send-single', {
         method: 'POST',
         body: JSON.stringify(data)
@@ -117,7 +123,7 @@ export default function SendSMS() {
 
   // Send bulk SMS mutation
   const sendBulkMutation = useMutation({
-    mutationFn: async (data: { recipients: string[]; message: string }) => {
+    mutationFn: async (data: { recipients: string[]; message: string; userId?: string }) => {
       return await apiRequest('/api/web/sms/send-bulk', {
         method: 'POST',
         body: JSON.stringify(data)
@@ -137,7 +143,7 @@ export default function SendSMS() {
 
   // Send bulk multi SMS mutation
   const sendBulkMultiMutation = useMutation({
-    mutationFn: async (data: { messages: Array<{ to: string; message: string }> }) => {
+    mutationFn: async (data: { messages: Array<{ to: string; message: string }>; userId?: string }) => {
       return await apiRequest('/api/web/sms/send-bulk-multi', {
         method: 'POST',
         body: JSON.stringify(data)
@@ -158,7 +164,14 @@ export default function SendSMS() {
       toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
       return;
     }
-    sendSingleMutation.mutate({ to: singleTo, message: singleMessage });
+    const payload: { to: string; message: string; userId?: string } = {
+      to: singleTo,
+      message: singleMessage
+    };
+    if (effectiveUserId) {
+      payload.userId = effectiveUserId;
+    }
+    sendSingleMutation.mutate(payload);
   };
 
   const handleSendBulk = () => {
@@ -182,7 +195,14 @@ export default function SendSMS() {
       return;
     }
 
-    sendBulkMutation.mutate({ recipients, message: bulkMessage });
+    const payload: { recipients: string[]; message: string; userId?: string } = {
+      recipients,
+      message: bulkMessage
+    };
+    if (effectiveUserId) {
+      payload.userId = effectiveUserId;
+    }
+    sendBulkMutation.mutate(payload);
   };
 
   const handleSendBulkMulti = () => {
@@ -191,7 +211,13 @@ export default function SendSMS() {
       toast({ title: "Error", description: "Please provide at least one valid message", variant: "destructive" });
       return;
     }
-    sendBulkMultiMutation.mutate({ messages: validMessages });
+    const payload: { messages: Array<{ to: string; message: string }>; userId?: string } = {
+      messages: validMessages
+    };
+    if (effectiveUserId) {
+      payload.userId = effectiveUserId;
+    }
+    sendBulkMultiMutation.mutate(payload);
   };
 
   const addBulkMultiRow = () => {

@@ -84,10 +84,13 @@ export default function Contacts() {
   const { data: groupsData } = useQuery({
     queryKey: ["/api/contact-groups", effectiveUserId],
     queryFn: async () => {
+      const token = localStorage.getItem('token');
       const url = effectiveUserId 
         ? `/api/contact-groups?userId=${effectiveUserId}`
         : '/api/contact-groups';
-      const response = await fetch(url, { credentials: 'include' });
+      const response = await fetch(url, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}
+      });
       if (!response.ok) throw new Error('Failed to fetch groups');
       return response.json();
     }
@@ -97,10 +100,13 @@ export default function Contacts() {
   const { data: contactsData } = useQuery({
     queryKey: ["/api/contacts", effectiveUserId],
     queryFn: async () => {
+      const token = localStorage.getItem('token');
       const url = effectiveUserId 
         ? `/api/contacts?userId=${effectiveUserId}`
         : '/api/contacts';
-      const response = await fetch(url, { credentials: 'include' });
+      const response = await fetch(url, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}
+      });
       if (!response.ok) throw new Error('Failed to fetch contacts');
       return response.json();
     }
@@ -176,10 +182,13 @@ export default function Contacts() {
   // Delete contact mutation
   const deleteContactMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest(`/api/contacts/${id}`, { method: 'DELETE' });
+      const url = effectiveUserId 
+        ? `/api/contacts/${id}?userId=${effectiveUserId}`
+        : `/api/contacts/${id}`;
+      return await apiRequest(url, { method: 'DELETE' });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts', effectiveUserId] });
       toast({ title: "Success", description: "Contact deleted" });
     }
   });
@@ -224,10 +233,11 @@ export default function Contacts() {
   const handleExportCSV = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/contacts/export/csv', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const apiUrl = effectiveUserId 
+        ? `/api/contacts/export/csv?userId=${effectiveUserId}`
+        : '/api/contacts/export/csv';
+      const response = await fetch(apiUrl, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}
       });
       
       if (!response.ok) {
