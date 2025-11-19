@@ -126,7 +126,7 @@ sql\`SELECT 1 as test\`.then(() => {
 echo ""
 echo "Step 11: Starting application with PM2..."
 # Use ecosystem file which ensures .env is loaded
-pm2 start ecosystem.config.js
+pm2 start ecosystem.config.cjs
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ PM2 start failed${NC}"
     exit 1
