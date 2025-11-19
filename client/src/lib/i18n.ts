@@ -71,6 +71,10 @@ export const translations = {
     'inbox.empty': 'No incoming messages yet',
     'inbox.emptyDesc': 'Messages will appear here when you receive SMS',
     
+    // API Endpoint Examples
+    'api.requestExample': 'Request Example:',
+    'api.responseExample': 'Response Example:',
+    
     // Admin Dashboard
     'admin.title': 'Admin Dashboard',
     'admin.subtitle': 'Manage clients and system configuration',
@@ -234,6 +238,10 @@ export const translations = {
     'inbox.to': '发送至',
     'inbox.empty': '暂无收到的消息',
     'inbox.emptyDesc': '当您收到短信时，消息将显示在此处',
+    
+    // API Endpoint Examples
+    'api.requestExample': '请求示例：',
+    'api.responseExample': '响应示例：',
     
     // Admin Dashboard
     'admin.title': '管理仪表板',

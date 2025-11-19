@@ -12,9 +12,20 @@ import {
   type CreditTransaction,
   type InsertCreditTransaction,
   type IncomingMessage,
-  type InsertIncomingMessage
+  type InsertIncomingMessage,
+  users,
+  apiKeys,
+  clientProfiles,
+  systemConfig,
+  messageLogs,
+  creditTransactions,
+  incomingMessages
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import { eq, desc, sql } from 'drizzle-orm';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
 
 export interface IStorage {
   // User methods
@@ -432,4 +443,337 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// PostgreSQL-backed storage using Drizzle ORM
+let dbInstance: ReturnType<typeof drizzle> | null = null;
+let poolInstance: Pool | null = null;
+
+export class DbStorage implements IStorage {
+  private db;
+
+  constructor() {
+    // Reuse singleton connection pool to prevent leaks
+    if (!dbInstance) {
+      const connectionString = process.env.DATABASE_URL;
+      if (!connectionString) {
+        console.warn('DATABASE_URL not set - DbStorage requires database connection');
+        throw new Error('DATABASE_URL environment variable is not set');
+      }
+
+      // Configure WebSocket for neon serverless
+      neonConfig.webSocketConstructor = ws;
+      
+      poolInstance = new Pool({ connectionString });
+      dbInstance = drizzle(poolInstance, {
+        schema: {
+          users,
+          apiKeys,
+          clientProfiles,
+          systemConfig,
+          messageLogs,
+          creditTransactions,
+          incomingMessages
+        }
+      });
+      
+      // Cleanup on process exit
+      process.on('SIGINT', async () => {
+        if (poolInstance) await poolInstance.end();
+        process.exit(0);
+      });
+      process.on('SIGTERM', async () => {
+        if (poolInstance) await poolInstance.end();
+        process.exit(0);
+      });
+    }
+    
+    this.db = dbInstance;
+  }
+
+  // User methods
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await this.db.select().from(users).where(eq(users.id, id));
+    return result[0];
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await this.db.select().from(users).where(eq(users.email, email));
+    return result[0];
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return this.db.select().from(users);
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    // Auto-promote first user to admin
+    const allUsers = await this.getAllUsers();
+    const isFirstUser = allUsers.length === 0;
+    
+    const result = await this.db.insert(users).values({
+      ...user,
+      role: isFirstUser ? 'admin' : (user.role || 'client')
+    }).returning();
+    return result[0];
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
+    const result = await this.db.update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // Password Reset methods
+  async setPasswordResetToken(email: string, token: string, expiry: Date): Promise<User | undefined> {
+    const result = await this.db.update(users)
+      .set({ resetToken: token, resetTokenExpiry: expiry })
+      .where(eq(users.email, email))
+      .returning();
+    return result[0];
+  }
+
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    const result = await this.db.select().from(users)
+      .where(eq(users.resetToken, token));
+    return result[0];
+  }
+
+  async clearPasswordResetToken(userId: string): Promise<void> {
+    await this.db.update(users)
+      .set({ resetToken: null, resetTokenExpiry: null })
+      .where(eq(users.id, userId));
+  }
+
+  async updateUserPassword(userId: string, newPasswordHash: string): Promise<User | undefined> {
+    const result = await this.db.update(users)
+      .set({ password: newPasswordHash })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
+  }
+
+  // API Key methods
+  async getApiKeyByHash(keyHash: string): Promise<ApiKey | undefined> {
+    const result = await this.db.select().from(apiKeys).where(eq(apiKeys.keyHash, keyHash));
+    return result[0];
+  }
+
+  async getApiKeysByUserId(userId: string): Promise<ApiKey[]> {
+    return this.db.select().from(apiKeys)
+      .where(eq(apiKeys.userId, userId))
+      .orderBy(desc(apiKeys.createdAt));
+  }
+
+  async createApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
+    const result = await this.db.insert(apiKeys).values(apiKey).returning();
+    return result[0];
+  }
+
+  async updateApiKeyLastUsed(id: string): Promise<void> {
+    await this.db.update(apiKeys)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(apiKeys.id, id));
+  }
+
+  async revokeApiKey(id: string): Promise<void> {
+    await this.db.delete(apiKeys).where(eq(apiKeys.id, id));
+  }
+
+  // Client Profile methods
+  async getClientProfileByUserId(userId: string): Promise<ClientProfile | undefined> {
+    const result = await this.db.select().from(clientProfiles)
+      .where(eq(clientProfiles.userId, userId));
+    return result[0];
+  }
+
+  async getClientProfileByPhoneNumber(phoneNumber: string): Promise<ClientProfile | undefined> {
+    const result = await this.db.select().from(clientProfiles)
+      .where(sql`${phoneNumber} = ANY(${clientProfiles.assignedPhoneNumbers})`);
+    return result[0];
+  }
+
+  async createClientProfile(profile: InsertClientProfile): Promise<ClientProfile> {
+    // Set default credits if not provided
+    const result = await this.db.insert(clientProfiles).values({
+      credits: '0.00',
+      markup: '0.00',
+      assignedPhoneNumbers: [],
+      ...profile
+    }).returning();
+    return result[0];
+  }
+
+  async updateClientCredits(userId: string, newCredits: string): Promise<ClientProfile | undefined> {
+    const result = await this.db.update(clientProfiles)
+      .set({ credits: newCredits })
+      .where(eq(clientProfiles.userId, userId))
+      .returning();
+    return result[0];
+  }
+
+  async updateClientPhoneNumbers(userId: string, phoneNumbers: string[]): Promise<ClientProfile | undefined> {
+    const result = await this.db.update(clientProfiles)
+      .set({ assignedPhoneNumbers: phoneNumbers })
+      .where(eq(clientProfiles.userId, userId))
+      .returning();
+    return result[0];
+  }
+
+  // System Config methods
+  async getSystemConfig(key: string): Promise<SystemConfig | undefined> {
+    const result = await this.db.select().from(systemConfig).where(eq(systemConfig.key, key));
+    return result[0];
+  }
+
+  async setSystemConfig(key: string, value: string): Promise<SystemConfig> {
+    const existing = await this.getSystemConfig(key);
+    if (existing) {
+      const result = await this.db.update(systemConfig)
+        .set({ value })
+        .where(eq(systemConfig.key, key))
+        .returning();
+      return result[0];
+    } else {
+      const result = await this.db.insert(systemConfig)
+        .values({ key, value })
+        .returning();
+      return result[0];
+    }
+  }
+
+  async getAllSystemConfig(): Promise<SystemConfig[]> {
+    return this.db.select().from(systemConfig);
+  }
+
+  // Message Log methods
+  async createMessageLog(log: InsertMessageLog): Promise<MessageLog> {
+    const result = await this.db.insert(messageLogs).values(log).returning();
+    return result[0];
+  }
+
+  async getMessageLogsByUserId(userId: string, limit?: number): Promise<MessageLog[]> {
+    let query = this.db.select().from(messageLogs)
+      .where(eq(messageLogs.userId, userId))
+      .orderBy(desc(messageLogs.createdAt));
+    
+    if (limit) {
+      query = query.limit(limit) as any;
+    }
+    
+    return query;
+  }
+
+  async getMessageLogByMessageId(messageId: string): Promise<MessageLog | undefined> {
+    const result = await this.db.select().from(messageLogs)
+      .where(eq(messageLogs.messageId, messageId));
+    return result[0];
+  }
+
+  async getAllMessageLogs(limit?: number): Promise<MessageLog[]> {
+    let query = this.db.select().from(messageLogs)
+      .orderBy(desc(messageLogs.createdAt));
+    
+    if (limit) {
+      query = query.limit(limit) as any;
+    }
+    
+    return query;
+  }
+
+  // Credit Transaction methods
+  async createCreditTransaction(transaction: InsertCreditTransaction): Promise<CreditTransaction> {
+    const result = await this.db.insert(creditTransactions).values(transaction).returning();
+    return result[0];
+  }
+
+  async getCreditTransactionsByUserId(userId: string, limit?: number): Promise<CreditTransaction[]> {
+    let query = this.db.select().from(creditTransactions)
+      .where(eq(creditTransactions.userId, userId))
+      .orderBy(desc(creditTransactions.createdAt));
+    
+    if (limit) {
+      query = query.limit(limit) as any;
+    }
+    
+    return query;
+  }
+
+  // Incoming Message methods
+  async createIncomingMessage(message: InsertIncomingMessage): Promise<IncomingMessage> {
+    const result = await this.db.insert(incomingMessages).values(message).returning();
+    return result[0];
+  }
+
+  async getIncomingMessagesByUserId(userId: string, limit?: number): Promise<IncomingMessage[]> {
+    let query = this.db.select().from(incomingMessages)
+      .where(eq(incomingMessages.userId, userId))
+      .orderBy(desc(incomingMessages.timestamp));
+    
+    if (limit) {
+      query = query.limit(limit) as any;
+    }
+    
+    return query;
+  }
+
+  async getAllIncomingMessages(limit?: number): Promise<IncomingMessage[]> {
+    let query = this.db.select().from(incomingMessages)
+      .orderBy(desc(incomingMessages.timestamp));
+    
+    if (limit) {
+      query = query.limit(limit) as any;
+    }
+    
+    return query;
+  }
+
+  // Error logging methods
+  async getErrorLogs(level?: string): Promise<any[]> {
+    const failedLogs = await this.db.select({
+      id: messageLogs.id,
+      level: sql<string>`'error'`,
+      message: sql<string>`'SMS delivery failed'`,
+      endpoint: messageLogs.endpoint,
+      userId: messageLogs.userId,
+      details: messageLogs.responsePayload,
+      timestamp: messageLogs.createdAt
+    })
+    .from(messageLogs)
+    .where(eq(messageLogs.status, 'failed'))
+    .orderBy(desc(messageLogs.createdAt))
+    .limit(100);
+
+    // Join with users to get usernames
+    const logsWithUsers = await Promise.all(
+      failedLogs.map(async (log) => {
+        const user = await this.getUser(log.userId.toString());
+        return {
+          ...log,
+          userName: user?.name || 'Unknown',
+          timestamp: log.timestamp.toISOString()
+        };
+      })
+    );
+
+    if (level && level !== 'all') {
+      return logsWithUsers.filter(log => log.level === level);
+    }
+
+    return logsWithUsers;
+  }
+
+  // Stats methods
+  async getTotalMessageCount(): Promise<number> {
+    const result = await this.db.select({ count: sql<number>`count(*)` }).from(messageLogs);
+    return Number(result[0].count);
+  }
+}
+
+// Use DbStorage if DATABASE_URL available, fallback to MemStorage for local dev
+export const storage = process.env.DATABASE_URL 
+  ? new DbStorage() 
+  : (() => {
+      console.warn('⚠️  DATABASE_URL not set - using in-memory storage (data will not persist)');
+      return new MemStorage();
+    })();

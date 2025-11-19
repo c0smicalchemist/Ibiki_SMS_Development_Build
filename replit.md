@@ -4,9 +4,25 @@
 
 Ibiki SMS is a professional SMS API middleware platform that acts as a secure passthrough service to ExtremeSMS. It enables users to hide their ExtremeSMS credentials from clients while managing pricing, credits, and usage tracking. The platform provides a multi-client API key system with individual credit balances, usage monitoring, and a complete admin dashboard for system configuration and client management.
 
-## Recent Changes (November 18, 2025)
+## Recent Changes (November 19, 2025)
 
-### Version 11 (Latest - 2-Way SMS Support)
+### Version 11.4 (Latest - PostgreSQL Persistence + Full Translations)
+1. **CRITICAL FIX: Database Persistence**: Switched from MemStorage to PostgreSQL-backed DbStorage
+   - Users, API keys, and settings now persist across restarts and updates
+   - DbStorage class implements IStorage using Drizzle ORM with Neon serverless PostgreSQL
+   - WebSocket configuration for serverless database connections
+   - Zero data loss on application restarts or updates
+2. **Complete Translation Coverage**: Fixed all remaining untranslated text
+   - ApiEndpointCard now uses translation system
+   - Added `api.requestExample` and `api.responseExample` translation keys
+   - 100% translation coverage across entire application (EN + 中文)
+3. **Database Safety**: All client data preserved through updates
+   - Users table persists
+   - API keys persist
+   - Client profiles and settings persist (credits, assignedPhoneNumbers, markup)
+   - Message logs and credit transactions persist
+
+### Version 11 (2-Way SMS Support)
 1. **Incoming SMS Management**: Complete 2-way SMS system with webhook integration
    - New endpoint POST /webhook/incoming-sms receives incoming messages from ExtremeSMS
    - Messages routed to clients based on assigned phone numbers

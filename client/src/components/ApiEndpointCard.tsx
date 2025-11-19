@@ -4,6 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import CodeBlock from "./CodeBlock";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface ApiEndpointCardProps {
   method: "GET" | "POST" | "PUT" | "DELETE";
@@ -23,6 +24,7 @@ export default function ApiEndpointCard({
   responseExample
 }: ApiEndpointCardProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { t } = useLanguage();
 
   const methodColors = {
     GET: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
@@ -34,7 +36,7 @@ export default function ApiEndpointCard({
   return (
     <Card data-testid={`card-endpoint-${method.toLowerCase()}-${path.replace(/\//g, '-')}`}>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger className="w-full" data-testid="button-toggle-endpoint">
+        <CollapsibleTrigger className="w-full" data-testid={`button-toggle-${method.toLowerCase()}-${path.replace(/\//g, '-')}`}>
           <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
             <div className="flex items-center gap-3 flex-1">
               <Badge className={methodColors[method]} data-testid={`badge-method-${method.toLowerCase()}`}>
@@ -52,14 +54,14 @@ export default function ApiEndpointCard({
           <CollapsibleContent>
             {requestExample && (
               <div className="space-y-2 mb-4">
-                <p className="text-sm font-medium">Request Example:</p>
+                <p className="text-sm font-medium">{t('api.requestExample')}</p>
                 <CodeBlock code={requestExample} />
               </div>
             )}
             
             {responseExample && (
               <div className="space-y-2">
-                <p className="text-sm font-medium">Response Example:</p>
+                <p className="text-sm font-medium">{t('api.responseExample')}</p>
                 <CodeBlock code={responseExample} language="json" />
               </div>
             )}
