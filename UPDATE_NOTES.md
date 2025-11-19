@@ -14,6 +14,7 @@
 - Fixed all remaining untranslated text in API documentation
 - ApiEndpointCard now uses translation system
 - Added `api.requestExample` and `api.responseExample` keys
+- **Payload content translates**: Example curl commands, JSON payloads, phone numbers, names, and messages all switch between English and Chinese
 - 100% translation coverage (EN + 中文)
 
 ## 🚀 Quick Deploy to Production Server

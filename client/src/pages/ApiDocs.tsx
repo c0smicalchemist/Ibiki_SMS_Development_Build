@@ -16,7 +16,7 @@ export default function ApiDocs() {
       requestExample: `curl -X POST http://151.243.109.79/api/v2/sms/sendsingle \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"recipient": "+1234567890", "message": "Hello from Ibiki SMS!"}'`,
+  -d '{"recipient": "${t('examples.phone.sample1')}", "message": "${t('examples.sms.verificationCode')}"}'`,
       responseExample: `{
   "success": true,
   "messageId": "60f1a5b3e6e7c12345678901",
@@ -32,8 +32,8 @@ export default function ApiDocs() {
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-  "recipients": ["+1234567890", "+1987654321"],
-  "content": "Hello from Ibiki SMS!"
+  "recipients": ["${t('examples.phone.sample1')}", "${t('examples.phone.sample2')}"],
+  "content": "${t('examples.sms.orderShipped')}"
 }'`,
       responseExample: `{
   "success": true,
@@ -51,13 +51,13 @@ export default function ApiDocs() {
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '[
-  {"recipient": "+1234567890", "content": "Your code is 123456"},
-  {"recipient": "+1987654321", "content": "Order shipped"}
+  {"recipient": "${t('examples.phone.sample1')}", "content": "${t('examples.sms.verificationCode')}"},
+  {"recipient": "${t('examples.phone.sample2')}", "content": "${t('examples.sms.orderShipped')}"}
 ]'`,
       responseExample: `{
   "success": true,
   "results": [
-    {"messageId": "60f1a5b3e6e7c12345678901", "recipient": "+1234567890", "status": "queued"}
+    {"messageId": "60f1a5b3e6e7c12345678901", "recipient": "${t('examples.phone.sample1')}", "status": "queued"}
   ],
   "totalSent": 2,
   "totalFailed": 0
@@ -102,13 +102,13 @@ export default function ApiDocs() {
   "messages": [
     {
       "id": "abc123",
-      "from": "+1234567890",
-      "firstname": "John",
-      "lastname": "Doe",
-      "business": "ABC Company",
-      "message": "Reply to your message",
+      "from": "${t('examples.phone.sample1')}",
+      "firstname": "${t('examples.name.first')}",
+      "lastname": "${t('examples.name.last')}",
+      "business": "${t('examples.company')}",
+      "message": "${t('examples.sms.reply')}",
       "status": "received",
-      "receiver": "+1987654321",
+      "receiver": "${t('examples.phone.sample2')}",
       "timestamp": "2025-11-18T10:30:00.000Z",
       "messageId": "ext_msg_123"
     }
@@ -123,14 +123,14 @@ export default function ApiDocs() {
     description: t('docs.webhook.description'),
     webhookUrl: "http://151.243.109.79/webhook/incoming-sms",
     payloadExample: `{
-  "from": "XXXXXXXXXXX",
-  "firstname": "John",
-  "lastname": "Doe",
-  "business": "ABC Company",
-  "message": "stop sending message",
+  "from": "${t('examples.phone.sample1')}",
+  "firstname": "${t('examples.name.first')}",
+  "lastname": "${t('examples.name.last')}",
+  "business": "${t('examples.company')}",
+  "message": "${t('examples.sms.stopMessage')}",
   "status": "blocked",
   "matchedBlockWord": "stop",
-  "receiver": "XXXXXXXXXX",
+  "receiver": "${t('examples.phone.sample2')}",
   "usedmodem": "XXXX",
   "port": "XXXX",
   "timestamp": "2025-09-23T23:23:20.887Z",

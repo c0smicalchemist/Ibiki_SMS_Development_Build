@@ -75,6 +75,21 @@ export const translations = {
     'api.requestExample': 'Request Example:',
     'api.responseExample': 'Response Example:',
     
+    // Example Payload Content
+    'examples.sms.verificationCode': 'Your verification code is 123456',
+    'examples.sms.orderShipped': 'Your order has been shipped and is on its way!',
+    'examples.sms.appointmentReminder': 'Reminder: Your appointment is tomorrow at 2:00 PM',
+    'examples.sms.accountAlert': 'Security alert: Login detected from new device',
+    'examples.sms.promotionalMessage': 'Flash sale! 50% off all items. Shop now!',
+    'examples.sms.reply': 'Reply to your message',
+    'examples.sms.stopMessage': 'stop sending message',
+    'examples.phone.sample1': '+1234567890',
+    'examples.phone.sample2': '+1987654321',
+    'examples.phone.sample3': '+1555123456',
+    'examples.name.first': 'John',
+    'examples.name.last': 'Doe',
+    'examples.company': 'ABC Company',
+    
     // Admin Dashboard
     'admin.title': 'Admin Dashboard',
     'admin.subtitle': 'Manage clients and system configuration',
@@ -242,6 +257,21 @@ export const translations = {
     // API Endpoint Examples
     'api.requestExample': '请求示例：',
     'api.responseExample': '响应示例：',
+    
+    // Example Payload Content
+    'examples.sms.verificationCode': '您的验证码是 123456',
+    'examples.sms.orderShipped': '您的订单已发货，正在配送中！',
+    'examples.sms.appointmentReminder': '提醒：您的预约时间是明天下午2:00',
+    'examples.sms.accountAlert': '安全提醒：检测到新设备登录',
+    'examples.sms.promotionalMessage': '限时促销！全场商品5折优惠。立即购买！',
+    'examples.sms.reply': '回复您的消息',
+    'examples.sms.stopMessage': '停止发送消息',
+    'examples.phone.sample1': '+86 138 0000 1234',
+    'examples.phone.sample2': '+86 139 0000 5678',
+    'examples.phone.sample3': '+86 158 0000 9012',
+    'examples.name.first': '张',
+    'examples.name.last': '伟',
+    'examples.company': '华盛科技公司',
     
     // Admin Dashboard
     'admin.title': '管理仪表板',

@@ -15,6 +15,7 @@ Ibiki SMS is a professional SMS API middleware platform that acts as a secure pa
 2. **Complete Translation Coverage**: Fixed all remaining untranslated text
    - ApiEndpointCard now uses translation system
    - Added `api.requestExample` and `api.responseExample` translation keys
+   - **Payload content now translates**: Example messages, phone numbers, and names in code samples switch between English and Chinese
    - 100% translation coverage across entire application (EN + 中文)
 3. **Database Safety**: All client data preserved through updates
    - Users table persists
