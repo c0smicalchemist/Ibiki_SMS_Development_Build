@@ -21,6 +21,12 @@ Ibiki SMS is a professional SMS API middleware platform that acts as a secure pa
    - API keys persist
    - Client profiles and settings persist (credits, assignedPhoneNumbers, markup)
    - Message logs and credit transactions persist
+4. **Production-Ready Storage**:
+   - Singleton connection pool prevents socket leaks
+   - Graceful shutdown handlers (SIGINT/SIGTERM) close pool cleanly
+   - Automatic fallback to MemStorage when DATABASE_URL missing (dev mode)
+   - First user auto-promotion to admin preserved
+   - Default credits and profile values maintained
 
 ### Version 11 (2-Way SMS Support)
 1. **Incoming SMS Management**: Complete 2-way SMS system with webhook integration
