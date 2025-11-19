@@ -3,14 +3,16 @@ import { Info, ArrowLeft } from "lucide-react";
 import ApiEndpointCard from "@/components/ApiEndpointCard";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function ApiDocs() {
+  const { t } = useLanguage();
   const endpoints = [
     {
       method: "POST" as const,
       path: "/api/v2/sms/sendsingle",
-      title: "Send a single SMS message",
-      description: "Send a single SMS message to a recipient.",
+      title: t('docs.sendSingle.title'),
+      description: t('docs.sendSingle.description'),
       requestExample: `curl -X POST http://151.243.109.79/api/v2/sms/sendsingle \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -24,8 +26,8 @@ export default function ApiDocs() {
     {
       method: "POST" as const,
       path: "/api/v2/sms/sendbulk",
-      title: "Send bulk SMS (same content)",
-      description: "Send the same SMS message to multiple recipients in a single API call.",
+      title: t('docs.sendBulk.title'),
+      description: t('docs.sendBulk.description'),
       requestExample: `curl -X POST http://151.243.109.79/api/v2/sms/sendbulk \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -43,8 +45,8 @@ export default function ApiDocs() {
     {
       method: "POST" as const,
       path: "/api/v2/sms/sendbulkmulti",
-      title: "Send bulk SMS (different content)",
-      description: "Send different SMS messages to multiple recipients in a single API call.",
+      title: t('docs.sendBulkMulti.title'),
+      description: t('docs.sendBulkMulti.description'),
       requestExample: `curl -X POST http://151.243.109.79/api/v2/sms/sendbulkmulti \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -64,8 +66,8 @@ export default function ApiDocs() {
     {
       method: "GET" as const,
       path: "/api/v2/sms/status/{messageId}",
-      title: "Check message delivery status",
-      description: "Check the delivery status of a previously sent message.",
+      title: t('docs.checkDelivery.title'),
+      description: t('docs.checkDelivery.description'),
       requestExample: `curl -X GET http://151.243.109.79/api/v2/sms/status/60f1a5b3e6e7c12345678901 \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
       responseExample: `{
@@ -78,8 +80,8 @@ export default function ApiDocs() {
     {
       method: "GET" as const,
       path: "/api/v2/account/balance",
-      title: "Get account credit balance",
-      description: "Get the current credit balance for your account.",
+      title: t('docs.checkBalance.title'),
+      description: t('docs.checkBalance.description'),
       requestExample: `curl -X GET http://151.243.109.79/api/v2/account/balance \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
       responseExample: `{
@@ -91,8 +93,8 @@ export default function ApiDocs() {
     {
       method: "GET" as const,
       path: "/api/v2/sms/inbox",
-      title: "Get incoming messages (2-Way SMS)",
-      description: "Retrieve incoming SMS messages sent to your assigned phone number. Requires phone number assignment by admin.",
+      title: t('docs.inbox.title'),
+      description: t('docs.inbox.description'),
       requestExample: `curl -X GET http://151.243.109.79/api/v2/sms/inbox?limit=50 \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
       responseExample: `{
@@ -117,8 +119,8 @@ export default function ApiDocs() {
   ];
 
   const webhookInfo = {
-    title: "Webhook Configuration (2-Way SMS)",
-    description: "Configure this webhook URL in your SMS provider account to receive incoming messages:",
+    title: t('docs.webhook.title'),
+    description: t('docs.webhook.description'),
     webhookUrl: "http://151.243.109.79/webhook/incoming-sms",
     payloadExample: `{
   "from": "XXXXXXXXXXX",
@@ -145,9 +147,9 @@ export default function ApiDocs() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-4xl font-bold tracking-tight">API Documentation</h1>
+          <h1 className="text-4xl font-bold tracking-tight">{t('docs.title')}</h1>
           <p className="text-muted-foreground mt-2">
-            Complete reference for the Ibiki SMS API v2.0
+            {t('docs.subtitle')}
           </p>
         </div>
       </div>
@@ -155,7 +157,7 @@ export default function ApiDocs() {
       <Alert data-testid="alert-authentication">
         <Info className="w-4 h-4" />
         <AlertDescription>
-          <strong>Authentication:</strong> All API requests require your API key in the Authorization header:
+          <strong>{t('docs.authentication.strong')}</strong> {t('docs.authentication.description')}
           <code className="block mt-2 bg-muted p-2 rounded text-sm font-mono">
             Authorization: Bearer YOUR_API_KEY
           </code>
@@ -163,7 +165,7 @@ export default function ApiDocs() {
       </Alert>
 
       <div className="space-y-6">
-        <h2 className="text-2xl font-semibold">Endpoints</h2>
+        <h2 className="text-2xl font-semibold">{t('docs.endpoints.title')}</h2>
         {endpoints.map((endpoint, index) => (
           <ApiEndpointCard key={index} {...endpoint} />
         ))}
@@ -181,13 +183,13 @@ export default function ApiDocs() {
                 {webhookInfo.webhookUrl}
               </code>
               <div className="mt-4">
-                <p className="text-sm font-medium mb-2">The system will POST this payload when you receive SMS:</p>
+                <p className="text-sm font-medium mb-2">{t('docs.webhook.payloadInfo')}</p>
                 <pre className="bg-muted p-3 rounded text-xs font-mono overflow-x-auto">
                   {webhookInfo.payloadExample}
                 </pre>
               </div>
               <p className="text-sm text-muted-foreground mt-3">
-                <strong>Note:</strong> Contact admin to get a phone number assigned to your account. Incoming messages will be routed based on the receiver field.
+                <strong>{t('docs.webhook.note')}</strong> {t('docs.webhook.noteText')}
               </p>
             </div>
           </AlertDescription>

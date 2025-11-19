@@ -1,5 +1,23 @@
 # Version History
 
+## v11.3 (November 18, 2025)
+**Complete API Documentation Translation**
+
+### Changes
+- ✅ Full API documentation translation (English + Chinese)
+- ✅ All endpoint descriptions translated
+- ✅ Webhook configuration instructions translated
+- ✅ No Python dependencies needed (pure JavaScript solution)
+- ✅ Instant language switching
+- ✅ Easy to add more languages (French, Spanish, Arabic, etc.)
+
+### Technical
+- Extended client/src/lib/i18n.ts with complete API docs translations
+- Updated client/src/pages/ApiDocs.tsx to use translation system
+- Maintained existing i18n architecture for consistency
+
+---
+
 ## v11.2 (November 18, 2025)
 **Privacy & Branding Update**
 

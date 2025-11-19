@@ -104,15 +104,43 @@ export const translations = {
     
     // API Documentation
     'docs.title': 'API Documentation',
-    'docs.subtitle': 'Complete guide to integrating with our SMS API',
+    'docs.subtitle': 'Complete reference for the Ibiki SMS API v2.0',
     'docs.authentication.title': 'Authentication',
-    'docs.authentication.description': 'All API requests require authentication',
+    'docs.authentication.strong': 'Authentication:',
+    'docs.authentication.description': 'All API requests require your API key in the Authorization header:',
     'docs.endpoints.title': 'Endpoints',
-    'docs.endpoints.sendSingle': 'Send Single SMS',
-    'docs.endpoints.sendBulk': 'Send Bulk SMS',
-    'docs.endpoints.sendBulkMulti': 'Send Bulk SMS (Multiple)',
-    'docs.endpoints.status': 'Check Message Status',
-    'docs.endpoints.balance': 'Get Account Balance',
+    
+    // Send Single SMS
+    'docs.sendSingle.title': 'Send Single SMS',
+    'docs.sendSingle.description': 'Send an SMS to a single recipient. Returns immediately with message ID.',
+    
+    // Send Bulk SMS
+    'docs.sendBulk.title': 'Send Bulk SMS (Same Message)',
+    'docs.sendBulk.description': 'Send the same SMS message to multiple recipients at once.',
+    
+    // Send Bulk Multi
+    'docs.sendBulkMulti.title': 'Send Bulk SMS (Different Messages)',
+    'docs.sendBulkMulti.description': 'Send different SMS messages to multiple recipients in a single request.',
+    
+    // Check Delivery
+    'docs.checkDelivery.title': 'Check Message Delivery Status',
+    'docs.checkDelivery.description': 'Get the delivery status of a previously sent message using its message ID.',
+    
+    // Check Balance
+    'docs.checkBalance.title': 'Get Account Balance',
+    'docs.checkBalance.description': 'Check your current credit balance and available funds.',
+    
+    // Get Inbox
+    'docs.inbox.title': 'Get incoming messages (2-Way SMS)',
+    'docs.inbox.description': 'Retrieve incoming SMS messages sent to your assigned phone number. Requires phone number assignment by admin.',
+    
+    // Webhook
+    'docs.webhook.title': 'Webhook Configuration (2-Way SMS)',
+    'docs.webhook.description': 'Configure this webhook URL in your SMS provider account to receive incoming messages:',
+    'docs.webhook.payloadInfo': 'The system will POST this payload when you receive SMS:',
+    'docs.webhook.note': 'Note:',
+    'docs.webhook.noteText': 'Contact admin to get a phone number assigned to your account. Incoming messages will be routed based on the receiver field.',
+    
     'docs.request': 'Request',
     'docs.response': 'Response',
     'docs.example': 'Example',
@@ -229,15 +257,43 @@ export const translations = {
     
     // API Documentation
     'docs.title': 'API文档',
-    'docs.subtitle': '集成我们的短信API的完整指南',
+    'docs.subtitle': 'Ibiki SMS API v2.0 完整参考',
     'docs.authentication.title': '身份验证',
-    'docs.authentication.description': '所有API请求都需要身份验证',
+    'docs.authentication.strong': '身份验证:',
+    'docs.authentication.description': '所有API请求都需要在Authorization标头中提供您的API密钥:',
     'docs.endpoints.title': '端点',
-    'docs.endpoints.sendSingle': '发送单条短信',
-    'docs.endpoints.sendBulk': '发送批量短信',
-    'docs.endpoints.sendBulkMulti': '发送批量短信（多条）',
-    'docs.endpoints.status': '检查消息状态',
-    'docs.endpoints.balance': '获取账户余额',
+    
+    // Send Single SMS
+    'docs.sendSingle.title': '发送单条短信',
+    'docs.sendSingle.description': '向单个收件人发送短信。立即返回消息ID。',
+    
+    // Send Bulk SMS
+    'docs.sendBulk.title': '发送批量短信（相同消息）',
+    'docs.sendBulk.description': '一次向多个收件人发送相同的短信消息。',
+    
+    // Send Bulk Multi
+    'docs.sendBulkMulti.title': '发送批量短信（不同消息）',
+    'docs.sendBulkMulti.description': '在单个请求中向多个收件人发送不同的短信消息。',
+    
+    // Check Delivery
+    'docs.checkDelivery.title': '检查消息发送状态',
+    'docs.checkDelivery.description': '使用消息ID获取先前发送的消息的发送状态。',
+    
+    // Check Balance
+    'docs.checkBalance.title': '获取账户余额',
+    'docs.checkBalance.description': '检查您当前的积分余额和可用资金。',
+    
+    // Get Inbox
+    'docs.inbox.title': '获取接收的消息（双向短信）',
+    'docs.inbox.description': '检索发送到您分配的电话号码的接收短信消息。需要管理员分配电话号码。',
+    
+    // Webhook
+    'docs.webhook.title': 'Webhook配置（双向短信）',
+    'docs.webhook.description': '在您的短信提供商账户中配置此webhook URL以接收来电消息:',
+    'docs.webhook.payloadInfo': '当您收到短信时，系统将发送此有效载荷:',
+    'docs.webhook.note': '注意:',
+    'docs.webhook.noteText': '联系管理员为您的账户分配电话号码。来电消息将根据接收者字段路由。',
+    
     'docs.request': '请求',
     'docs.response': '响应',
     'docs.example': '示例',
