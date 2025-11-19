@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { ClientSelector } from "@/components/ClientSelector";
 import { DashboardHeader } from "@/components/DashboardHeader";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Contact {
   id: string;
@@ -30,6 +31,7 @@ interface ContactGroup {
 
 export default function SendSMS() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState("single");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(() => {
     return localStorage.getItem('selectedClientId');
@@ -111,13 +113,13 @@ export default function SendSMS() {
       });
     },
     onSuccess: () => {
-      toast({ title: "Success", description: "SMS sent successfully" });
+      toast({ title: t('common.success'), description: t('sendSms.success.sent') });
       setSingleTo("");
       setSingleMessage("");
       queryClient.invalidateQueries({ queryKey: ['/api/client/messages'] });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to send SMS", variant: "destructive" });
+      toast({ title: t('common.error'), description: error.message || t('sendSms.error.failed'), variant: "destructive" });
     }
   });
 
@@ -130,14 +132,14 @@ export default function SendSMS() {
       });
     },
     onSuccess: () => {
-      toast({ title: "Success", description: "Bulk SMS sent successfully" });
+      toast({ title: t('common.success'), description: t('sendSms.success.bulkSent') });
       setBulkRecipients("");
       setBulkMessage("");
       setSelectedGroupId("");
       queryClient.invalidateQueries({ queryKey: ['/api/client/messages'] });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to send bulk SMS", variant: "destructive" });
+      toast({ title: t('common.error'), description: error.message || t('sendSms.error.failed'), variant: "destructive" });
     }
   });
 
@@ -150,18 +152,18 @@ export default function SendSMS() {
       });
     },
     onSuccess: () => {
-      toast({ title: "Success", description: "Bulk multi SMS sent successfully" });
+      toast({ title: t('common.success'), description: t('sendSms.success.multiSent') });
       setBulkMultiMessages([{ to: "", message: "" }]);
       queryClient.invalidateQueries({ queryKey: ['/api/client/messages'] });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to send bulk multi SMS", variant: "destructive" });
+      toast({ title: t('common.error'), description: error.message || t('sendSms.error.failed'), variant: "destructive" });
     }
   });
 
   const handleSendSingle = () => {
     if (!singleTo || !singleMessage) {
-      toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
+      toast({ title: t('common.error'), description: "Please fill in all fields", variant: "destructive" });
       return;
     }
     const payload: { to: string; message: string; userId?: string } = {
@@ -191,7 +193,7 @@ export default function SendSMS() {
     }
 
     if (recipients.length === 0 || !bulkMessage) {
-      toast({ title: "Error", description: "Please provide recipients and message", variant: "destructive" });
+      toast({ title: t('common.error'), description: "Please provide recipients and message", variant: "destructive" });
       return;
     }
 
@@ -208,7 +210,7 @@ export default function SendSMS() {
   const handleSendBulkMulti = () => {
     const validMessages = bulkMultiMessages.filter(m => m.to && m.message);
     if (validMessages.length === 0) {
-      toast({ title: "Error", description: "Please provide at least one valid message", variant: "destructive" });
+      toast({ title: t('common.error'), description: "Please provide at least one valid message", variant: "destructive" });
       return;
     }
     const payload: { messages: Array<{ to: string; message: string }>; userId?: string } = {
@@ -241,8 +243,8 @@ export default function SendSMS() {
         {isAdmin && (
           <Card>
             <CardHeader>
-              <CardTitle>Admin Mode</CardTitle>
-              <CardDescription>Select which client to send SMS on behalf of</CardDescription>
+              <CardTitle>{t('sendSms.adminMode')}</CardTitle>
+              <CardDescription>{t('sendSms.selectClient')}</CardDescription>
             </CardHeader>
             <CardContent>
               <ClientSelector 
@@ -260,8 +262,8 @@ export default function SendSMS() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold">Send SMS</h1>
-            <p className="text-muted-foreground">Send single or bulk SMS messages to your contacts</p>
+            <h1 className="text-3xl font-bold">{t('sendSms.title')}</h1>
+            <p className="text-muted-foreground">{t('sendSms.subtitle')}</p>
           </div>
         </div>
 
@@ -269,15 +271,15 @@ export default function SendSMS() {
         <TabsList className="grid w-full max-w-md grid-cols-3">
           <TabsTrigger value="single" data-testid="tab-single">
             <Send className="h-4 w-4 mr-2" />
-            Single
+            {t('sendSms.tabs.single')}
           </TabsTrigger>
           <TabsTrigger value="bulk" data-testid="tab-bulk">
             <Users className="h-4 w-4 mr-2" />
-            Bulk
+            {t('sendSms.tabs.bulk')}
           </TabsTrigger>
           <TabsTrigger value="bulk-multi" data-testid="tab-bulk-multi">
             <List className="h-4 w-4 mr-2" />
-            Bulk Multi
+            {t('sendSms.tabs.bulkMulti')}
           </TabsTrigger>
         </TabsList>
 

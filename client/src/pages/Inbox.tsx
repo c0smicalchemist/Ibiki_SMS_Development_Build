@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import { format } from "date-fns";
 import { ClientSelector } from "@/components/ClientSelector";
 import { DashboardHeader } from "@/components/DashboardHeader";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface IncomingMessage {
   id: string;
@@ -30,6 +31,7 @@ interface IncomingMessage {
 
 export default function Inbox() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [selectedMessage, setSelectedMessage] = useState<IncomingMessage | null>(null);
   const [replyText, setReplyText] = useState("");
   const [showReplyDialog, setShowReplyDialog] = useState(false);

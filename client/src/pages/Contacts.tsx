@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { ClientSelector } from "@/components/ClientSelector";
 import { DashboardHeader } from "@/components/DashboardHeader";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Contact {
   id: string;
@@ -40,6 +41,7 @@ interface ContactGroup {
 
 export default function Contacts() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [showGroupDialog, setShowGroupDialog] = useState(false);
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
