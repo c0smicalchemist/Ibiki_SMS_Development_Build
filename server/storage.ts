@@ -13,13 +13,16 @@ import {
   type InsertCreditTransaction,
   type IncomingMessage,
   type InsertIncomingMessage,
+  type ClientContact,
+  type InsertClientContact,
   users,
   apiKeys,
   clientProfiles,
   systemConfig,
   messageLogs,
   creditTransactions,
-  incomingMessages
+  incomingMessages,
+  clientContacts
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from 'drizzle-orm/neon-serverless';
@@ -66,6 +69,7 @@ export interface IStorage {
   getMessageLogByMessageId(messageId: string): Promise<MessageLog | undefined>;
   getAllMessageLogs(limit?: number): Promise<MessageLog[]>;
   findClientBySenderPhone(senderPhone: string): Promise<string | undefined>; // Find userId by sender phone number
+  findClientByRecipient(recipientPhone: string): Promise<string | undefined>; // Find userId who sent to this recipient
   
   // Credit Transaction methods
   createCreditTransaction(transaction: InsertCreditTransaction): Promise<CreditTransaction>;
@@ -75,6 +79,15 @@ export interface IStorage {
   createIncomingMessage(message: InsertIncomingMessage): Promise<IncomingMessage>;
   getIncomingMessagesByUserId(userId: string, limit?: number): Promise<IncomingMessage[]>;
   getAllIncomingMessages(limit?: number): Promise<IncomingMessage[]>;
+  
+  // Client Contact methods (for Business field routing)
+  createClientContact(contact: InsertClientContact): Promise<ClientContact>;
+  createClientContacts(contacts: InsertClientContact[]): Promise<ClientContact[]>;
+  getClientContactsByUserId(userId: string): Promise<ClientContact[]>;
+  getClientContactByPhone(phoneNumber: string): Promise<ClientContact | undefined>;
+  updateClientContact(id: string, updates: Partial<ClientContact>): Promise<ClientContact | undefined>;
+  deleteClientContact(id: string): Promise<void>;
+  deleteClientContactsByUserId(userId: string): Promise<void>;
   
   // Error logging methods
   getErrorLogs(level?: string): Promise<any[]>;
@@ -91,6 +104,7 @@ export class MemStorage implements IStorage {
   private messageLogs: Map<string, MessageLog>;
   private creditTransactions: Map<string, CreditTransaction>;
   private incomingMessages: Map<string, IncomingMessage>;
+  private clientContacts: Map<string, ClientContact>;
 
   constructor() {
     this.users = new Map();
@@ -100,6 +114,7 @@ export class MemStorage implements IStorage {
     this.messageLogs = new Map();
     this.creditTransactions = new Map();
     this.incomingMessages = new Map();
+    this.clientContacts = new Map();
   }
 
   // User methods
@@ -363,6 +378,22 @@ export class MemStorage implements IStorage {
     return logs.length > 0 ? logs[0].userId : undefined;
   }
 
+  async findClientByRecipient(recipientPhone: string): Promise<string | undefined> {
+    // Find the most recent message sent TO this recipient phone number
+    // This is used for conversation tracking: if client sent to this number, route replies to them
+    const logs = Array.from(this.messageLogs.values())
+      .filter(log => {
+        // Check single recipient
+        if (log.recipient === recipientPhone) return true;
+        // Check bulk recipients
+        if (log.recipients && log.recipients.includes(recipientPhone)) return true;
+        return false;
+      })
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    
+    return logs.length > 0 ? logs[0].userId : undefined;
+  }
+
   async getTotalMessageCount(): Promise<number> {
     return this.messageLogs.size;
   }
@@ -420,6 +451,70 @@ export class MemStorage implements IStorage {
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     
     return limit ? messages.slice(0, limit) : messages;
+  }
+
+  // Client Contact methods (for Business field routing)
+  async createClientContact(insertContact: InsertClientContact): Promise<ClientContact> {
+    const id = randomUUID();
+    const contact: ClientContact = {
+      ...insertContact,
+      id,
+      firstname: insertContact.firstname ?? null,
+      lastname: insertContact.lastname ?? null,
+      business: insertContact.business ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.clientContacts.set(id, contact);
+    return contact;
+  }
+
+  async createClientContacts(contacts: InsertClientContact[]): Promise<ClientContact[]> {
+    const createdContacts: ClientContact[] = [];
+    for (const contact of contacts) {
+      const created = await this.createClientContact(contact);
+      createdContacts.push(created);
+    }
+    return createdContacts;
+  }
+
+  async getClientContactsByUserId(userId: string): Promise<ClientContact[]> {
+    return Array.from(this.clientContacts.values())
+      .filter((contact) => contact.userId === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getClientContactByPhone(phoneNumber: string): Promise<ClientContact | undefined> {
+    return Array.from(this.clientContacts.values()).find(
+      (contact) => contact.phoneNumber === phoneNumber
+    );
+  }
+
+  async updateClientContact(id: string, updates: Partial<ClientContact>): Promise<ClientContact | undefined> {
+    const contact = this.clientContacts.get(id);
+    if (!contact) return undefined;
+    
+    const updated: ClientContact = {
+      ...contact,
+      ...updates,
+      updatedAt: new Date()
+    };
+    this.clientContacts.set(id, updated);
+    return updated;
+  }
+
+  async deleteClientContact(id: string): Promise<void> {
+    this.clientContacts.delete(id);
+  }
+
+  async deleteClientContactsByUserId(userId: string): Promise<void> {
+    const contactsToDelete = Array.from(this.clientContacts.entries())
+      .filter(([_, contact]) => contact.userId === userId)
+      .map(([id, _]) => id);
+    
+    for (const id of contactsToDelete) {
+      this.clientContacts.delete(id);
+    }
   }
 
   // Error logging methods
@@ -703,6 +798,20 @@ export class DbStorage implements IStorage {
     return result.length > 0 ? result[0].userId : undefined;
   }
 
+  async findClientByRecipient(recipientPhone: string): Promise<string | undefined> {
+    // Find the most recent message sent TO this recipient phone number
+    // This is used for conversation tracking: if client sent to this number, route replies to them
+    const result = await this.db.select()
+      .from(messageLogs)
+      .where(
+        sql`${messageLogs.recipient} = ${recipientPhone} OR ${recipientPhone} = ANY(${messageLogs.recipients})`
+      )
+      .orderBy(desc(messageLogs.createdAt))
+      .limit(1);
+    
+    return result.length > 0 ? result[0].userId : undefined;
+  }
+
   // Credit Transaction methods
   async createCreditTransaction(transaction: InsertCreditTransaction): Promise<CreditTransaction> {
     const result = await this.db.insert(creditTransactions).values(transaction).returning();
@@ -748,6 +857,47 @@ export class DbStorage implements IStorage {
     }
     
     return query;
+  }
+
+  // Client Contact methods (for Business field routing)
+  async createClientContact(contact: InsertClientContact): Promise<ClientContact> {
+    const result = await this.db.insert(clientContacts).values(contact).returning();
+    return result[0];
+  }
+
+  async createClientContacts(contacts: InsertClientContact[]): Promise<ClientContact[]> {
+    if (contacts.length === 0) return [];
+    const result = await this.db.insert(clientContacts).values(contacts).returning();
+    return result;
+  }
+
+  async getClientContactsByUserId(userId: string): Promise<ClientContact[]> {
+    return this.db.select().from(clientContacts)
+      .where(eq(clientContacts.userId, userId))
+      .orderBy(desc(clientContacts.createdAt));
+  }
+
+  async getClientContactByPhone(phoneNumber: string): Promise<ClientContact | undefined> {
+    const result = await this.db.select().from(clientContacts)
+      .where(eq(clientContacts.phoneNumber, phoneNumber))
+      .limit(1);
+    return result[0];
+  }
+
+  async updateClientContact(id: string, updates: Partial<ClientContact>): Promise<ClientContact | undefined> {
+    const result = await this.db.update(clientContacts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(clientContacts.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteClientContact(id: string): Promise<void> {
+    await this.db.delete(clientContacts).where(eq(clientContacts.id, id));
+  }
+
+  async deleteClientContactsByUserId(userId: string): Promise<void> {
+    await this.db.delete(clientContacts).where(eq(clientContacts.userId, userId));
   }
 
   // Error logging methods

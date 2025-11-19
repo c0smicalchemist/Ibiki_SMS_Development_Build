@@ -120,6 +120,23 @@ export const incomingMessages = pgTable("incoming_messages", {
   fromIdx: index("incoming_from_idx").on(table.from),
 }));
 
+// Client contacts for routing (stores contact phone → client_id mapping)
+export const clientContacts = pgTable("client_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  phoneNumber: text("phone_number").notNull(), // Customer phone number
+  firstname: text("firstname"),
+  lastname: text("lastname"),
+  business: text("business"), // Should contain client_id for routing
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index("contact_user_id_idx").on(table.userId),
+  phoneIdx: index("contact_phone_idx").on(table.phoneNumber),
+  businessIdx: index("contact_business_idx").on(table.business),
+  phoneUserIdx: index("contact_phone_user_idx").on(table.phoneNumber, table.userId),
+}));
+
 // Zod schemas and types
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -157,6 +174,12 @@ export const insertIncomingMessageSchema = createInsertSchema(incomingMessages).
   createdAt: true,
 });
 
+export const insertClientContactSchema = createInsertSchema(clientContacts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
@@ -177,3 +200,6 @@ export type InsertCreditTransaction = z.infer<typeof insertCreditTransactionSche
 
 export type IncomingMessage = typeof incomingMessages.$inferSelect;
 export type InsertIncomingMessage = z.infer<typeof insertIncomingMessageSchema>;
+
+export type ClientContact = typeof clientContacts.$inferSelect;
+export type InsertClientContact = z.infer<typeof insertClientContactSchema>;

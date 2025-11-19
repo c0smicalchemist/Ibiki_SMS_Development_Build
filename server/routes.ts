@@ -391,6 +391,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Incoming SMS webhook from ExtremeSMS
   app.post("/webhook/incoming-sms", async (req, res) => {
     try {
+      // SECURITY: Verify webhook secret to prevent spoofing
+      const webhookSecret = process.env.WEBHOOK_SECRET;
+      if (webhookSecret && webhookSecret !== 'CHANGE_THIS_TO_A_RANDOM_SECRET_STRING_BEFORE_DEPLOYMENT') {
+        const providedSecret = req.headers['x-webhook-secret'] || req.query.secret;
+        if (providedSecret !== webhookSecret) {
+          console.warn("Webhook authentication failed: Invalid or missing secret");
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+      }
+
       const payload = req.body;
       console.log("Incoming SMS webhook received:", { 
         from: payload.from, 
@@ -403,17 +413,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // SMART ROUTING: Find client who sent messages from this phone number
+      // SMART ROUTING: Business field contains client_id
       let assignedUserId: string | null = null;
       
-      // Priority 1: Check if any client recently sent a message FROM this receiver number
-      // This routes replies to conversations automatically
-      const clientFromOutbound = await storage.findClientBySenderPhone(payload.receiver);
-      if (clientFromOutbound) {
-        assignedUserId = clientFromOutbound;
-        console.log(`Routing incoming SMS to client ${clientFromOutbound} (matched outbound sender phone)`);
-      } else {
-        // Priority 2: Fall back to assigned phone numbers (manual assignment)
+      // Priority 1: Extract client_id from Business field (ExtremeSMS contact CSV)
+      // When clients upload contacts with their userId in the Business field, we can route directly
+      if (payload.business && payload.business.trim() !== '') {
+        // Business field should contain the client's userId
+        const potentialUserId = payload.business.trim();
+        const user = await storage.getUser(potentialUserId);
+        if (user && user.role === 'client') {
+          assignedUserId = user.id;
+          console.log(`Routing incoming SMS to client ${user.id} (matched Business field: ${payload.business})`);
+        } else {
+          console.log(`Business field '${payload.business}' does not match a valid client`);
+        }
+      }
+      
+      // Priority 2: Fall back to conversation tracking (client who sent to this customer)
+      if (!assignedUserId) {
+        const clientFromOutbound = await storage.findClientByRecipient(payload.from);
+        if (clientFromOutbound) {
+          assignedUserId = clientFromOutbound;
+          console.log(`Routing incoming SMS to client ${clientFromOutbound} (matched conversation: client sent to ${payload.from})`);
+        }
+      }
+      
+      // Priority 3: Fall back to assigned phone numbers (manual assignment)
+      if (!assignedUserId) {
         const clientProfile = await storage.getClientProfileByPhoneNumber(payload.receiver);
         if (clientProfile) {
           assignedUserId = clientProfile.userId;
@@ -587,6 +614,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Client inbox fetch error:", error);
       res.status(500).json({ error: "Failed to retrieve inbox" });
+    }
+  });
+
+  // ============================================
+  // Client Contact Management Routes
+  // ============================================
+
+  // Upload contacts (for Business field routing)
+  app.post("/api/client/contacts/upload", authenticateToken, async (req: any, res) => {
+    try {
+      const { contacts } = req.body;
+      
+      if (!Array.isArray(contacts) || contacts.length === 0) {
+        return res.status(400).json({ error: "Contacts array is required" });
+      }
+
+      // Validate contact structure BEFORE any database operations
+      const validatedContacts = contacts.map((contact, index) => {
+        if (!contact.phoneNumber) {
+          throw new Error(`Phone number is required for contact at index ${index}`);
+        }
+
+        return {
+          userId: req.user.userId,
+          phoneNumber: contact.phoneNumber,
+          firstname: contact.firstname || null,
+          lastname: contact.lastname || null,
+          business: req.user.userId // Store client's userId in Business field for routing
+        };
+      });
+
+      // SAFER ATOMIC OPERATION: 
+      // Store old contacts as backup, delete, insert new, restore on failure
+      try {
+        // Backup existing contacts
+        const oldContacts = await storage.getClientContactsByUserId(req.user.userId);
+        
+        // Delete existing contacts
+        await storage.deleteClientContactsByUserId(req.user.userId);
+        
+        try {
+          // Insert new contacts
+          const createdContacts = await storage.createClientContacts(validatedContacts);
+          
+          res.json({
+            success: true,
+            message: `Successfully uploaded ${createdContacts.length} contacts`,
+            count: createdContacts.length
+          });
+        } catch (insertError) {
+          // Rollback: restore old contacts if insert fails
+          if (oldContacts.length > 0) {
+            const restoreContacts = oldContacts.map(c => ({
+              userId: c.userId,
+              phoneNumber: c.phoneNumber,
+              firstname: c.firstname,
+              lastname: c.lastname,
+              business: c.business
+            }));
+            await storage.createClientContacts(restoreContacts);
+          }
+          throw insertError;
+        }
+      } catch (dbError) {
+        console.error("Database error during contact upload:", dbError);
+        throw new Error("Failed to upload contacts - operation rolled back");
+      }
+    } catch (error: any) {
+      console.error("Contact upload error:", error);
+      res.status(500).json({ error: error.message || "Failed to upload contacts" });
+    }
+  });
+
+  // Get all contacts for the authenticated client
+  app.get("/api/client/contacts", authenticateToken, async (req: any, res) => {
+    try {
+      const contacts = await storage.getClientContactsByUserId(req.user.userId);
+      
+      res.json({
+        success: true,
+        contacts: contacts.map(c => ({
+          id: c.id,
+          phoneNumber: c.phoneNumber,
+          firstname: c.firstname,
+          lastname: c.lastname,
+          business: c.business,
+          createdAt: c.createdAt.toISOString()
+        })),
+        count: contacts.length
+      });
+    } catch (error) {
+      console.error("Contact fetch error:", error);
+      res.status(500).json({ error: "Failed to retrieve contacts" });
+    }
+  });
+
+  // Delete a specific contact
+  app.delete("/api/client/contacts/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Verify ownership before deleting
+      const contacts = await storage.getClientContactsByUserId(req.user.userId);
+      const contact = contacts.find(c => c.id === id);
+      
+      if (!contact) {
+        return res.status(404).json({ error: "Contact not found" });
+      }
+
+      await storage.deleteClientContact(id);
+
+      res.json({
+        success: true,
+        message: "Contact deleted successfully"
+      });
+    } catch (error) {
+      console.error("Contact delete error:", error);
+      res.status(500).json({ error: "Failed to delete contact" });
+    }
+  });
+
+  // Delete all contacts for the authenticated client
+  app.delete("/api/client/contacts", authenticateToken, async (req: any, res) => {
+    try {
+      await storage.deleteClientContactsByUserId(req.user.userId);
+
+      res.json({
+        success: true,
+        message: "All contacts deleted successfully"
+      });
+    } catch (error) {
+      console.error("Contact delete error:", error);
+      res.status(500).json({ error: "Failed to delete contacts" });
     }
   });
 
