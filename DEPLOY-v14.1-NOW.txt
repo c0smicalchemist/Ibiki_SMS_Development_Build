@@ -1,0 +1,140 @@
+═══════════════════════════════════════════════════════════════════════════
+🚀 IBIKI SMS v14.1 - FIX FOR ADMIN DASHBOARD
+═══════════════════════════════════════════════════════════════════════════
+
+📦 PACKAGE: ibiki-sms-v14.1.tar.gz (204KB)
+🎯 FIX: Admin dashboard now shows registered clients
+⚡ TIME: 5 minutes
+
+═══════════════════════════════════════════════════════════════════════════
+🐛 WHAT THIS FIXES
+═══════════════════════════════════════════════════════════════════════════
+
+PROBLEM YOU HAD:
+✗ Created users but admin dashboard shows empty table
+✗ Can't see clients to allocate credits
+✗ "Failed to fetch clients" error in logs
+
+THE FIX:
+✅ Database schema synchronized (missing column added)
+✅ Admin dashboard loads clients correctly
+✅ Can now allocate credits and manage all clients
+
+═══════════════════════════════════════════════════════════════════════════
+⚡ DEPLOY NOW (5 STEPS)
+═══════════════════════════════════════════════════════════════════════════
+
+1️⃣ UPLOAD TO SERVER:
+   scp ibiki-sms-v14.1.tar.gz root@151.243.109.79:/root/
+
+2️⃣ SSH IN:
+   ssh root@151.243.109.79
+
+3️⃣ EXTRACT:
+   cd /root
+   tar -xzf ibiki-sms-v14.1.tar.gz
+   cd ibiki-sms-v14.1-deploy
+
+4️⃣ DEPLOY:
+   chmod +x deploy-v14.1.sh
+   ./deploy-v14.1.sh
+
+5️⃣ TEST:
+   Open http://151.243.109.79
+   Login as admin → Go to Clients tab
+   You should see your registered clients!
+
+═══════════════════════════════════════════════════════════════════════════
+✅ WHAT THE SCRIPT DOES
+═══════════════════════════════════════════════════════════════════════════
+
+1. Stops old processes (PM2, port 5000)
+2. Copies files to /root/ibiki-sms
+3. Creates .env with DATABASE_URL
+4. npm install
+5. npm run build
+6. **npm run db:push** ← THE CRITICAL FIX (syncs database schema)
+7. Starts PM2 with name "ibiki-sms"
+8. Shows you the status
+
+═══════════════════════════════════════════════════════════════════════════
+🎯 VERIFY IT WORKED
+═══════════════════════════════════════════════════════════════════════════
+
+After deployment:
+
+✅ Check PM2:
+   pm2 status
+   Should show: ibiki-sms | online
+
+✅ Check logs:
+   pm2 logs ibiki-sms --lines 20
+   Should show: "serving on port 5000"
+   Should NOT show: errors about "sender_phone_number"
+
+✅ Check admin dashboard:
+   1. Open http://151.243.109.79
+   2. Login with admin account
+   3. Click "Admin Dashboard"
+   4. Click "Clients" tab
+   5. YOU SHOULD NOW SEE:
+      • test@example.com
+      • Credits: $50.00
+      • Status: active
+      • "Add Credits" button
+
+═══════════════════════════════════════════════════════════════════════════
+💾 YOUR DATA IS 100% SAFE
+═══════════════════════════════════════════════════════════════════════════
+
+✅ All users preserved
+✅ All credits preserved
+✅ All API keys preserved
+✅ All message logs preserved
+✅ All configuration preserved
+
+The fix ONLY adds a missing database column.
+NOTHING is deleted or changed!
+
+═══════════════════════════════════════════════════════════════════════════
+🔧 IF SOMETHING GOES WRONG
+═══════════════════════════════════════════════════════════════════════════
+
+If deployment fails, run:
+   cd /root/ibiki-sms-v14.1-deploy
+   ./deploy-v14.1.sh
+
+If still having issues:
+   pm2 delete all
+   pm2 kill
+   lsof -ti:5000 | xargs kill -9
+   ./deploy-v14.1.sh
+
+If clients still not showing:
+   cd /root/ibiki-sms
+   npm run db:push --force
+   pm2 restart ibiki-sms
+
+═══════════════════════════════════════════════════════════════════════════
+🎉 AFTER SUCCESSFUL DEPLOYMENT
+═══════════════════════════════════════════════════════════════════════════
+
+YOU CAN NOW:
+✅ See all registered clients in admin dashboard
+✅ Allocate credits to any client
+✅ View client balances
+✅ Assign phone numbers
+✅ Manage all clients from one place
+
+YOUR CLIENTS CAN:
+✅ Login to their dashboard
+✅ See their credit balance
+✅ See their per-SMS rate
+✅ Send SMS messages
+✅ View message history
+
+═══════════════════════════════════════════════════════════════════════════
+
+READY TO DEPLOY: Download ibiki-sms-v14.1.tar.gz and follow 5 steps above!
+
+═══════════════════════════════════════════════════════════════════════════
