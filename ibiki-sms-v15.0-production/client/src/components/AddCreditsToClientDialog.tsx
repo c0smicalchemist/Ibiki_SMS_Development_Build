@@ -84,37 +84,37 @@ export function AddCreditsToClientDialog({ clientId, clientName, currentCredits 
           data-testid={`button-add-credits-${clientId}`}
         >
           <DollarSign className="h-4 w-4 mr-1" />
-          Adjust Credits
+          Add / Deduct Credits
         </Button>
       </DialogTrigger>
       <DialogContent data-testid="dialog-add-credits">
         <DialogHeader>
-          <DialogTitle>Adjust Credits for {clientName}</DialogTitle>
+          <DialogTitle>Adjust Balance for {clientName}</DialogTitle>
           <DialogDescription>
-            Current balance: ${parseFloat(currentCredits).toFixed(2)}
+            Current balance: ${parseFloat(currentCredits).toFixed(2)} • You can add or deduct credits below
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
             <div className="space-y-3">
-              <Label>Operation</Label>
+              <Label className="text-base font-semibold">Choose Operation</Label>
               <RadioGroup 
                 value={operation} 
                 onValueChange={(value) => setOperation(value as "add" | "deduct")}
-                className="flex gap-4"
+                className="grid grid-cols-2 gap-4"
               >
-                <div className="flex items-center space-x-2">
+                <div className={`flex items-center space-x-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${operation === 'add' ? 'border-green-500 bg-green-50 dark:bg-green-950' : 'border-border hover:border-green-300'}`}>
                   <RadioGroupItem value="add" id="add" data-testid="radio-add" />
-                  <Label htmlFor="add" className="flex items-center gap-1.5 cursor-pointer font-normal">
-                    <Plus className="h-4 w-4 text-green-500" />
-                    Add Credits
+                  <Label htmlFor="add" className="flex items-center gap-2 cursor-pointer font-medium">
+                    <Plus className="h-5 w-5 text-green-600" />
+                    <span>Add Credits</span>
                   </Label>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className={`flex items-center space-x-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${operation === 'deduct' ? 'border-red-500 bg-red-50 dark:bg-red-950' : 'border-border hover:border-red-300'}`}>
                   <RadioGroupItem value="deduct" id="deduct" data-testid="radio-deduct" />
-                  <Label htmlFor="deduct" className="flex items-center gap-1.5 cursor-pointer font-normal">
-                    <Minus className="h-4 w-4 text-red-500" />
-                    Deduct Credits
+                  <Label htmlFor="deduct" className="flex items-center gap-2 cursor-pointer font-medium">
+                    <Minus className="h-5 w-5 text-red-600" />
+                    <span>Deduct Credits</span>
                   </Label>
                 </div>
               </RadioGroup>
