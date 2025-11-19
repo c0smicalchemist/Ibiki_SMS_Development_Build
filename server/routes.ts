@@ -93,7 +93,8 @@ async function deductCreditsAndLog(
   requestPayload: any,
   responsePayload: any,
   recipient?: string,
-  recipients?: string[]
+  recipients?: string[],
+  senderPhoneNumber?: string
 ) {
   const { extremeCost, clientRate } = await getPricingConfig();
   
@@ -112,6 +113,13 @@ async function deductCreditsAndLog(
 
   const newCredits = currentCredits - totalCharge;
 
+  // Extract sender phone from response if available
+  const senderPhone = senderPhoneNumber || 
+                      responsePayload?.senderPhone || 
+                      responsePayload?.from || 
+                      responsePayload?.sender || 
+                      null;
+
   // Create message log
   const messageLog = await storage.createMessageLog({
     userId,
@@ -119,6 +127,7 @@ async function deductCreditsAndLog(
     endpoint,
     recipient: recipient || null,
     recipients: recipients || null,
+    senderPhoneNumber: senderPhone,
     status,
     costPerMessage: extremeCost.toFixed(4),
     chargePerMessage: clientRate.toFixed(4),
@@ -394,12 +403,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // Find client by assigned phone number (receiver field)
+      // SMART ROUTING: Find client who sent messages from this phone number
       let assignedUserId: string | null = null;
-      const clientProfile = await storage.getClientProfileByPhoneNumber(payload.receiver);
       
-      if (clientProfile) {
-        assignedUserId = clientProfile.userId;
+      // Priority 1: Check if any client recently sent a message FROM this receiver number
+      // This routes replies to conversations automatically
+      const clientFromOutbound = await storage.findClientBySenderPhone(payload.receiver);
+      if (clientFromOutbound) {
+        assignedUserId = clientFromOutbound;
+        console.log(`Routing incoming SMS to client ${clientFromOutbound} (matched outbound sender phone)`);
+      } else {
+        // Priority 2: Fall back to assigned phone numbers (manual assignment)
+        const clientProfile = await storage.getClientProfileByPhoneNumber(payload.receiver);
+        if (clientProfile) {
+          assignedUserId = clientProfile.userId;
+          console.log(`Routing incoming SMS to client ${clientProfile.userId} (matched assigned phone number)`);
+        } else {
+          console.log(`No client found for incoming SMS from ${payload.from} to ${payload.receiver}`);
+        }
       }
 
       // Store incoming message

@@ -62,6 +62,7 @@ export const messageLogs = pgTable("message_logs", {
   endpoint: text("endpoint").notNull(), // Which endpoint was called
   recipient: text("recipient"),
   recipients: text("recipients").array(), // For bulk messages
+  senderPhoneNumber: text("sender_phone_number"), // Phone number used to SEND this message (for 2-way SMS routing)
   status: text("status").notNull(), // queued, sent, delivered, failed
   costPerMessage: decimal("cost_per_message", { precision: 10, scale: 4 }).notNull(), // What ExtremeSMS charged
   chargePerMessage: decimal("charge_per_message", { precision: 10, scale: 4 }).notNull(), // What we charged the client
@@ -75,6 +76,7 @@ export const messageLogs = pgTable("message_logs", {
   userIdIdx: index("message_user_id_idx").on(table.userId),
   createdAtIdx: index("message_created_at_idx").on(table.createdAt),
   messageIdIdx: index("message_id_idx").on(table.messageId),
+  senderPhoneIdx: index("message_sender_phone_idx").on(table.senderPhoneNumber),
 }));
 
 // Credit transactions for audit trail

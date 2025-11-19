@@ -65,6 +65,7 @@ export interface IStorage {
   getMessageLogsByUserId(userId: string, limit?: number): Promise<MessageLog[]>;
   getMessageLogByMessageId(messageId: string): Promise<MessageLog | undefined>;
   getAllMessageLogs(limit?: number): Promise<MessageLog[]>;
+  findClientBySenderPhone(senderPhone: string): Promise<string | undefined>; // Find userId by sender phone number
   
   // Credit Transaction methods
   createCreditTransaction(transaction: InsertCreditTransaction): Promise<CreditTransaction>;
@@ -324,6 +325,7 @@ export class MemStorage implements IStorage {
       messageCount: insertLog.messageCount ?? 1,
       recipients: insertLog.recipients ?? null,
       recipient: insertLog.recipient ?? null,
+      senderPhoneNumber: insertLog.senderPhoneNumber ?? null,
       requestPayload: insertLog.requestPayload ?? null,
       responsePayload: insertLog.responsePayload ?? null,
       createdAt: new Date()
@@ -350,6 +352,15 @@ export class MemStorage implements IStorage {
     const logs = Array.from(this.messageLogs.values())
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     return limit ? logs.slice(0, limit) : logs;
+  }
+
+  async findClientBySenderPhone(senderPhone: string): Promise<string | undefined> {
+    // Find the most recent message sent from this phone number
+    const logs = Array.from(this.messageLogs.values())
+      .filter(log => log.senderPhoneNumber === senderPhone)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    
+    return logs.length > 0 ? logs[0].userId : undefined;
   }
 
   async getTotalMessageCount(): Promise<number> {
@@ -679,6 +690,17 @@ export class DbStorage implements IStorage {
     }
     
     return query;
+  }
+
+  async findClientBySenderPhone(senderPhone: string): Promise<string | undefined> {
+    // Find the most recent message sent from this phone number
+    const result = await this.db.select()
+      .from(messageLogs)
+      .where(eq(messageLogs.senderPhoneNumber, senderPhone))
+      .orderBy(desc(messageLogs.createdAt))
+      .limit(1);
+    
+    return result.length > 0 ? result[0].userId : undefined;
   }
 
   // Credit Transaction methods
