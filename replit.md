@@ -6,7 +6,22 @@ Ibiki SMS is a professional SMS API middleware platform that acts as a secure pa
 
 ## Recent Changes (November 19, 2025)
 
-### Version 11.4 (Latest - PostgreSQL Persistence + Full Translations)
+### Version 11.5 (Latest - Login Persistence Fix)
+1. **CRITICAL FIX: Login Sessions Now Persist**:
+   - Fixed JWT secret environment variable mismatch (JWT_SECRET → SESSION_SECRET)
+   - Login tokens now validate correctly after page refresh/browser restart
+   - Users stay logged in for full 7-day token lifetime
+   - No more "authentication required" errors after restart
+2. **Environment Configuration**:
+   - Updated .env.example with detailed comments for SESSION_SECRET
+   - Deploy script ensures SESSION_SECRET is generated and preserved
+   - SESSION_SECRET never changes after initial deployment (critical for login persistence)
+3. **Documentation**:
+   - Added LOGIN_FIX_GUIDE.md with troubleshooting steps
+   - Updated deployment guides with .env preservation instructions
+   - Added verification steps for login persistence testing
+
+### Version 11.4 (PostgreSQL Persistence + Full Translations)
 1. **CRITICAL FIX: Database Persistence**: Switched from MemStorage to PostgreSQL-backed DbStorage
    - Users, API keys, and settings now persist across restarts and updates
    - DbStorage class implements IStorage using Drizzle ORM with Neon serverless PostgreSQL

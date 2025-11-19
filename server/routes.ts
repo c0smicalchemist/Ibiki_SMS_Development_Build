@@ -9,7 +9,7 @@ import axios from "axios";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "./resend";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+const JWT_SECRET = process.env.SESSION_SECRET || process.env.JWT_SECRET || "your-secret-key-change-in-production";
 const EXTREMESMS_BASE_URL = "https://extremesms.net";
 
 // Middleware to verify JWT token
