@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, UserPlus, Upload, Trash2, Edit, FolderPlus, Folder, ArrowLeft, Download } from "lucide-react";
+import { Users, UserPlus, Upload, Trash2, Edit, FolderPlus, Folder, ArrowLeft, Download, CloudUpload, AlertCircle, CheckCircle } from "lucide-react";
 import { Link } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,8 @@ interface Contact {
   email: string | null;
   notes: string | null;
   groupId: string | null;
+  syncedToExtremeSMS: boolean;
+  lastExportedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -116,6 +118,24 @@ export default function Contacts() {
 
   const groups: ContactGroup[] = (groupsData as any)?.groups || [];
   const contacts: Contact[] = (contactsData as any)?.contacts || [];
+
+  // Fetch sync stats
+  const { data: syncStatsData } = useQuery({
+    queryKey: ["/api/contacts/sync-stats", effectiveUserId],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      const url = effectiveUserId 
+        ? `/api/contacts/sync-stats?userId=${effectiveUserId}`
+        : '/api/contacts/sync-stats';
+      const response = await fetch(url, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}
+      });
+      if (!response.ok) throw new Error('Failed to fetch sync stats');
+      return response.json();
+    }
+  });
+
+  const syncStats = syncStatsData || { total: 0, synced: 0, unsynced: 0 };
 
   // Create group mutation
   const createGroupMutation = useMutation({
@@ -256,6 +276,10 @@ export default function Contacts() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
+      // Invalidate sync stats after export
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts/sync-stats', effectiveUserId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts', effectiveUserId] });
+      
       toast({ title: t('common.success'), description: t('contacts.success.exported') });
     } catch (error) {
       toast({ title: t('common.error'), description: t('contacts.error.exportFailed'), variant: "destructive" });
@@ -281,6 +305,32 @@ export default function Contacts() {
                 selectedClientId={selectedClientId}
                 onClientChange={setSelectedClientId}
               />
+            </CardContent>
+          </Card>
+        )}
+
+        {syncStats.unsynced > 0 && (
+          <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20">
+            <CardContent className="flex items-center gap-3 p-4">
+              <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
+                  {syncStats.unsynced} {syncStats.unsynced === 1 ? 'contact needs' : 'contacts need'} to be exported and uploaded to ExtremeSMS
+                </p>
+                <p className="text-xs text-yellow-800 dark:text-yellow-200 mt-1">
+                  Export as CSV, then upload to ExtremeSMS to enable incoming message routing
+                </p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleExportCSV}
+                className="border-yellow-300 dark:border-yellow-700 hover-elevate"
+                data-testid="button-export-warning"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -583,6 +633,7 @@ export default function Contacts() {
                   <TableHead>{t("contacts.table.phone")}</TableHead>
                   <TableHead>{t("contacts.table.email")}</TableHead>
                   <TableHead>{t("contacts.table.group")}</TableHead>
+                  <TableHead>Sync Status</TableHead>
                   <TableHead>{t("contacts.table.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -597,6 +648,19 @@ export default function Contacts() {
                         <Badge variant="secondary">
                           {groups.find((g: ContactGroup) => g.id === contact.groupId)?.name}
                         </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {contact.syncedToExtremeSMS ? (
+                        <div className="flex items-center gap-1.5 text-green-600 dark:text-green-500">
+                          <CheckCircle className="h-4 w-4" />
+                          <span className="text-xs">Synced</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-yellow-600 dark:text-yellow-500">
+                          <CloudUpload className="h-4 w-4" />
+                          <span className="text-xs">Pending</span>
+                        </div>
                       )}
                     </TableCell>
                     <TableCell>
