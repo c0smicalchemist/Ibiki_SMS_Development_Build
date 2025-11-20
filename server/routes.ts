@@ -2189,18 +2189,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? userId 
         : req.user.userId;
 
-      const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
-      
-      const response = await axios.post('https://extremesms.net/api2/api/sms/send-bulk', {
-        username: extremeUsername,
-        password: extremePassword,
-        recipients,
-        message
-      });
+      const extremeApiKey = await getExtremeApiKey();
 
-      // Deduct credits and log using targetUserId
-      await deductCreditsAndLog(
-        targetUserId,
+      const response = await axios.post(
+        \`\${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulk\`,
+        { recipients, content: message },
+        {
+          headers: {
+            "Authorization": \`Bearer \${extremeApiKey}\`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
         recipients.length,
         'web-ui-bulk',
         response.data.messageId || 'unknown',
@@ -2241,14 +2241,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? userId 
         : req.user.userId;
 
-      const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
-      
-      const response = await axios.post('https://extremesms.net/api2/api/sms/send-bulk-multi', {
-        username: extremeUsername,
-        password: extremePassword,
-        messages
-      });
+      const extremeApiKey = await getExtremeApiKey();
 
+      const response = await axios.post(
+        \`\${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulkmulti\`,
+        messages,
+        {
+          headers: {
+            "Authorization": \`Bearer \${extremeApiKey}\`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
       // Deduct credits and log using targetUserId
       await deductCreditsAndLog(
         targetUserId,
