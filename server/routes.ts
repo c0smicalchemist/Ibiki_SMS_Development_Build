@@ -2169,6 +2169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: error.message || "Failed to send SMS" });
     }
 
+  });
   app.post("/api/web/sms/send-bulk", authenticateToken, async (req: any, res) => {
     try {
       const { recipients, message, userId } = req.body;
@@ -2268,6 +2269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: error.message || "Failed to send bulk multi SMS" });
     }
 
+  });
   // Web UI Inbox
   app.get("/api/web/inbox", authenticateToken, async (req: any, res) => {
     try {
