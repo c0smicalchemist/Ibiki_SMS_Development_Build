@@ -18,6 +18,15 @@ const railwayDbVars = Object.keys(process.env).filter(key =>
 );
 console.log('🔍 Database-related env vars:', railwayDbVars);
 
+// Railway-specific: Use private network connection to avoid egress fees
+if (process.env.RAILWAY_ENVIRONMENT && process.env.DATABASE_PRIVATE_URL) {
+  console.log('🚄 Railway detected: Using private database connection (no egress fees)');
+  process.env.DATABASE_URL = process.env.DATABASE_PRIVATE_URL;
+} else if (process.env.RAILWAY_ENVIRONMENT && process.env.DATABASE_PUBLIC_URL) {
+  console.log('⚠️  Railway detected: Using public database connection (egress fees apply)');
+  process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
+}
+
 // CRITICAL: Verify DATABASE_URL is set
 if (!process.env.DATABASE_URL) {
   console.error('❌ FATAL ERROR: DATABASE_URL environment variable is not set!');
