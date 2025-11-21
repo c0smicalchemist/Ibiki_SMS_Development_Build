@@ -2,31 +2,33 @@ import dotenv from "dotenv";
 
 // Load environment-specific config
 // IMPORTANT: Don't load .env.production on Railway - it contains localhost database URL
-// Railway detection: Check for multiple Railway-specific environment variables
-const isRailway = !!(
-  process.env.RAILWAY_ENVIRONMENT || 
-  process.env.RAILWAY_PROJECT_ID || 
-  process.env.RAILWAY_SERVICE_ID ||
-  process.env.RAILWAY_DEPLOYMENT_ID ||
-  process.env.RAILWAY_REPLICA_ID ||
-  process.env.RAILWAY_VOLUME_MOUNT_PATH ||
-  (process.env.NODE_ENV === 'production' && process.env.PORT && !process.env.DATABASE_URL)
-);
 
-const envFile = process.env.NODE_ENV === 'production' && !isRailway ? '.env.production' : '.env.development';
-
-console.log('🔧 Environment loading:');
+// First, log what environment variables we have
+console.log('🔧 Initial environment check:');
 console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('Railway detected:', isRailway);
-console.log('Loading env file:', envFile);
+console.log('PORT:', process.env.PORT);
+console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
 
-// Log all environment variables that might indicate Railway
-console.log('🔍 Railway detection variables:');
-console.log('RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT);
-console.log('RAILWAY_PROJECT_ID:', process.env.RAILWAY_PROJECT_ID);
-console.log('RAILWAY_SERVICE_ID:', process.env.RAILWAY_SERVICE_ID);
-console.log('RAILWAY_DEPLOYMENT_ID:', process.env.RAILWAY_DEPLOYMENT_ID);
-console.log('RAILWAY_REPLICA_ID:', process.env.RAILWAY_REPLICA_ID);
+// Railway detection: Check for multiple Railway-specific environment variables
+const railwayVars = Object.keys(process.env).filter(key => key.startsWith('RAILWAY'));
+const isRailway = railwayVars.length > 0 || 
+  (process.env.NODE_ENV === 'production' && process.env.PORT && process.env.DATABASE_URL);
+
+console.log('🔍 Railway detection:');
+console.log('Railway env vars found:', railwayVars);
+console.log('Railway detected:', isRailway);
+
+// CRITICAL: If we're in production but have no DATABASE_URL, we're probably on Railway
+// and should NOT load .env.production (which has localhost database)
+const shouldLoadProductionEnv = process.env.NODE_ENV === 'production' && 
+  !isRailway && 
+  !process.env.DATABASE_URL;
+
+const envFile = shouldLoadProductionEnv ? '.env.production' : '.env.development';
+
+console.log('Environment file decision:');
+console.log('Should load .env.production:', shouldLoadProductionEnv);
+console.log('Loading env file:', envFile);
 
 dotenv.config({ path: envFile });
 dotenv.config(); // Also load .env as fallback
@@ -71,11 +73,21 @@ if (!process.env.DATABASE_URL) {
   console.error('❌ FATAL ERROR: DATABASE_URL environment variable is not set!');
   console.error('❌ The application REQUIRES a PostgreSQL database.');
   
+  // Show all environment variables for debugging
+  console.error('🔍 All environment variables:');
+  Object.keys(process.env).sort().forEach(key => {
+    const value = process.env[key];
+    if (key.includes('DATABASE') || key.includes('POSTGRES') || key.includes('DB') || key.startsWith('RAILWAY')) {
+      console.error(`  ${key}: ${value}`);
+    }
+  });
+  
+  console.error('❌ First 20 env vars:', Object.keys(process.env).slice(0, 20).join(', '));
+  
   // In Railway, DATABASE_URL is provided by the PostgreSQL addon
-  if (process.env.RAILWAY_ENVIRONMENT) {
+  if (isRailway) {
     console.error('❌ Railway detected: Make sure you have added a PostgreSQL database addon');
     console.error('❌ Go to your Railway project → Add Service → Database → PostgreSQL');
-    console.error('❌ Available env vars:', Object.keys(process.env).slice(0, 10).join(', '), '...');
   } else {
     console.error('❌ Please set DATABASE_URL in your environment variables or .env file.');
     console.error('❌ Example: DATABASE_URL=postgresql://user:password@host:port/database');
@@ -97,10 +109,12 @@ try {
   console.log('Database port:', url.port);
   console.log('Database name:', url.pathname.slice(1));
 } catch (error: any) {
-  console.error('❌ FATAL ERROR: DATABASE_URL format is invalid!');
+  console.error('❌ WARNING: DATABASE_URL format is invalid!');
   console.error('DATABASE_URL value:', process.env.DATABASE_URL);
   console.error('Parse error:', error.message);
-  process.exit(1);
+  console.error('⚠️  App will start but database operations will fail');
+  // Temporarily don't exit to see startup logs
+  // process.exit(1);
 }
 
 import express, { type Request, Response, NextFunction } from "express";
