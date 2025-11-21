@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Social Messaging MVP Spec (Facebook, Instagram, X, LinkedIn, TikTok)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; color: #111; margin: 32px; }
+    h1, h2, h3 { margin: 0 0 8px; }
+    h1 { font-size: 28px; }
+    h2 { font-size: 20px; margin-top: 24px; }
+    h3 { font-size: 16px; margin-top: 16px; }
+    p, li { font-size: 14px; }
+    .muted { color: #555; }
+    .box { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left; }
+    th { background: #f7f7f7; }
+    .small { font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Social Messaging MVP Spec</h1>
+  <p class="muted">Channels: Facebook (Messenger), Instagram (Messenger), X (Twitter), LinkedIn, TikTok</p>
+  <p class="small">This document outlines a compliant MVP for direct messaging, architecture, costs, timelines, and compliance guardrails. Many platforms prohibit unsolicited or bulk direct messages; this MVP strictly adheres to platform policies.</p>
+
+  <h2>Executive Summary</h2>
+  <ul>
+    <li>Enable single messaging where allowed: Facebook/Instagram Messenger to users who messaged your Page; X DMs to followers/open DMs (paid API access required).</li>
+    <li>Bulk DMs are generally disallowed on social platforms; provide compliant alternatives (SMS with consent, Sponsored Messaging/Ads for LinkedIn/TikTok).</li>
+    <li>Unify via adapters, OAuth onboarding, webhooks for inbound messages, and a rate‑limited queue.</li>
+  </ul>
+
+  <h2>Compliance Reality by Platform</h2>
+  <table>
+    <thead><tr><th>Platform</th><th>Allowed</th><th>Restrictions</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Facebook Messenger</td><td>Message users who initiated conversation with your Page</td><td>24‑hour window; App review; no unsolicited bulk</td><td>Graph API; Page tokens; Webhooks</td></tr>
+      <tr><td>Instagram Messenger</td><td>Message users who engaged with Business/Creator account</td><td>24‑hour window; App review; no unsolicited bulk</td><td>Via Facebook App; Webhooks</td></tr>
+      <tr><td>X (Twitter)</td><td>DM followers/open DMs</td><td>Paid API; strict rate limits; unsolicited bulk disallowed</td><td>Elevated/Enterprise API tiers</td></tr>
+      <tr><td>LinkedIn</td><td>Programmatic DMs restricted</td><td>Use Sponsored Messaging via Ads</td><td>No general DM API</td></tr>
+      <tr><td>TikTok</td><td>No DM API</td><td>Use Ads/Business features</td><td>Route to SMS/WhatsApp w/ consent</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box">
+    <strong>Anti‑Spam & Account Generation</strong>
+    <p>Generating or rotating accounts/emails to evade anti‑spam policies is prohibited and risky (account bans/legal exposure). This MVP will enforce platform rules (opt‑in, session windows, follower constraints) and block disallowed sends.</p>
+  </div>
+
+  <h2>Architecture</h2>
+  <ul>
+    <li><strong>Adapters:</strong> FacebookAdapter, InstagramAdapter, XAdapter expose <code>sendMessage</code>, <code>validate</code>, <code>statusLookup</code>.</li>
+    <li><strong>Endpoints:</strong> <code>POST /api/v2/social/sendSingle</code>, <code>POST /api/v2/social/sendBulk</code> (bulk gated by policy), <code>GET /api/v2/social/messages</code>.</li>
+    <li><strong>OAuth Onboarding:</strong> Per channel scopes/tokens, encrypted at rest, refresh cycles.</li>
+    <li><strong>Webhooks:</strong> Channel specific inbound endpoints to capture delivery + inbound messages, unified into Inbox.</li>
+    <li><strong>Queue/Rate Limits:</strong> Background jobs for compliant bulk (mostly SMS), chunking, backoff & retries, idempotency.</li>
+    <li><strong>Data Model:</strong> Extend contacts with social handles (fb_psid, ig_user_id, x_user_id), consent source/time, last session timestamps, channel preferences; add channel message logs.</li>
+    <li><strong>Compliance Guard:</strong> Pre‑send checks (FB/IG 24‑hour rule, X follower check), deny disallowed sends.</li>
+  </ul>
+
+  <h2>MVP Features by Channel</h2>
+  <h3>Facebook/Instagram Messenger</h3>
+  <ul>
+    <li>Single send to users with active conversation; 24‑hour session enforcement.</li>
+    <li>Inbound webhook → Inbox; delivery status when available.</li>
+    <li>Admin onboarding: connect Page/IG account; token health.</li>
+  </ul>
+  <h3>X (Twitter)</h3>
+  <ul>
+    <li>Single DMs to followers/open DMs; rate limit adherence.</li>
+    <li>Requires paid API tier; deny bulk.</li>
+  </ul>
+  <h3>LinkedIn & TikTok (Alternatives)</h3>
+  <ul>
+    <li>Sponsored Messaging (LinkedIn) or Ads; no DM API. Provide audience export & workflow docs.</li>
+    <li>Offer SMS/email outreach where opt‑in exists.</li>
+  </ul>
+
+  <h2>Costs (Indicative)</h2>
+  <table>
+    <thead><tr><th>Item</th><th>Estimate</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Facebook/Instagram API</td><td>$0 (usage) + dev time</td><td>App review time; infra for webhooks</td></tr>
+      <tr><td>X API</td><td>$100–$500+/mo (tier dependent)</td><td>Enterprise can be higher</td></tr>
+      <tr><td>LinkedIn Sponsored Msg</td><td>$25–$80+ CPM</td><td>Media budget varies by audience</td></tr>
+      <tr><td>TikTok Ads</td><td>Varies</td><td>Market and targeting dependent</td></tr>
+      <tr><td>Infra (queues/monitoring)</td><td>$50–$200/mo</td><td>Scale dependent</td></tr>
+      <tr><td>Dev effort (MVP)</td><td>4–6 weeks</td><td>FB/IG, X (if access), UI, webhooks, compliance</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Rollout Plan</h2>
+  <ol>
+    <li>Feasibility & compliance gates; define supported channels (FB/IG now; X if paid tier).</li>
+    <li>OAuth + token store; FB/IG adapters; webhooks; inbox/history.</li>
+    <li>X adapter (post access); compliance guards; rate limiters.</li>
+    <li>UI integration; diagnostics; monitoring & alerts.</li>
+    <li>LinkedIn/TikTok: Ads workflows + docs; opt‑in SMS/email augmentation.</li>
+  </ol>
+
+  <h2>Risks & Mitigations</h2>
+  <ul>
+    <li>Policy changes/API tier revocations → adapter isolation and fallbacks.</li>
+    <li>Compliance violations → pre‑send validations block unsafe sends.</li>
+    <li>Rate limits → queued bulk, backoff, chunking, per‑channel limiters.</li>
+  </ul>
+
+  <h2>Download as PDF</h2>
+  <p class="small">Open this file in a browser and use “Print → Save as PDF” for a portable copy. If you prefer, I can generate a PDF artifact and add it under <code>docs/social-messaging-mvp.pdf</code>.</p>
+</body>
+</html>
