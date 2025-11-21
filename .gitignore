@@ -120,3 +120,15 @@ vite.config.ts.*
 # Backup files
 *.backup
 *.bak
+
+# Development artifacts (production cleanup)
+attached_assets/
+design_guidelines.md
+testing/
+
+# Railway development files (keep in development branch only)
+railway.json
+railway-deploy.sh
+.env.development
+RAILWAY_*.md
+DEVELOPMENT_WORKFLOW.md
