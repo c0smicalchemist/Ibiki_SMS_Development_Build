@@ -1,7 +1,15 @@
 import dotenv from "dotenv";
 
 // Load environment-specific config
-const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development';
+// IMPORTANT: Don't load .env.production on Railway - it contains localhost database URL
+const isRailway = !!(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID);
+const envFile = process.env.NODE_ENV === 'production' && !isRailway ? '.env.production' : '.env.development';
+
+console.log('🔧 Environment loading:');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('Railway detected:', isRailway);
+console.log('Loading env file:', envFile);
+
 dotenv.config({ path: envFile });
 dotenv.config(); // Also load .env as fallback
 
@@ -9,8 +17,11 @@ dotenv.config(); // Also load .env as fallback
 console.log('🔍 Environment Debug Info:');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT);
+console.log('RAILWAY_PROJECT_ID:', process.env.RAILWAY_PROJECT_ID);
+console.log('RAILWAY_SERVICE_ID:', process.env.RAILWAY_SERVICE_ID);
 console.log('PORT:', process.env.PORT);
 console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
+console.log('DATABASE_URL value:', process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]*@/, ':***@') : 'NOT SET');
 
 // Check for Railway-specific database variables
 const railwayDbVars = Object.keys(process.env).filter(key => 
@@ -18,13 +29,23 @@ const railwayDbVars = Object.keys(process.env).filter(key =>
 );
 console.log('🔍 Database-related env vars:', railwayDbVars);
 
+// Log all Railway-related environment variables
+const railwayVars = Object.keys(process.env).filter(key => key.startsWith('RAILWAY'));
+console.log('🚄 Railway env vars:', railwayVars);
+
 // Railway-specific: Use private network connection to avoid egress fees
-if (process.env.RAILWAY_ENVIRONMENT && process.env.DATABASE_PRIVATE_URL) {
-  console.log('🚄 Railway detected: Using private database connection (no egress fees)');
-  process.env.DATABASE_URL = process.env.DATABASE_PRIVATE_URL;
-} else if (process.env.RAILWAY_ENVIRONMENT && process.env.DATABASE_PUBLIC_URL) {
-  console.log('⚠️  Railway detected: Using public database connection (egress fees apply)');
-  process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
+if (isRailway) {
+  if (process.env.DATABASE_PRIVATE_URL) {
+    console.log('🚄 Railway detected: Using private database connection (no egress fees)');
+    process.env.DATABASE_URL = process.env.DATABASE_PRIVATE_URL;
+  } else if (process.env.DATABASE_PUBLIC_URL) {
+    console.log('⚠️  Railway detected: Using public database connection (egress fees apply)');
+    process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
+  } else if (process.env.DATABASE_URL) {
+    console.log('🚄 Railway detected: Using standard DATABASE_URL');
+  } else {
+    console.log('⚠️  Railway detected but no database URL found');
+  }
 }
 
 // CRITICAL: Verify DATABASE_URL is set
