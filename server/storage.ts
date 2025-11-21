@@ -31,10 +31,9 @@ import {
   contacts
 } from "@shared/schema";
 import { randomUUID } from "crypto";
-import { drizzle } from 'drizzle-orm/neon-serverless';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq, desc, sql } from 'drizzle-orm';
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import ws from 'ws';
+import { Pool } from 'pg';
 
 export interface IStorage {
   // User methods
@@ -845,9 +844,6 @@ export class DbStorage implements IStorage {
         throw new Error('DATABASE_URL environment variable is not set');
       }
 
-      // Configure WebSocket for neon serverless
-      neonConfig.webSocketConstructor = ws;
-      
       poolInstance = new Pool({ connectionString });
       dbInstance = drizzle(poolInstance, {
         schema: {
@@ -1418,15 +1414,31 @@ export class DbStorage implements IStorage {
   }
 }
 
-// Use DbStorage if DATABASE_URL available, fallback to MemStorage for local dev
-export const storage = process.env.DATABASE_URL 
-  ? (() => {
-      const dbStorage = new DbStorage();
-      console.log('✅ Using PostgreSQL database storage');
-      console.log(`✅ Database: ${process.env.DATABASE_URL?.split('@')[1]?.split('?')[0] || 'connected'}`);
-      return dbStorage;
-    })()
-  : (() => {
-      console.warn('⚠️  DATABASE_URL not set - using in-memory storage (data will not persist)');
-      return new MemStorage();
-    })();
+// Lazy initialization to ensure environment variables are loaded
+let storageInstance: IStorage | null = null;
+
+function initializeStorage(): IStorage {
+  if (storageInstance) {
+    return storageInstance;
+  }
+
+  if (process.env.DATABASE_URL) {
+    const dbStorage = new DbStorage();
+    console.log('✅ Using PostgreSQL database storage');
+    console.log(`✅ Database: ${process.env.DATABASE_URL?.split('@')[1]?.split('?')[0] || 'connected'}`);
+    storageInstance = dbStorage;
+  } else {
+    console.warn('⚠️  DATABASE_URL not set - using in-memory storage (data will not persist)');
+    storageInstance = new MemStorage();
+  }
+
+  return storageInstance;
+}
+
+// Export a getter that initializes storage on first access
+export const storage = new Proxy({} as IStorage, {
+  get(target, prop) {
+    const instance = initializeStorage();
+    return (instance as any)[prop];
+  }
+});
