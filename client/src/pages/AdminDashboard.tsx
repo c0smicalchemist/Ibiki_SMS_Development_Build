@@ -29,6 +29,10 @@ export default function AdminDashboard() {
   const [clientRate, setClientRate] = useState("0.02");
   const [timezone, setTimezone] = useState("America/New_York");
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown');
+  const [webhookFrom, setWebhookFrom] = useState('');
+  const [webhookReceiver, setWebhookReceiver] = useState('');
+  const [webhookMessage, setWebhookMessage] = useState('');
+  const [flowReceiver, setFlowReceiver] = useState('');
 
   const usTimezones = [
     { value: "America/New_York", label: "Eastern Time (ET)" },
@@ -105,6 +109,39 @@ export default function AdminDashboard() {
         description: error.message || t("admin.config.error.connectionFailed"),
         variant: "destructive"
       });
+    }
+  });
+
+  const webhookStatusQuery = useQuery<{ success: boolean; lastEvent: any; lastEventAt: string | null; lastRoutedUser: string | null }>({
+    queryKey: ['/api/admin/webhook/status']
+  });
+
+  const webhookTestMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/admin/webhook/test', {
+        method: 'POST',
+        body: JSON.stringify({ from: webhookFrom, receiver: webhookReceiver, message: webhookMessage })
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/webhook/status'] });
+      toast({ title: t('common.success'), description: 'Webhook simulated and stored' });
+    },
+    onError: (error: any) => {
+      toast({ title: t('common.error'), description: error.message || 'Webhook simulation failed', variant: 'destructive' });
+    }
+  });
+
+  const flowCheckMutation = useMutation({
+    mutationFn: async () => {
+      const params = new URLSearchParams({ receiver: flowReceiver });
+      return await apiRequest(`/api/admin/webhook/flow-check?${params.toString()}`);
+    },
+    onSuccess: (data: any) => {
+      toast({ title: t('common.success'), description: `Receiver ${data.receiver} → routed user ${data.routedUserId || 'none'}` });
+    },
+    onError: (error: any) => {
+      toast({ title: t('common.error'), description: error.message || 'Flow check failed', variant: 'destructive' });
     }
   });
 
@@ -794,6 +831,52 @@ export default function AdminDashboard() {
                   <p className="text-sm text-blue-800 dark:text-blue-200">
                     Make sure to assign phone numbers to your clients in the "Client Management" tab. Messages will only be routed if the receiver number matches a client's assigned numbers.
                   </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Webhook Diagnostics</CardTitle>
+              <CardDescription>Simulate inbound webhook and verify routing to Ibiki inbox</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label>From (sender phone)</Label>
+                  <Input value={webhookFrom} onChange={(e) => setWebhookFrom(e.target.value)} placeholder="+1-555-0000" />
+                </div>
+                <div>
+                  <Label>Receiver (your number)</Label>
+                  <Input value={webhookReceiver} onChange={(e) => setWebhookReceiver(e.target.value)} placeholder="Assigned phone number" />
+                </div>
+                <div>
+                  <Label>Message</Label>
+                  <Input value={webhookMessage} onChange={(e) => setWebhookMessage(e.target.value)} placeholder="Hello from test" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-4">
+                <Button onClick={() => webhookTestMutation.mutate()} disabled={webhookTestMutation.isPending}>
+                  {webhookTestMutation.isPending ? t('common.loading') : 'Send Test Webhook'}
+                </Button>
+                <Button variant="secondary" onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/admin/webhook/status'] })}>Refresh Status</Button>
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-3 border rounded">
+                  <h4 className="font-semibold mb-2">Last Webhook Event</h4>
+                  <p className="text-xs text-muted-foreground">At: {webhookStatusQuery.data?.lastEventAt || '—'}</p>
+                  <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">{JSON.stringify(webhookStatusQuery.data?.lastEvent || null, null, 2)}</pre>
+                  <p className="text-xs mt-2">Routed User: {webhookStatusQuery.data?.lastRoutedUser || '—'}</p>
+                </div>
+                <div className="p-3 border rounded">
+                  <h4 className="font-semibold mb-2">Flow Check</h4>
+                  <Label>Receiver Number</Label>
+                  <Input value={flowReceiver} onChange={(e) => setFlowReceiver(e.target.value)} placeholder="Assigned phone number" />
+                  <Button className="mt-2" onClick={() => flowCheckMutation.mutate()} disabled={flowCheckMutation.isPending}>
+                    {flowCheckMutation.isPending ? t('common.loading') : 'Check Routing'}
+                  </Button>
                 </div>
               </div>
             </CardContent>

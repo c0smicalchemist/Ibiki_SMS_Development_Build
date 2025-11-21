@@ -615,6 +615,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messageId: payload.messageId
       });
 
+      // Persist last webhook event for diagnostics
+      try {
+        await storage.setSystemConfig('last_webhook_event', JSON.stringify(payload));
+        await storage.setSystemConfig('last_webhook_event_at', new Date().toISOString());
+        await storage.setSystemConfig('last_webhook_routed_user', assignedUserId || 'unassigned');
+      } catch {}
+
       res.json({ 
         success: true, 
         message: "Incoming message processed successfully" 
@@ -1225,6 +1232,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Failed to connect to ExtremeSMS API",
         details: error.response?.data?.message || error.message
       });
+    }
+  });
+
+  // Admin: Webhook diagnostics status
+  app.get('/api/admin/webhook/status', authenticateToken, requireAdmin, async (_req, res) => {
+    try {
+      const lastEvent = await storage.getSystemConfig('last_webhook_event');
+      const lastAt = await storage.getSystemConfig('last_webhook_event_at');
+      const lastUser = await storage.getSystemConfig('last_webhook_routed_user');
+      res.json({
+        success: true,
+        lastEvent: lastEvent?.value ? JSON.parse(lastEvent.value) : null,
+        lastEventAt: lastAt?.value || null,
+        lastRoutedUser: lastUser?.value || null,
+      });
+    } catch (error) {
+      console.error('Webhook status error:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch webhook status' });
+    }
+  });
+
+  // Admin: Webhook flow check for a receiver number
+  app.get('/api/admin/webhook/flow-check', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { receiver } = req.query as { receiver?: string };
+      if (!receiver) return res.status(400).json({ success: false, error: 'receiver required' });
+      const profile = await storage.getClientProfileByPhoneNumber(receiver);
+      res.json({ success: true, receiver, routedUserId: profile?.userId || null });
+    } catch (error) {
+      console.error('Webhook flow check error:', error);
+      res.status(500).json({ success: false, error: 'Failed to check flow' });
+    }
+  });
+
+  // Admin: Simulate webhook delivery (diagnostic only)
+  app.post('/api/admin/webhook/test', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { from, receiver, message, timestamp, messageId, firstname, lastname, business, status } = req.body || {};
+      if (!from || !receiver || !message) {
+        return res.status(400).json({ success: false, error: 'from, receiver and message are required' });
+      }
+
+      // Reuse routing logic
+      let assignedUserId: string | null = null;
+      if (business && String(business).trim() !== '') {
+        const potentialUserId = String(business).trim();
+        const user = await storage.getUser(potentialUserId);
+        if (user && user.role === 'client') assignedUserId = user.id;
+      }
+      if (!assignedUserId) {
+        const clientFromOutbound = await storage.findClientByRecipient(from);
+        if (clientFromOutbound) assignedUserId = clientFromOutbound;
+      }
+      if (!assignedUserId) {
+        const clientProfile = await storage.getClientProfileByPhoneNumber(receiver);
+        if (clientProfile) assignedUserId = clientProfile.userId;
+      }
+
+      const created = await storage.createIncomingMessage({
+        userId: assignedUserId,
+        from,
+        firstname: firstname || null,
+        lastname: lastname || null,
+        business: business || null,
+        message,
+        status: status || 'received',
+        matchedBlockWord: null,
+        receiver,
+        usedmodem: null,
+        port: null,
+        timestamp: timestamp ? new Date(timestamp) : new Date(),
+        messageId: messageId || `diag-${Date.now()}`,
+      });
+
+      await storage.setSystemConfig('last_webhook_event', JSON.stringify({ from, receiver, message, timestamp: created.timestamp, messageId: created.messageId }));
+      await storage.setSystemConfig('last_webhook_event_at', new Date().toISOString());
+      await storage.setSystemConfig('last_webhook_routed_user', created.userId || 'unassigned');
+
+      res.json({ success: true, created });
+    } catch (error) {
+      console.error('Webhook test error:', error);
+      res.status(500).json({ success: false, error: 'Failed to simulate webhook' });
     }
   });
 
