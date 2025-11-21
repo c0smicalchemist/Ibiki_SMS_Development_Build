@@ -5,17 +5,32 @@ const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.en
 dotenv.config({ path: envFile });
 dotenv.config(); // Also load .env as fallback
 
+// Debug: Log environment info for Railway
+console.log('🔍 Environment Debug Info:');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT);
+console.log('PORT:', process.env.PORT);
+console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
+
+// Check for Railway-specific database variables
+const railwayDbVars = Object.keys(process.env).filter(key => 
+  key.includes('DATABASE') || key.includes('POSTGRES') || key.includes('DB')
+);
+console.log('🔍 Database-related env vars:', railwayDbVars);
+
 // CRITICAL: Verify DATABASE_URL is set
 if (!process.env.DATABASE_URL) {
   console.error('❌ FATAL ERROR: DATABASE_URL environment variable is not set!');
   console.error('❌ The application REQUIRES a PostgreSQL database.');
-  console.error('❌ Please set DATABASE_URL in your environment variables or .env file.');
-  console.error('❌ Example: DATABASE_URL=postgresql://user:password@host:port/database');
   
   // In Railway, DATABASE_URL is provided by the PostgreSQL addon
   if (process.env.RAILWAY_ENVIRONMENT) {
     console.error('❌ Railway detected: Make sure you have added a PostgreSQL database addon');
     console.error('❌ Go to your Railway project → Add Service → Database → PostgreSQL');
+    console.error('❌ Available env vars:', Object.keys(process.env).slice(0, 10).join(', '), '...');
+  } else {
+    console.error('❌ Please set DATABASE_URL in your environment variables or .env file.');
+    console.error('❌ Example: DATABASE_URL=postgresql://user:password@host:port/database');
   }
   
   process.exit(1);

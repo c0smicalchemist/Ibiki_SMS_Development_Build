@@ -14,8 +14,7 @@
   "environments": {
     "development": {
       "variables": {
-        "NODE_ENV": "development",
-        "PORT": "${{ PORT }}"
+        "NODE_ENV": "development"
       }
     }
   }
