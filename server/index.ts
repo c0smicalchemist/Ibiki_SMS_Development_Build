@@ -85,33 +85,46 @@ if (!process.env.DATABASE_URL) {
   if (isRailway) {
     console.error('❌ Railway detected: Make sure you have added a PostgreSQL database addon');
     console.error('❌ Go to your Railway project → Add Service → Database → PostgreSQL');
+    console.error('❌ The PostgreSQL addon should automatically set DATABASE_URL');
+    console.error('❌ Check your Railway project settings and ensure the database is connected');
   } else {
     console.error('❌ Please set DATABASE_URL in your environment variables or .env file.');
     console.error('❌ Example: DATABASE_URL=postgresql://user:password@host:port/database');
   }
   
-  process.exit(1);
+  // For Railway debugging, don't exit immediately - let the app start with in-memory storage
+  if (isRailway) {
+    console.error('⚠️  Railway detected: Starting with in-memory storage for debugging');
+    console.error('⚠️  Data will not persist - fix DATABASE_URL to use PostgreSQL');
+  } else {
+    process.exit(1);
+  }
 }
 
-// CRITICAL: Validate DATABASE_URL format
-console.log('🔍 Final DATABASE_URL validation:');
-console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
-console.log('DATABASE_URL type:', typeof process.env.DATABASE_URL);
-console.log('DATABASE_URL length:', process.env.DATABASE_URL?.length || 0);
+// CRITICAL: Validate DATABASE_URL format (if present)
+if (process.env.DATABASE_URL) {
+  console.log('🔍 Final DATABASE_URL validation:');
+  console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
+  console.log('DATABASE_URL type:', typeof process.env.DATABASE_URL);
+  console.log('DATABASE_URL length:', process.env.DATABASE_URL?.length || 0);
 
-try {
-  const url = new URL(process.env.DATABASE_URL);
-  console.log('✅ DATABASE_URL format is valid');
-  console.log('Database host:', url.hostname);
-  console.log('Database port:', url.port);
-  console.log('Database name:', url.pathname.slice(1));
-} catch (error: any) {
-  console.error('❌ WARNING: DATABASE_URL format is invalid!');
-  console.error('DATABASE_URL value:', process.env.DATABASE_URL);
-  console.error('Parse error:', error.message);
-  console.error('⚠️  App will start but database operations will fail');
-  // Temporarily don't exit to see startup logs
-  // process.exit(1);
+  try {
+    const url = new URL(process.env.DATABASE_URL);
+    console.log('✅ DATABASE_URL format is valid');
+    console.log('Database host:', url.hostname);
+    console.log('Database port:', url.port);
+    console.log('Database name:', url.pathname.slice(1));
+  } catch (error: any) {
+    console.error('❌ WARNING: DATABASE_URL format is invalid!');
+    console.error('DATABASE_URL value:', process.env.DATABASE_URL);
+    console.error('Parse error:', error.message);
+    console.error('⚠️  App will start with in-memory storage');
+    
+    // Clear invalid DATABASE_URL to force in-memory storage
+    delete process.env.DATABASE_URL;
+  }
+} else {
+  console.log('🔍 DATABASE_URL not set - will use in-memory storage');
 }
 
 import express, { type Request, Response, NextFunction } from "express";
