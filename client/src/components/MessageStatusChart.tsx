@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -50,9 +50,27 @@ export function MessageStatusChart({ userId }: MessageStatusChartProps) {
         <CardTitle className="text-base font-medium">Message Status</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 pb-4">
-        <div className="flex items-center justify-center h-full">
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
+        <div className="flex items-center justify-between h-full gap-6">
+          <div className="flex-1">
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <defs>
+                  <radialGradient id="grad-green" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#34d399" />
+                    <stop offset="100%" stopColor="#10b981" />
+                  </radialGradient>
+                  <radialGradient id="grad-blue" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#60a5fa" />
+                    <stop offset="100%" stopColor="#3b82f6" />
+                  </radialGradient>
+                  <radialGradient id="grad-red" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#f87171" />
+                    <stop offset="100%" stopColor="#ef4444" />
+                  </radialGradient>
+                  <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#00000033" />
+                  </filter>
+                </defs>
               <Pie
                 data={data}
                 cx="50%"
@@ -61,20 +79,20 @@ export function MessageStatusChart({ userId }: MessageStatusChartProps) {
                 outerRadius={75}
                 paddingAngle={2}
                 dataKey="value"
-                labelLine
+                labelLine={{ stroke: '#94a3b8', strokeWidth: 1.5 }}
                 label={({ cx, cy, midAngle, outerRadius, value, index }) => {
                   if (total === 0) return null;
                   const RADIAN = Math.PI / 180;
-                  const labelRadius = outerRadius + 12;
-                  const x = cx + labelRadius * Math.cos(-midAngle * RADIAN);
-                  const y = cy + labelRadius * Math.sin(-midAngle * RADIAN);
+                  const labelRadius = outerRadius + 16;
+                  const x = cx + labelRadius;
+                  const y = cy + labelRadius * Math.sin(-midAngle * RADIAN) * 0.6;
                   const color = data[index]?.color || '#000';
                   return (
                     <text 
                       x={x} 
                       y={y} 
                       fill={color}
-                      textAnchor={x > cx ? 'start' : 'end'} 
+                      textAnchor={'start'} 
                       dominantBaseline="central"
                       className="text-xs font-semibold"
                     >
@@ -84,7 +102,11 @@ export function MessageStatusChart({ userId }: MessageStatusChartProps) {
                 }}
               >
                 {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                  <Cell key={`cell-${index}`} filter="url(#shadow)" fill={
+                    entry.color === '#10b981' ? 'url(#grad-green)' :
+                    entry.color === '#3b82f6' ? 'url(#grad-blue)' :
+                    entry.color === '#ef4444' ? 'url(#grad-red)' : entry.color
+                  } />
                 ))}
               </Pie>
               <Tooltip 
@@ -122,26 +144,28 @@ export function MessageStatusChart({ userId }: MessageStatusChartProps) {
                 Total
               </text>
             </PieChart>
-          </ResponsiveContainer>
-        </div>
-        
-        {/* Legend */}
-        {total > 0 && (
-          <div className="grid grid-cols-3 gap-2 mt-2">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#10b981" }} />
-              <span className="text-xs text-muted-foreground">Delivered</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#3b82f6" }} />
-              <span className="text-xs text-muted-foreground">Sent</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#ef4444" }} />
-              <span className="text-xs text-muted-foreground">Failed</span>
-            </div>
+            </ResponsiveContainer>
           </div>
-        )}
+          <div className="w-[160px]">
+            {total > 0 ? (
+              <div className="space-y-2">
+                {data.map((d) => (
+                  <div key={d.name} className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+                    <div className="flex-1 text-xs text-muted-foreground">
+                      {d.name}
+                    </div>
+                    <div className="text-xs font-semibold" style={{ color: d.color }}>
+                      {getPercentage(d.value)}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">No data</div>
+            )}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
