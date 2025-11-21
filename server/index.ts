@@ -2,13 +2,31 @@ import dotenv from "dotenv";
 
 // Load environment-specific config
 // IMPORTANT: Don't load .env.production on Railway - it contains localhost database URL
-const isRailway = !!(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID);
+// Railway detection: Check for multiple Railway-specific environment variables
+const isRailway = !!(
+  process.env.RAILWAY_ENVIRONMENT || 
+  process.env.RAILWAY_PROJECT_ID || 
+  process.env.RAILWAY_SERVICE_ID ||
+  process.env.RAILWAY_DEPLOYMENT_ID ||
+  process.env.RAILWAY_REPLICA_ID ||
+  process.env.RAILWAY_VOLUME_MOUNT_PATH ||
+  (process.env.NODE_ENV === 'production' && process.env.PORT && !process.env.DATABASE_URL)
+);
+
 const envFile = process.env.NODE_ENV === 'production' && !isRailway ? '.env.production' : '.env.development';
 
 console.log('🔧 Environment loading:');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('Railway detected:', isRailway);
 console.log('Loading env file:', envFile);
+
+// Log all environment variables that might indicate Railway
+console.log('🔍 Railway detection variables:');
+console.log('RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT);
+console.log('RAILWAY_PROJECT_ID:', process.env.RAILWAY_PROJECT_ID);
+console.log('RAILWAY_SERVICE_ID:', process.env.RAILWAY_SERVICE_ID);
+console.log('RAILWAY_DEPLOYMENT_ID:', process.env.RAILWAY_DEPLOYMENT_ID);
+console.log('RAILWAY_REPLICA_ID:', process.env.RAILWAY_REPLICA_ID);
 
 dotenv.config({ path: envFile });
 dotenv.config(); // Also load .env as fallback
@@ -63,6 +81,25 @@ if (!process.env.DATABASE_URL) {
     console.error('❌ Example: DATABASE_URL=postgresql://user:password@host:port/database');
   }
   
+  process.exit(1);
+}
+
+// CRITICAL: Validate DATABASE_URL format
+console.log('🔍 Final DATABASE_URL validation:');
+console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
+console.log('DATABASE_URL type:', typeof process.env.DATABASE_URL);
+console.log('DATABASE_URL length:', process.env.DATABASE_URL?.length || 0);
+
+try {
+  const url = new URL(process.env.DATABASE_URL);
+  console.log('✅ DATABASE_URL format is valid');
+  console.log('Database host:', url.hostname);
+  console.log('Database port:', url.port);
+  console.log('Database name:', url.pathname.slice(1));
+} catch (error: any) {
+  console.error('❌ FATAL ERROR: DATABASE_URL format is invalid!');
+  console.error('DATABASE_URL value:', process.env.DATABASE_URL);
+  console.error('Parse error:', error.message);
   process.exit(1);
 }
 
