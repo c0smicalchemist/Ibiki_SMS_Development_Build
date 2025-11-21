@@ -156,6 +156,56 @@ async function deductCreditsAndLog(
   return { messageLog, newBalance: newCredits };
 }
 
+async function createAdminAuditLog(
+  adminUserId: string,
+  sourceEndpoint: string,
+  messageId: string,
+  status: string,
+  requestPayload: any,
+  responsePayload: any,
+  recipient?: string,
+  recipients?: string[],
+  senderPhoneNumber?: string
+) {
+  const { extremeCost } = await getPricingConfig();
+  const senderPhone = senderPhoneNumber || responsePayload?.senderPhone || responsePayload?.from || responsePayload?.sender || null;
+  await storage.createMessageLog({
+    userId: adminUserId,
+    messageId,
+    endpoint: `${sourceEndpoint}:admin-audit`,
+    recipient: recipient || null,
+    recipients: recipients || null,
+    senderPhoneNumber: senderPhone,
+    status,
+    costPerMessage: extremeCost.toFixed(4),
+    chargePerMessage: '0.0000',
+    totalCost: extremeCost.toFixed(2),
+    totalCharge: '0.00',
+    messageCount: (recipients?.length || 0) > 0 ? recipients!.length : 1,
+    requestPayload: JSON.stringify(requestPayload),
+    responsePayload: JSON.stringify(responsePayload)
+  });
+}
+
+async function resolveFetchLimit(userId: string | undefined, role: string | undefined, provided?: string | number) {
+  if (provided) {
+    const n = typeof provided === 'string' ? parseInt(provided) : provided;
+    return Math.max(1, Math.min(2000, isNaN(n as number) ? 100 : (n as number)));
+  }
+  const perUser = userId ? await storage.getSystemConfig(`messages_limit_user_${userId}`) : undefined;
+  if (perUser?.value) {
+    const v = parseInt(perUser.value);
+    return Math.max(1, Math.min(2000, isNaN(v) ? 100 : v));
+  }
+  const key = role === 'admin' ? 'default_admin_messages_limit' : 'default_client_messages_limit';
+  const cfg = await storage.getSystemConfig(key);
+  if (cfg?.value) {
+    const v = parseInt(cfg.value);
+    return Math.max(1, Math.min(2000, isNaN(v) ? 100 : v));
+  }
+  return 100;
+}
+
 // Helper to get ExtremeSMS API key
 async function getExtremeApiKey() {
   const config = await storage.getSystemConfig("extreme_api_key");
@@ -704,8 +754,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get message logs
   app.get("/api/client/messages", authenticateToken, async (req: any, res) => {
     try {
-      const logs = await storage.getMessageLogsByUserId(req.user.userId, 100);
-      res.json({ success: true, messages: logs });
+      const limit = await resolveFetchLimit(req.user.userId, req.user.role, req.query.limit as string | undefined);
+      const logs = await storage.getMessageLogsByUserId(req.user.userId, limit);
+      res.json({ success: true, messages: logs, count: logs.length, limit });
     } catch (error) {
       console.error("Message logs fetch error:", error);
       res.status(500).json({ error: "Failed to fetch messages" });
@@ -715,7 +766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get incoming messages for dashboard (JWT auth)
   app.get("/api/client/inbox", authenticateToken, async (req: any, res) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const limit = await resolveFetchLimit(req.user.userId, req.user.role, req.query.limit as string | undefined);
       const messages = await storage.getIncomingMessagesByUserId(req.user.userId, limit);
       
       res.json({
@@ -1055,7 +1106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update system configuration
   app.post("/api/admin/config", authenticateToken, requireAdmin, async (req, res) => {
     try {
-      const { extremeApiKey, extremeCost, clientRate, timezone } = req.body;
+      const { extremeApiKey, extremeCost, clientRate, timezone, defaultAdminMessagesLimit, defaultClientMessagesLimit, messagesLimitForUser, messagesLimitUserId } = req.body;
 
       if (extremeApiKey) {
         await storage.setSystemConfig("extreme_api_key", extremeApiKey);
@@ -1068,6 +1119,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (timezone) {
         await storage.setSystemConfig("timezone", timezone);
+      }
+      if (defaultAdminMessagesLimit) {
+        await storage.setSystemConfig("default_admin_messages_limit", String(defaultAdminMessagesLimit));
+      }
+      if (defaultClientMessagesLimit) {
+        await storage.setSystemConfig("default_client_messages_limit", String(defaultClientMessagesLimit));
+      }
+      if (messagesLimitForUser && messagesLimitUserId) {
+        await storage.setSystemConfig(`messages_limit_user_${messagesLimitUserId}`, String(messagesLimitForUser));
       }
 
       res.json({ success: true, message: "Configuration updated" });
@@ -1791,7 +1851,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   // Get all sent messages with status (NEW ENDPOINT)
   app.get("/api/v2/sms/messages", authenticateApiKey, async (req: any, res) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const limit = await resolveFetchLimit(req.user.userId, req.user.role, req.query.limit as string | undefined);
       const messages = await storage.getMessageLogsByUserId(req.user.userId, limit);
       
       res.json({
@@ -1935,7 +1995,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   // Get incoming messages (inbox)
   app.get("/api/v2/sms/inbox", authenticateApiKey, async (req: any, res) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const limit = await resolveFetchLimit(req.user.userId, req.user.role, req.query.limit as string | undefined);
       const messages = await storage.getIncomingMessagesByUserId(req.user.userId, limit);
       
       res.json({
@@ -2353,7 +2413,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       );
         
       // Deduct credits and log using targetUserId
-      await deductCreditsAndLog(
+      const { messageLog } = await deductCreditsAndLog(
         targetUserId,
         1,
         'web-ui-single',
@@ -2363,9 +2423,28 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         response.data,
         to
       );
+      if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+        await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message }, response.data, to);
+      }
 
-      res.json({ success: true, data: response.data });
+      res.json({ success: true, messageId: response.data.messageId, data: response.data });
     } catch (error: any) {
+      if (error.message === 'Insufficient credits') {
+        try {
+          const extremeApiKey = await storage.getSystemConfig("extreme_api_key");
+          const balResp = extremeApiKey?.value ? await axios.get(`${EXTREMESMS_BASE_URL}/api/v2/account/balance`, { headers: { Authorization: `Bearer ${extremeApiKey.value}` } }) : undefined;
+          const clientProfile = await storage.getClientProfileByUserId(req.body.userId || req.user.userId);
+          return res.status(402).json({
+            success: false,
+            error: "Insufficient credits",
+            code: "INSUFFICIENT_CREDITS",
+            clientBalance: clientProfile ? parseFloat(clientProfile.credits) : null,
+            extremeBalance: balResp?.data?.balance ?? null
+          });
+        } catch {
+          return res.status(402).json({ success: false, error: "Insufficient credits", code: "INSUFFICIENT_CREDITS" });
+        }
+      }
       console.error("Web UI send single error:", error);
       res.status(500).json({ error: error.message || "Failed to send SMS" });
     }
@@ -2404,7 +2483,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       });
 
       // Deduct credits and log using targetUserId
-      await deductCreditsAndLog(
+      const { messageLog } = await deductCreditsAndLog(
         targetUserId,
         recipients.length,
         'web-ui-bulk',
@@ -2415,9 +2494,27 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         undefined,
         recipients
       );
-
-      res.json({ success: true, data: response.data });
+      if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+        await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, message }, response.data, undefined, recipients);
+      }
+      res.json({ success: true, messageId: response.data.messageId, data: response.data });
     } catch (error: any) {
+      if (error.message === 'Insufficient credits') {
+        try {
+          const extremeApiKey = await storage.getSystemConfig("extreme_api_key");
+          const balResp = extremeApiKey?.value ? await axios.get(`${EXTREMESMS_BASE_URL}/api/v2/account/balance`, { headers: { Authorization: `Bearer ${extremeApiKey.value}` } }) : undefined;
+          const clientProfile = await storage.getClientProfileByUserId(req.body.userId || req.user.userId);
+          return res.status(402).json({
+            success: false,
+            error: "Insufficient credits",
+            code: "INSUFFICIENT_CREDITS",
+            clientBalance: clientProfile ? parseFloat(clientProfile.credits) : null,
+            extremeBalance: balResp?.data?.balance ?? null
+          });
+        } catch {
+          return res.status(402).json({ success: false, error: "Insufficient credits", code: "INSUFFICIENT_CREDITS" });
+        }
+      }
       console.error("Web UI send bulk error:", error);
       res.status(500).json({ error: error.message || "Failed to send bulk SMS" });
     }
@@ -2455,7 +2552,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       });
 
       // Deduct credits and log using targetUserId
-      await deductCreditsAndLog(
+      const { messageLog } = await deductCreditsAndLog(
         targetUserId,
         messages.length,
         'web-ui-bulk-multi',
@@ -2464,9 +2561,27 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         { messages },
         response.data
       );
-
-      res.json({ success: true, data: response.data });
+      if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+        await createAdminAuditLog(req.user.userId, 'web-ui-bulk-multi', response.data.messageId || 'unknown', 'sent', { messages }, response.data);
+      }
+      res.json({ success: true, messageId: response.data.messageId, data: response.data });
     } catch (error: any) {
+      if (error.message === 'Insufficient credits') {
+        try {
+          const extremeApiKey = await storage.getSystemConfig("extreme_api_key");
+          const balResp = extremeApiKey?.value ? await axios.get(`${EXTREMESMS_BASE_URL}/api/v2/account/balance`, { headers: { Authorization: `Bearer ${extremeApiKey.value}` } }) : undefined;
+          const clientProfile = await storage.getClientProfileByUserId(req.body.userId || req.user.userId);
+          return res.status(402).json({
+            success: false,
+            error: "Insufficient credits",
+            code: "INSUFFICIENT_CREDITS",
+            clientBalance: clientProfile ? parseFloat(clientProfile.credits) : null,
+            extremeBalance: balResp?.data?.balance ?? null
+          });
+        } catch {
+          return res.status(402).json({ success: false, error: "Insufficient credits", code: "INSUFFICIENT_CREDITS" });
+        }
+      }
       console.error("Web UI send bulk multi error:", error);
       res.status(500).json({ error: error.message || "Failed to send bulk multi SMS" });
     }
