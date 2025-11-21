@@ -2398,7 +2398,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
     }
   });
 
-  // Export contacts as CSV with Business Unit IDs
+  // Export contacts as CSV without sequential Business IDs
   app.get("/api/contacts/export/csv", authenticateToken, async (req: any, res) => {
     try {
       // Check if userId parameter is being used by non-admin
@@ -2425,26 +2425,14 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       // Build CSV rows
       const csvRows = ['NAME,PHONE NUMBER,BUSINESS,ACTIONS'];
       
-      // Track counters for each business unit prefix
-      const prefixCounters = new Map<string, number>();
-      
       contacts.forEach((contact: any) => {
         const name = contact.name || 'No name';
         const phone = contact.phoneNumber;
         let business = '';
         
-        // Generate sequential Business ID if contact has a group with prefix
         if (contact.groupId && groupPrefixMap.has(contact.groupId)) {
           const prefix = groupPrefixMap.get(contact.groupId)!;
-          
-          // Initialize or increment counter for this prefix
-          if (!prefixCounters.has(prefix)) {
-            prefixCounters.set(prefix, 1);
-          } else {
-            prefixCounters.set(prefix, prefixCounters.get(prefix)! + 1);
-          }
-          
-          business = `${prefix}_${prefixCounters.get(prefix)}`;
+          business = prefix;
         }
         
         // CSV row: "Name,PhoneNumber,Business,Actions"
@@ -2522,19 +2510,23 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         }
       );
         
-      // Deduct credits and log using targetUserId
-      const { messageLog } = await deductCreditsAndLog(
-        targetUserId,
-        1,
-        'web-ui-single',
-        response.data.messageId || 'unknown',
-        'sent',
-        { to, message },
-        response.data,
-        to
-      );
-      if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+      // Admin direct mode: skip client credit check and charge zero
+      if (req.user.role === 'admin' && targetUserId === req.user.userId) {
         await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message }, response.data, to);
+      } else {
+        const { messageLog } = await deductCreditsAndLog(
+          targetUserId,
+          1,
+          'web-ui-single',
+          response.data.messageId || 'unknown',
+          'sent',
+          { to, message },
+          response.data,
+          to
+        );
+        if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+          await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message }, response.data, to);
+        }
       }
 
       res.json({ success: true, messageId: response.data.messageId, data: response.data });
@@ -2592,20 +2584,23 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         message
       });
 
-      // Deduct credits and log using targetUserId
-      const { messageLog } = await deductCreditsAndLog(
-        targetUserId,
-        recipients.length,
-        'web-ui-bulk',
-        response.data.messageId || 'unknown',
-        'sent',
-        { recipients, message },
-        response.data,
-        undefined,
-        recipients
-      );
-      if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+      if (req.user.role === 'admin' && targetUserId === req.user.userId) {
         await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, message }, response.data, undefined, recipients);
+      } else {
+        const { messageLog } = await deductCreditsAndLog(
+          targetUserId,
+          recipients.length,
+          'web-ui-bulk',
+          response.data.messageId || 'unknown',
+          'sent',
+          { recipients, message },
+          response.data,
+          undefined,
+          recipients
+        );
+        if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+          await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, message }, response.data, undefined, recipients);
+        }
       }
       res.json({ success: true, messageId: response.data.messageId, data: response.data });
     } catch (error: any) {
@@ -2661,18 +2656,21 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         messages
       });
 
-      // Deduct credits and log using targetUserId
-      const { messageLog } = await deductCreditsAndLog(
-        targetUserId,
-        messages.length,
-        'web-ui-bulk-multi',
-        response.data.messageId || 'unknown',
-        'sent',
-        { messages },
-        response.data
-      );
-      if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+      if (req.user.role === 'admin' && targetUserId === req.user.userId) {
         await createAdminAuditLog(req.user.userId, 'web-ui-bulk-multi', response.data.messageId || 'unknown', 'sent', { messages }, response.data);
+      } else {
+        const { messageLog } = await deductCreditsAndLog(
+          targetUserId,
+          messages.length,
+          'web-ui-bulk-multi',
+          response.data.messageId || 'unknown',
+          'sent',
+          { messages },
+          response.data
+        );
+        if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+          await createAdminAuditLog(req.user.userId, 'web-ui-bulk-multi', response.data.messageId || 'unknown', 'sent', { messages }, response.data);
+        }
       }
       res.json({ success: true, messageId: response.data.messageId, data: response.data });
     } catch (error: any) {

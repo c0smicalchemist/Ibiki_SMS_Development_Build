@@ -293,6 +293,7 @@ export default function MessageHistory() {
                       <TableRow>
                         <TableHead>{t('messageHistory.table.recipient')}</TableHead>
                         <TableHead>{t('messageHistory.table.message')}</TableHead>
+                        <TableHead>Message ID</TableHead>
                         <TableHead>{t('messageHistory.table.type')}</TableHead>
                         <TableHead>{t('messageHistory.table.status')}</TableHead>
                         <TableHead>{t('messageHistory.table.date')}</TableHead>
@@ -309,6 +310,7 @@ export default function MessageHistory() {
                           <TableCell className="max-w-xs truncate" data-testid={`message-${msg.id}`}>
                             {getMessagePreview(msg)}
                           </TableCell>
+                          <TableCell className="font-mono text-xs" data-testid={`messageid-${msg.id}`}>{msg.messageId || '-'}</TableCell>
                           <TableCell>
                             <Badge variant="outline">SMS</Badge>
                           </TableCell>

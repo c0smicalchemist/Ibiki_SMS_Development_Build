@@ -61,18 +61,19 @@ export function MessageStatusChart({ userId }: MessageStatusChartProps) {
                 outerRadius={75}
                 paddingAngle={2}
                 dataKey="value"
-                label={({ cx, cy, midAngle, innerRadius, outerRadius, value, index }) => {
+                labelLine
+                label={({ cx, cy, midAngle, outerRadius, value, index }) => {
                   if (total === 0) return null;
                   const RADIAN = Math.PI / 180;
-                  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                  
+                  const labelRadius = outerRadius + 12;
+                  const x = cx + labelRadius * Math.cos(-midAngle * RADIAN);
+                  const y = cy + labelRadius * Math.sin(-midAngle * RADIAN);
+                  const color = data[index]?.color || '#000';
                   return (
                     <text 
                       x={x} 
                       y={y} 
-                      fill="white" 
+                      fill={color}
                       textAnchor={x > cx ? 'start' : 'end'} 
                       dominantBaseline="central"
                       className="text-xs font-semibold"

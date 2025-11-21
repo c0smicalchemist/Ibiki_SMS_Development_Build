@@ -6,10 +6,13 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { LogOut, RefreshCcw } from "lucide-react";
 import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.png";
 import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export function DashboardHeader() {
   const [, setLocation] = useLocation();
   const { t } = useLanguage();
+  const { toast } = useToast();
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -17,6 +20,7 @@ export function DashboardHeader() {
   };
 
   const handleForceRefresh = async () => {
+    setRefreshing(true);
     const keys = [
       ['/api/client/profile'],
       ['/api/client/messages'],
@@ -35,6 +39,8 @@ export function DashboardHeader() {
       await queryClient.invalidateQueries({ queryKey: key as any });
       await queryClient.refetchQueries({ queryKey: key as any });
     }
+    setRefreshing(false);
+    toast({ title: t('common.success'), description: 'Refresh successful' });
   };
 
   return (
@@ -52,8 +58,8 @@ export function DashboardHeader() {
             onClick={handleForceRefresh}
             data-testid="button-refresh"
           >
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            Refresh
+            <RefreshCcw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing…' : 'Refresh'}
           </Button>
           <Button 
             variant="ghost" 

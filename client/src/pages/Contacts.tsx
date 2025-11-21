@@ -614,9 +614,24 @@ export default function Contacts() {
                   <Folder className="h-4 w-4 mr-2" />
                   <span className="flex-1 text-left">{group.name} ({contacts.filter((c: Contact) => c.groupId === group.id).length})</span>
                 </Button>
+                <div className="pl-6">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => apiRequest(`/api/contact-groups/${group.id}`, { method: 'DELETE' }).then(() => {
+                      queryClient.invalidateQueries({ queryKey: ['/api/contact-groups', effectiveUserId] });
+                      queryClient.invalidateQueries({ queryKey: ['/api/contacts', effectiveUserId] });
+                      toast({ title: t('common.success'), description: 'Group deleted' });
+                    })}
+                    data-testid={`button-delete-group-${group.id}`}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete
+                  </Button>
+                </div>
                 {group.businessUnitPrefix && (
                   <div className="pl-6 text-xs text-muted-foreground">
-                    Business: {group.businessUnitPrefix}_*
+                    Business: {group.businessUnitPrefix}
                   </div>
                 )}
               </div>
