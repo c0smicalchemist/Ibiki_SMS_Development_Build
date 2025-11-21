@@ -3,8 +3,9 @@ import { LanguageToggle } from "./LanguageToggle";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "./ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { LogOut } from "lucide-react";
+import { LogOut, RefreshCcw } from "lucide-react";
 import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.png";
+import { queryClient } from "@/lib/queryClient";
 
 export function DashboardHeader() {
   const [, setLocation] = useLocation();
@@ -13,6 +14,27 @@ export function DashboardHeader() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setLocation('/');
+  };
+
+  const handleForceRefresh = async () => {
+    const keys = [
+      ['/api/client/profile'],
+      ['/api/client/messages'],
+      ['/api/client/inbox'],
+      ['/api/v2/sms/messages'],
+      ['/api/v2/sms/inbox'],
+      ['/api/message-status-stats'],
+      ['/api/admin/clients'],
+      ['/api/admin/stats'],
+      ['/api/admin/recent-activity'],
+      ['/api/admin/error-logs'],
+      ['/api/admin/config'],
+      ['/api/web/inbox'],
+    ];
+    for (const key of keys) {
+      await queryClient.invalidateQueries({ queryKey: key as any });
+      await queryClient.refetchQueries({ queryKey: key as any });
+    }
   };
 
   return (
@@ -24,6 +46,15 @@ export function DashboardHeader() {
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <LanguageToggle />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleForceRefresh}
+            data-testid="button-refresh"
+          >
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
           <Button 
             variant="ghost" 
             size="sm" 
