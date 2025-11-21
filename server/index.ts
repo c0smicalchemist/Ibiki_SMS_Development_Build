@@ -18,20 +18,23 @@ console.log('🔍 Railway detection:');
 console.log('Railway env vars found:', railwayVars);
 console.log('Railway detected:', isRailway);
 
-// CRITICAL: If we're in production but have no DATABASE_URL, we're probably on Railway
-// and should NOT load .env.production (which has localhost database)
-const shouldLoadProductionEnv = process.env.NODE_ENV === 'production' && 
-  !isRailway && 
-  !process.env.DATABASE_URL;
+// CRITICAL: If we're on Railway, don't load any .env files that might override Railway vars
+// Railway provides all environment variables directly
+if (isRailway) {
+  console.log('🚄 Railway detected: Skipping .env files to preserve Railway environment variables');
+  console.log('🚄 Using Railway-provided environment variables only');
+} else {
+  // Local development: load appropriate .env file
+  const shouldLoadProductionEnv = process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL;
+  const envFile = shouldLoadProductionEnv ? '.env.production' : '.env.development';
+  
+  console.log('Environment file decision:');
+  console.log('Should load .env.production:', shouldLoadProductionEnv);
+  console.log('Loading env file:', envFile);
 
-const envFile = shouldLoadProductionEnv ? '.env.production' : '.env.development';
-
-console.log('Environment file decision:');
-console.log('Should load .env.production:', shouldLoadProductionEnv);
-console.log('Loading env file:', envFile);
-
-dotenv.config({ path: envFile });
-dotenv.config(); // Also load .env as fallback
+  dotenv.config({ path: envFile });
+  dotenv.config(); // Also load .env as fallback
+}
 
 // Debug: Log environment info for Railway
 console.log('🔍 Environment Debug Info:');
@@ -216,9 +219,15 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  console.log('🔧 Environment check for Vite/Static serving:');
+  console.log('process.env.NODE_ENV:', process.env.NODE_ENV);
+  console.log('app.get("env"):', app.get("env"));
+  
+  if (process.env.NODE_ENV === "development") {
+    console.log('🔧 Setting up Vite dev server...');
     await setupVite(app, server);
   } else {
+    console.log('🔧 Setting up static file serving...');
     serveStatic(app);
   }
 
