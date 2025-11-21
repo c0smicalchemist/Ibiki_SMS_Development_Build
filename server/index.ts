@@ -48,9 +48,6 @@ const railwayDbVars = Object.keys(process.env).filter(key =>
   key.includes('DATABASE') || key.includes('POSTGRES') || key.includes('DB')
 );
 console.log('🔍 Database-related env vars:', railwayDbVars);
-
-// Log all Railway-related environment variables
-const railwayVars = Object.keys(process.env).filter(key => key.startsWith('RAILWAY'));
 console.log('🚄 Railway env vars:', railwayVars);
 
 // Railway-specific: Use private network connection to avoid egress fees
