@@ -9,7 +9,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.svg";
+import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.png";
 
 export default function Login() {
   const [, setLocation] = useLocation();

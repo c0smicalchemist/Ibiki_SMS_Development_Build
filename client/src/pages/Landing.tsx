@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import CodeBlock from "@/components/CodeBlock";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.svg";
+import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.png";
 
 export default function Landing() {
   const { t } = useLanguage();
