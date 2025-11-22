@@ -156,22 +156,14 @@ function log(message: string, source = "express") {
 
 function serveStatic(app: express.Express) {
   const distPath = path.resolve(import.meta.dirname, "..", "dist", "public");
-  console.log("🔧 Static file serving setup:");
-  console.log("Looking for build files in:", distPath);
-  console.log("Directory exists:", fs.existsSync(distPath));
-  if (fs.existsSync(distPath)) {
-    const files = fs.readdirSync(distPath);
-    console.log("Files found:", files.slice(0, 10));
-  }
-  if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
-    );
+  const exists = fs.existsSync(distPath);
+  if (!exists) {
+    console.warn(`Skipping static file serving; missing ${distPath}`);
+    return;
   }
   app.use(express.static(distPath));
   app.use("*", (_req, res) => {
     const indexPath = path.resolve(distPath, "index.html");
-    console.log("🔧 Serving index.html from:", indexPath);
     res.sendFile(indexPath);
   });
 }
