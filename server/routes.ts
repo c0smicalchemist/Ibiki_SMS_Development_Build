@@ -2903,9 +2903,6 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
-}
   // Current authenticated user
   app.get('/api/auth/me', authenticateToken, async (req: any, res) => {
     try {
@@ -2916,3 +2913,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       res.status(500).json({ success: false, error: e?.message || 'Failed to load user' });
     }
   });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}
