@@ -95,13 +95,9 @@ if (!process.env.DATABASE_URL) {
     console.error('❌ Example: DATABASE_URL=postgresql://user:password@host:port/database');
   }
   
-  // For Railway debugging, don't exit immediately - let the app start with in-memory storage
-  if (isRailway) {
-    console.error('⚠️  Railway detected: Starting with in-memory storage for debugging');
-    console.error('⚠️  Data will not persist - fix DATABASE_URL to use PostgreSQL');
-  } else {
-    process.exit(1);
-  }
+  // Production consistency: always require a real database
+  console.error('❌ Exiting: A consistent PostgreSQL database is required in production');
+  process.exit(1);
 }
 
 // CRITICAL: Validate DATABASE_URL format (if present)
@@ -121,10 +117,8 @@ if (process.env.DATABASE_URL) {
     console.error('❌ WARNING: DATABASE_URL format is invalid!');
     console.error('DATABASE_URL value:', process.env.DATABASE_URL);
     console.error('Parse error:', error.message);
-    console.error('⚠️  App will start with in-memory storage');
-    
-    // Clear invalid DATABASE_URL to force in-memory storage
-    delete process.env.DATABASE_URL;
+    console.error('❌ Exiting: Fix DATABASE_URL for consistent storage');
+    process.exit(1);
   }
 } else {
   console.log('🔍 DATABASE_URL not set - will use in-memory storage');
