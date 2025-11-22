@@ -850,7 +850,14 @@ export class DbStorage implements IStorage {
         throw new Error('DATABASE_URL environment variable is not set');
       }
 
-      poolInstance = new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
+      const shouldUseSSL = () => {
+        if (!connectionString) return false;
+        if (process.env.POSTGRES_SSL === 'true') return true;
+        return connectionString.includes('sslmode=require') || /neon\.tech|railway/i.test(connectionString);
+      };
+      const poolOptions: any = { connectionString };
+      if (shouldUseSSL()) poolOptions.ssl = { rejectUnauthorized: false };
+      poolInstance = new Pool(poolOptions);
       dbInstance = drizzle(poolInstance, {
         schema: {
           users,
