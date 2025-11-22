@@ -4,54 +4,66 @@ import dotenv from "dotenv";
 // IMPORTANT: Don't load .env.production on Railway - it contains localhost database URL
 
 // First, log what environment variables we have
-console.log('🔧 Initial environment check:');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('PORT:', process.env.PORT);
-console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
+if (process.env.LOG_LEVEL === 'debug') {
+  console.log('🔧 Initial environment check:');
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('PORT:', process.env.PORT);
+  console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
+}
 
 // Railway detection: Check for multiple Railway-specific environment variables
 const railwayVars = Object.keys(process.env).filter(key => key.startsWith('RAILWAY'));
 const isRailway = railwayVars.length > 0 || 
   (process.env.NODE_ENV === 'production' && process.env.PORT && process.env.DATABASE_URL);
 
-console.log('🔍 Railway detection:');
-console.log('Railway env vars found:', railwayVars);
-console.log('Railway detected:', isRailway);
+if (process.env.LOG_LEVEL === 'debug') {
+  console.log('🔍 Railway detection:');
+  console.log('Railway env vars found:', railwayVars);
+  console.log('Railway detected:', isRailway);
+}
 
 // CRITICAL: If we're on Railway, don't load any .env files that might override Railway vars
 // Railway provides all environment variables directly
 if (isRailway) {
-  console.log('🚄 Railway detected: Skipping .env files to preserve Railway environment variables');
-  console.log('🚄 Using Railway-provided environment variables only');
+  if (process.env.LOG_LEVEL === 'debug') {
+    console.log('🚄 Railway detected: Skipping .env files to preserve Railway environment variables');
+    console.log('🚄 Using Railway-provided environment variables only');
+  }
 } else {
   // Local development: load appropriate .env file
   const shouldLoadProductionEnv = process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL;
   const envFile = shouldLoadProductionEnv ? '.env.production' : '.env.development';
   
-  console.log('Environment file decision:');
-  console.log('Should load .env.production:', shouldLoadProductionEnv);
-  console.log('Loading env file:', envFile);
+  if (process.env.LOG_LEVEL === 'debug') {
+    console.log('Environment file decision:');
+    console.log('Should load .env.production:', shouldLoadProductionEnv);
+    console.log('Loading env file:', envFile);
+  }
 
   dotenv.config({ path: envFile });
   dotenv.config(); // Also load .env as fallback
 }
 
 // Debug: Log environment info for Railway
-console.log('🔍 Environment Debug Info:');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT);
-console.log('RAILWAY_PROJECT_ID:', process.env.RAILWAY_PROJECT_ID);
-console.log('RAILWAY_SERVICE_ID:', process.env.RAILWAY_SERVICE_ID);
-console.log('PORT:', process.env.PORT);
-console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
-console.log('DATABASE_URL value:', process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]*@/, ':***@') : 'NOT SET');
+if (process.env.LOG_LEVEL === 'debug') {
+  console.log('🔍 Environment Debug Info:');
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT);
+  console.log('RAILWAY_PROJECT_ID:', process.env.RAILWAY_PROJECT_ID);
+  console.log('RAILWAY_SERVICE_ID:', process.env.RAILWAY_SERVICE_ID);
+  console.log('PORT:', process.env.PORT);
+  console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
+  console.log('DATABASE_URL value:', process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]*@/, ':***@') : 'NOT SET');
+}
 
 // Check for Railway-specific database variables
 const railwayDbVars = Object.keys(process.env).filter(key => 
   key.includes('DATABASE') || key.includes('POSTGRES') || key.includes('DB')
 );
-console.log('🔍 Database-related env vars:', railwayDbVars);
-console.log('🚄 Railway env vars:', railwayVars);
+if (process.env.LOG_LEVEL === 'debug') {
+  console.log('🔍 Database-related env vars:', railwayDbVars);
+  console.log('🚄 Railway env vars:', railwayVars);
+}
 
 // Railway-specific: Use private network connection to avoid egress fees
 if (isRailway) {
@@ -300,11 +312,13 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  console.log('🔧 Environment check for Vite/Static serving:');
-  console.log('process.env.NODE_ENV:', process.env.NODE_ENV);
-  console.log('app.get("env"):', app.get("env"));
-  console.log('isRailway:', isRailway);
-  console.log('Railway vars count:', railwayVars.length);
+  if (process.env.LOG_LEVEL === 'debug') {
+    console.log('🔧 Environment check for Vite/Static serving:');
+    console.log('process.env.NODE_ENV:', process.env.NODE_ENV);
+    console.log('app.get("env"):', app.get("env"));
+    console.log('isRailway:', isRailway);
+    console.log('Railway vars count:', railwayVars.length);
+  }
   
   // FORCE production mode on Railway regardless of NODE_ENV
   console.log('🔧 Setting up static file serving (Railway or production)...');
