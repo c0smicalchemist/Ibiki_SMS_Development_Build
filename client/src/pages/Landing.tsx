@@ -3,12 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Shield, Users, Activity, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
 import CodeBlock from "@/components/CodeBlock";
+import { useEffect, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.png";
 
 export default function Landing() {
   const { t } = useLanguage();
+  const [animatedCode, setAnimatedCode] = useState("");
 
   const features = [
     {
@@ -28,10 +30,32 @@ export default function Landing() {
     }
   ];
 
-  const sampleCode = `curl -X POST https://api.ibikisms.com/v2/sms/sendsingle \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json" \\
+  const sampleCode = `curl -X POST https://api.ibikisms.com/v2/sms/sendsingle \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
   -d '{"recipient": "+1234567890", "message": "Hello!"}'`;
+
+  useEffect(() => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+{}[]<>?";
+    let i = 0;
+    const steps = 15;
+    const interval = setInterval(() => {
+      const pct = Math.min(1, i / steps);
+      const keep = Math.floor(sampleCode.length * pct);
+      const scrambleLen = sampleCode.length - keep;
+      let s = sampleCode.slice(0, keep);
+      for (let j = 0; j < scrambleLen; j++) {
+        s += chars[Math.floor(Math.random() * chars.length)];
+      }
+      setAnimatedCode(s);
+      i++;
+      if (pct >= 1) {
+        clearInterval(interval);
+        setAnimatedCode(sampleCode);
+      }
+    }, 60);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -40,7 +64,7 @@ export default function Landing() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <img src={logoUrl} alt="Ibiki SMS" className="h-12 w-auto" />
-              <span className="text-xl font-bold">Ibiki SMS</span>
+              <span className="text-xl font-bold"><span className="text-primary">I</span>biki SMS Aggregator</span>
             </div>
             <div className="flex items-center gap-3">
               <LanguageToggle />
@@ -58,7 +82,7 @@ export default function Landing() {
       <section className="py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            {t('landing.title')}
+            <span className="text-primary">I</span>biki SMS Aggregator
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
             {t('landing.subtitle')}
@@ -104,7 +128,7 @@ export default function Landing() {
             <p className="text-muted-foreground">Get started with just a few lines of code</p>
           </div>
           <div className="max-w-3xl mx-auto">
-            <CodeBlock code={sampleCode} />
+            <CodeBlock code={animatedCode || sampleCode} />
           </div>
         </div>
       </section>
