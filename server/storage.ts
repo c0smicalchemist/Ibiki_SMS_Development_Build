@@ -459,21 +459,7 @@ export class MemStorage implements IStorage {
     return logs.length > 0 ? logs[0].userId : undefined;
   }
 
-  async findClientByRecipient(recipientPhone: string): Promise<string | undefined> {
-    // Find the most recent message sent TO this recipient phone number
-    // This is used for conversation tracking: if client sent to this number, route replies to them
-    const logs = Array.from(this.messageLogs.values())
-      .filter(log => {
-        // Check single recipient
-        if (log.recipient === recipientPhone) return true;
-        // Check bulk recipients
-        if (log.recipients && log.recipients.includes(recipientPhone)) return true;
-        return false;
-      })
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    
-    return logs.length > 0 ? logs[0].userId : undefined;
-  }
+  // DB-backed version defined later
 
   async getTotalMessageCount(): Promise<number> {
     return this.messageLogs.size;
@@ -568,34 +554,10 @@ export class MemStorage implements IStorage {
     });
   }
 
-  async deleteExampleData(userId: string): Promise<void> {
-    for (const [id, msg] of this.incomingMessages) {
-      if ((msg as any).userId === userId && (msg as any).isExample) {
-        this.incomingMessages.delete(id);
-      }
-    }
-    for (const [id, log] of this.messageLogs) {
-      if ((log as any).userId === userId && (log as any).isExample) {
-        this.messageLogs.delete(id);
-      }
-    }
-    for (const [id, c] of this.contacts) {
-      if ((c as any).userId === userId && (c as any).isExample) {
-        this.contacts.delete(id);
-      }
-    }
-  }
-
   async hasExampleData(userId: string): Promise<boolean> {
     const inc = await this.db.select().from(incomingMessages).where(sql`${incomingMessages.userId} = ${userId} AND ${incomingMessages.isExample} = true`).limit(1);
     const logs = await this.db.select().from(messageLogs).where(sql`${messageLogs.userId} = ${userId} AND ${messageLogs.isExample} = true`).limit(1);
     return inc.length > 0 || logs.length > 0;
-  }
-
-  async hasExampleData(userId: string): Promise<boolean> {
-    const hasIncoming = Array.from(this.incomingMessages.values()).some((m) => (m as any).userId === userId && (m as any).isExample);
-    const hasLogs = Array.from(this.messageLogs.values()).some((m) => (m as any).userId === userId && (m as any).isExample);
-    return hasIncoming || hasLogs;
   }
 
   async deleteExampleData(userId: string): Promise<void> {
@@ -625,70 +587,9 @@ export class MemStorage implements IStorage {
     return limit ? transactions.slice(0, limit) : transactions;
   }
 
-  // Incoming Message methods
-  async createIncomingMessage(insertMessage: InsertIncomingMessage): Promise<IncomingMessage> {
-    const id = randomUUID();
-    const message: IncomingMessage = {
-      ...insertMessage,
-      id,
-      userId: insertMessage.userId ?? null,
-      firstname: insertMessage.firstname ?? null,
-      lastname: insertMessage.lastname ?? null,
-      business: insertMessage.business ?? null,
-      matchedBlockWord: insertMessage.matchedBlockWord ?? null,
-      usedmodem: insertMessage.usedmodem ?? null,
-      port: insertMessage.port ?? null,
-      isRead: insertMessage.isRead ?? false,
-      isExample: insertMessage.isExample ?? false,
-      createdAt: new Date()
-    };
-    this.incomingMessages.set(id, message);
-    return message;
-  }
+  // Incoming Message methods (DB-backed only)
 
-  async getIncomingMessagesByUserId(userId: string, limit: number = 100): Promise<IncomingMessage[]> {
-    const messages = Array.from(this.incomingMessages.values())
-      .filter((msg) => msg.userId === userId)
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    
-    return limit ? messages.slice(0, limit) : messages;
-  }
-
-  async getAllIncomingMessages(limit: number = 100): Promise<IncomingMessage[]> {
-    const messages = Array.from(this.incomingMessages.values())
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    
-    return limit ? messages.slice(0, limit) : messages;
-  }
-
-  async markIncomingMessageAsRead(messageId: string): Promise<void> {
-    const message = this.incomingMessages.get(messageId);
-    if (message) {
-      message.isRead = true;
-      this.incomingMessages.set(messageId, message);
-    }
-  }
-
-  async markConversationAsRead(userId: string, phoneNumber: string): Promise<void> {
-    const messages = Array.from(this.incomingMessages.values())
-      .filter((msg) => msg.userId === userId && msg.from === phoneNumber);
-    for (const message of messages) {
-      message.isRead = true;
-      this.incomingMessages.set(message.id, message);
-    }
-  }
-
-  async getConversationHistory(userId: string, phoneNumber: string): Promise<{ incoming: IncomingMessage[]; outgoing: MessageLog[] }> {
-    const incoming = Array.from(this.incomingMessages.values())
-      .filter((msg) => msg.userId === userId && msg.from === phoneNumber)
-      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-    
-    const outgoing = Array.from(this.messageLogs.values())
-      .filter((msg) => msg.userId === userId && msg.recipient === phoneNumber)
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-    
-    return { incoming, outgoing };
-  }
+  // DB-backed version defined later
 
   // Client Contact methods (for Business field routing)
   async createClientContact(insertContact: InsertClientContact): Promise<ClientContact> {

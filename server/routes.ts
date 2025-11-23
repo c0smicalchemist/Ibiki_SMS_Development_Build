@@ -727,6 +727,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Webhook Routes (No authentication required)
   // ============================================
 
+  async function processIncomingSmsPayload(payload: any): Promise<{ assignedUserId: string | null }> {
+    let assignedUserId: string | null = null;
+    if (payload.business && payload.business.trim() !== '') {
+      const potentialUserId = payload.business.trim();
+      const user = await storage.getUser(potentialUserId);
+      if (user && user.role === 'client') {
+        assignedUserId = user.id;
+      }
+    }
+    if (!assignedUserId) {
+      const clientFromOutbound = await storage.findClientByRecipient(payload.from);
+      if (clientFromOutbound) {
+        assignedUserId = clientFromOutbound;
+      }
+    }
+    if (!assignedUserId) {
+      const clientProfile = await storage.getClientProfileByPhoneNumber(payload.receiver);
+      if (clientProfile) {
+        assignedUserId = clientProfile.userId;
+      }
+    }
+    await storage.createIncomingMessage({
+      userId: assignedUserId,
+      from: payload.from,
+      firstname: payload.firstname || null,
+      lastname: payload.lastname || null,
+      business: payload.business || null,
+      message: payload.message,
+      status: payload.status,
+      matchedBlockWord: payload.matchedBlockWord || null,
+      receiver: payload.receiver,
+      usedmodem: payload.usedmodem || null,
+      port: payload.port || null,
+      timestamp: new Date(payload.timestamp),
+      messageId: payload.messageId
+    });
+    try {
+      await storage.setSystemConfig('last_webhook_event', JSON.stringify(payload));
+      await storage.setSystemConfig('last_webhook_event_at', new Date().toISOString());
+      await storage.setSystemConfig('last_webhook_routed_user', assignedUserId || 'unassigned');
+    } catch {}
+    return { assignedUserId };
+  }
+
   // Incoming SMS webhook from ExtremeSMS
   app.post("/webhook/incoming-sms", async (req, res) => {
     try {
@@ -741,82 +785,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const payload = req.body;
-      console.log("Incoming SMS webhook received:", { 
-        from: payload.from, 
-        receiver: payload.receiver,
-        status: payload.status 
-      });
-
-      // Validate required fields
       if (!payload.from || !payload.message || !payload.receiver || !payload.timestamp || !payload.messageId) {
         return res.status(400).json({ error: "Missing required fields" });
       }
-
-      // SMART ROUTING: Business field contains client_id
-      let assignedUserId: string | null = null;
-      
-      // Priority 1: Extract client_id from Business field (ExtremeSMS contact CSV)
-      // When clients upload contacts with their userId in the Business field, we can route directly
-      if (payload.business && payload.business.trim() !== '') {
-        // Business field should contain the client's userId
-        const potentialUserId = payload.business.trim();
-        const user = await storage.getUser(potentialUserId);
-        if (user && user.role === 'client') {
-          assignedUserId = user.id;
-          console.log(`Routing incoming SMS to client ${user.id} (matched Business field: ${payload.business})`);
-        } else {
-          console.log(`Business field '${payload.business}' does not match a valid client`);
-        }
-      }
-      
-      // Priority 2: Fall back to conversation tracking (client who sent to this customer)
-      if (!assignedUserId) {
-        const clientFromOutbound = await storage.findClientByRecipient(payload.from);
-        if (clientFromOutbound) {
-          assignedUserId = clientFromOutbound;
-          console.log(`Routing incoming SMS to client ${clientFromOutbound} (matched conversation: client sent to ${payload.from})`);
-        }
-      }
-      
-      // Priority 3: Fall back to assigned phone numbers (manual assignment)
-      if (!assignedUserId) {
-        const clientProfile = await storage.getClientProfileByPhoneNumber(payload.receiver);
-        if (clientProfile) {
-          assignedUserId = clientProfile.userId;
-          console.log(`Routing incoming SMS to client ${clientProfile.userId} (matched assigned phone number)`);
-        } else {
-          console.log(`No client found for incoming SMS from ${payload.from} to ${payload.receiver}`);
-        }
-      }
-
-      // Store incoming message
-      await storage.createIncomingMessage({
-        userId: assignedUserId,
-        from: payload.from,
-        firstname: payload.firstname || null,
-        lastname: payload.lastname || null,
-        business: payload.business || null,
-        message: payload.message,
-        status: payload.status,
-        matchedBlockWord: payload.matchedBlockWord || null,
-        receiver: payload.receiver,
-        usedmodem: payload.usedmodem || null,
-        port: payload.port || null,
-        timestamp: new Date(payload.timestamp),
-        messageId: payload.messageId
-      });
-
-      // Persist last webhook event for diagnostics
-      try {
-        await storage.setSystemConfig('last_webhook_event', JSON.stringify(payload));
-        await storage.setSystemConfig('last_webhook_event_at', new Date().toISOString());
-        await storage.setSystemConfig('last_webhook_routed_user', assignedUserId || 'unassigned');
-      } catch {}
-
-      res.json({ 
-        success: true, 
-        message: "Incoming message processed successfully" 
-      });
+      await processIncomingSmsPayload(payload);
+      res.json({ success: true, message: "Incoming message processed successfully" });
     } catch (error) {
       console.error("Webhook processing error:", error);
       res.status(500).json({ error: "Failed to process incoming message" });
@@ -2957,6 +2930,34 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
     } catch (error) {
       console.error("Web UI inbox error:", error);
       res.status(500).json({ error: "Failed to retrieve inbox" });
+    }
+  });
+
+  app.post("/api/web/inbox/retrieve", authenticateToken, async (req: any, res) => {
+    try {
+      if (req.body.userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
+      const extremeApiKey = await getExtremeApiKey();
+      const limit = await resolveFetchLimit(req.user.userId, req.user.role, req.query.limit as string | undefined);
+      const response = await axios.get(`${EXTREMESMS_BASE_URL}/api/v2/sms/inbox`, {
+        headers: { Authorization: `Bearer ${extremeApiKey}` },
+        params: { limit }
+      });
+      const items: any[] = Array.isArray(response.data?.messages) ? response.data.messages : [];
+      let processedCount = 0;
+      for (const item of items) {
+        if (item && item.from && item.message && item.receiver && item.timestamp && item.messageId) {
+          await processIncomingSmsPayload(item);
+          processedCount++;
+        }
+      }
+      await storage.setSystemConfig('last_inbox_retrieval_at', new Date().toISOString());
+      await storage.setSystemConfig('last_inbox_retrieval_count', String(processedCount));
+      res.json({ success: true, processedCount });
+    } catch (error) {
+      console.error("Inbox retrieval error:", error);
+      res.status(500).json({ error: "Failed to retrieve inbox from provider" });
     }
   });
 

@@ -2,7 +2,6 @@ export type Language = 'en' | 'zh';
 
 export const translations: Record<Language, Record<string, string>> = {
   en: {
-    // Common
     'common.loading': 'Loading…',
     'common.error': 'Error',
     'common.success': 'Success',
@@ -17,96 +16,6 @@ export const translations: Record<Language, Record<string, string>> = {
     'common.inactive': 'Inactive',
     'common.refresh': 'Refresh',
 
-    // Admin tabs
-    'admin.tabs.clients': 'Clients',
-    'admin.tabs.configuration': 'Configuration',
-    'admin.tabs.monitoring': 'Monitoring',
-    'admin.tabs.webhook': 'Webhook Setup',
-    'admin.tabs.testing': 'API Testing',
-    'admin.tabs.logs': 'Error Logs',
-
-    // Admin env & DB
-    'admin.envDb.title': 'Environment & Database',
-    'admin.envDb.runMigrations': 'Run Migrations',
-
-    // Admin webhook
-    'admin.webhook.suggestedUrl': 'Suggested Webhook URL (current environment)',
-    'admin.webhook.configuredUrl': 'Configured Webhook URL',
-    'admin.webhook.setToSuggested': 'Set to suggested',
-
-    // Webhook docs
-    'docs.webhook.title': 'Webhook Configuration (2-Way SMS)',
-    'docs.webhook.description': 'Configure this webhook URL in your SMS provider to receive incoming messages',
-
-    // Inbox
-    'inbox.noMessages': 'No Messages Yet',
-    'inbox.noMessagesDesc': 'Incoming SMS messages will appear here',
-
-    // Message History table
-    'messageHistory.table.recipient': 'Recipient',
-    'messageHistory.table.message': 'Message',
-    'messageHistory.table.type': 'Type',
-    'messageHistory.table.status': 'Status',
-    'messageHistory.table.date': 'Date',
-    'messageHistory.table.cost': 'Cost',
-    'messageHistory.table.actions': 'Actions',
-  },
-  zh: {
-    // Common
-    'common.loading': '加载中…',
-    'common.error': '错误',
-    'common.success': '成功',
-    'common.cancel': '取消',
-    'common.save': '保存',
-    'common.delete': '删除',
-    'common.edit': '编辑',
-    'common.close': '关闭',
-    'common.back': '返回',
-    'common.next': '下一步',
-    'common.active': '活跃',
-    'common.inactive': '不活跃',
-    'common.refresh': '刷新',
-
-    // Admin tabs
-    'admin.tabs.clients': '客户',
-    'admin.tabs.configuration': '配置',
-    'admin.tabs.monitoring': '监控',
-    'admin.tabs.webhook': 'Webhook设置',
-    'admin.tabs.testing': 'API测试',
-    'admin.tabs.logs': '错误日志',
-
-    // Admin env & DB
-    'admin.envDb.title': '环境与数据库',
-    'admin.envDb.runMigrations': '运行迁移',
-
-    // Admin webhook
-    'admin.webhook.suggestedUrl': '建议的Webhook URL（当前环境）',
-    'admin.webhook.configuredUrl': '已配置的Webhook URL',
-    'admin.webhook.setToSuggested': '设置为建议值',
-
-    // Webhook docs
-    'docs.webhook.title': 'Webhook配置（双向短信）',
-    'docs.webhook.description': '请在短信服务商的控制台设置此Webhook URL以接收来信',
-
-    // Inbox
-    'inbox.noMessages': '暂无消息',
-    'inbox.noMessagesDesc': '收到的短信将显示在这里',
-
-    // Message History table
-    'messageHistory.table.recipient': '接收方',
-    'messageHistory.table.message': '消息',
-    'messageHistory.table.type': '类型',
-    'messageHistory.table.status': '状态',
-    'messageHistory.table.date': '日期',
-    'messageHistory.table.cost': '费用',
-    'messageHistory.table.actions': '操作',
-  }
-};
-
-export function translate(key: string, lang: Language): string {
-  return (translations[lang] as Record<string, string>)[key] || key;
-}
-    // Dashboard headings
     'dashboard.title': 'Dashboard',
     'dashboard.subtitle': 'Overview and quick actions',
     'dashboard.stats.messages': 'Messages',
@@ -122,72 +31,6 @@ export function translate(key: string, lang: Language): string {
     'clientDashboard.pricing': 'Pricing',
     'clientDashboard.apiKeys': 'API Keys',
 
-    // Inbox dialog
-    'inbox.conversation': 'Conversation',
-    'inbox.typeReply': 'Type your reply…',
-    'inbox.pressEnterToSend': 'Press Enter to send, Shift+Enter for new line',
-    'inbox.success.replySent': 'Reply sent',
-    'inbox.error.replyFailed': 'Failed to send reply',
-    'inbox.error.enterReply': 'Please enter a reply',
-    // Dashboard headings
-    'dashboard.title': '仪表盘',
-    'dashboard.subtitle': '概览与快捷操作',
-    'dashboard.stats.messages': '消息',
-    'dashboard.stats.inbox': '收件箱',
-    'dashboard.stats.credits': '余额',
-    'dashboard.stats.online': '在线',
-    'clientDashboard.sendSms': '发送短信',
-    'clientDashboard.inbox': '收件箱',
-    'messageHistory.title': '短信历史',
-    'worldClock.title': '世界时钟',
-    'inbox.title': '收件箱',
-    'inbox.description': '查看并回复收到的短信',
-    'clientDashboard.pricing': '价格',
-    'clientDashboard.apiKeys': 'API密钥',
-
-    // Inbox dialog
-    'inbox.conversation': '会话',
-    'inbox.typeReply': '输入您的回复…',
-    'inbox.pressEnterToSend': '按Enter发送，Shift+Enter换行',
-    'inbox.success.replySent': '回复已发送',
-    'inbox.error.replyFailed': '发送回复失败',
-    'inbox.error.enterReply': '请输入回复内容',
-export type Language = 'en' | 'zh';
-
-export const translations: Record<Language, Record<string, string>> = {
-  en: {
-    // Common
-    'common.loading': 'Loading…',
-    'common.error': 'Error',
-    'common.success': 'Success',
-    'common.cancel': 'Cancel',
-    'common.save': 'Save',
-    'common.delete': 'Delete',
-    'common.edit': 'Edit',
-    'common.close': 'Close',
-    'common.back': 'Back',
-    'common.next': 'Next',
-    'common.active': 'Active',
-    'common.inactive': 'Inactive',
-    'common.refresh': 'Refresh',
-
-    // Dashboard headings
-    'dashboard.title': 'Dashboard',
-    'dashboard.subtitle': 'Overview and quick actions',
-    'dashboard.stats.messages': 'Messages',
-    'dashboard.stats.inbox': 'Inbox',
-    'dashboard.stats.credits': 'Credits',
-    'dashboard.stats.online': 'Online',
-    'clientDashboard.sendSms': 'Send SMS',
-    'clientDashboard.inbox': 'Inbox',
-    'messageHistory.title': 'Message History',
-    'worldClock.title': 'World Clock',
-    'inbox.title': 'Inbox',
-    'inbox.description': 'View and reply to incoming messages',
-    'clientDashboard.pricing': 'Pricing',
-    'clientDashboard.apiKeys': 'API Keys',
-
-    // Admin tabs
     'admin.tabs.clients': 'Clients',
     'admin.tabs.configuration': 'Configuration',
     'admin.tabs.monitoring': 'Monitoring',
@@ -195,20 +38,16 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.tabs.testing': 'API Testing',
     'admin.tabs.logs': 'Error Logs',
 
-    // Admin env & DB
     'admin.envDb.title': 'Environment & Database',
     'admin.envDb.runMigrations': 'Run Migrations',
 
-    // Admin webhook
     'admin.webhook.suggestedUrl': 'Suggested Webhook URL (current environment)',
     'admin.webhook.configuredUrl': 'Configured Webhook URL',
     'admin.webhook.setToSuggested': 'Set to suggested',
 
-    // Webhook docs
     'docs.webhook.title': 'Webhook Configuration (2-Way SMS)',
     'docs.webhook.description': 'Configure this webhook URL in your SMS provider to receive incoming messages',
 
-    // Inbox
     'inbox.noMessages': 'No Messages Yet',
     'inbox.noMessagesDesc': 'Incoming SMS messages will appear here',
     'inbox.conversation': 'Conversation',
@@ -218,7 +57,6 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.error.replyFailed': 'Failed to send reply',
     'inbox.error.enterReply': 'Please enter a reply',
 
-    // Message History table
     'messageHistory.table.recipient': 'Recipient',
     'messageHistory.table.message': 'Message',
     'messageHistory.table.type': 'Type',
@@ -228,7 +66,6 @@ export const translations: Record<Language, Record<string, string>> = {
     'messageHistory.table.actions': 'Actions',
   },
   zh: {
-    // Common
     'common.loading': '加载中…',
     'common.error': '错误',
     'common.success': '成功',
@@ -243,7 +80,6 @@ export const translations: Record<Language, Record<string, string>> = {
     'common.inactive': '不活跃',
     'common.refresh': '刷新',
 
-    // Dashboard headings
     'dashboard.title': '仪表盘',
     'dashboard.subtitle': '概览与快捷操作',
     'dashboard.stats.messages': '消息',
@@ -259,7 +95,6 @@ export const translations: Record<Language, Record<string, string>> = {
     'clientDashboard.pricing': '价格',
     'clientDashboard.apiKeys': 'API密钥',
 
-    // Admin tabs
     'admin.tabs.clients': '客户',
     'admin.tabs.configuration': '配置',
     'admin.tabs.monitoring': '监控',
@@ -267,20 +102,16 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.tabs.testing': 'API测试',
     'admin.tabs.logs': '错误日志',
 
-    // Admin env & DB
     'admin.envDb.title': '环境与数据库',
     'admin.envDb.runMigrations': '运行迁移',
 
-    // Admin webhook
     'admin.webhook.suggestedUrl': '建议的Webhook URL（当前环境）',
     'admin.webhook.configuredUrl': '已配置的Webhook URL',
     'admin.webhook.setToSuggested': '设置为建议值',
 
-    // Webhook docs
     'docs.webhook.title': 'Webhook配置（双向短信）',
     'docs.webhook.description': '请在短信服务商的控制台设置此Webhook URL以接收来信',
 
-    // Inbox
     'inbox.noMessages': '暂无消息',
     'inbox.noMessagesDesc': '收到的短信将显示在这里',
     'inbox.conversation': '会话',
@@ -290,7 +121,6 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.error.replyFailed': '发送回复失败',
     'inbox.error.enterReply': '请输入回复内容',
 
-    // Message History table
     'messageHistory.table.recipient': '接收方',
     'messageHistory.table.message': '消息',
     'messageHistory.table.type': '类型',

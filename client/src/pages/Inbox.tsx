@@ -130,6 +130,25 @@ export default function Inbox() {
     } catch {}
   };
 
+  const handleRetrieveInbox = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const body: any = {};
+      if (effectiveUserId) body.userId = effectiveUserId;
+      const resp = await fetch('/api/web/inbox/retrieve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) throw new Error('Failed to retrieve inbox');
+      await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
+      await queryClient.refetchQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
+    } catch {}
+  };
+
 
   const handleOpenConversation = (phoneNumber: string) => {
     setSelectedPhoneNumber(phoneNumber);
@@ -183,6 +202,9 @@ export default function Inbox() {
               {t('clientDashboard.inbox')}
             </h1>
             <p className="text-muted-foreground">{t('clientDashboard.inboxDesc')}</p>
+          </div>
+          <div className="ml-auto">
+            <Button onClick={handleRetrieveInbox}>Retrieve Inbox</Button>
           </div>
         </div>
 
