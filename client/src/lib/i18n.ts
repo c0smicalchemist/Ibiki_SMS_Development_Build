@@ -153,6 +153,18 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.webhook.setToSuggested': 'Set to suggested',
 
     'nav.logout': 'Log out'
+    ,
+    'nav.docs': 'View Docs',
+    'landing.title': 'Ibiki SMS — Secure SMS API Middleware',
+    'landing.subtitle': 'Secure passthrough to ExtremeSMS with multi‑client support, pricing, credits and full API.',
+    'landing.cta': 'Get Started',
+    'landing.login': 'Login',
+    'landing.features.secure': 'Secure',
+    'landing.features.secureDesc': 'Hide ExtremeSMS credentials behind a secure API layer.',
+    'landing.features.flexible': 'Flexible',
+    'landing.features.flexibleDesc': 'Multi‑client, pricing controls, credits and usage tracking.',
+    'landing.features.complete': 'Complete',
+    'landing.features.completeDesc': 'Full endpoints, admin dashboard and multilingual UI.'
   },
   zh: {
     'common.loading': '加载中…',
@@ -306,6 +318,18 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.webhook.setToSuggested': '设置为建议值',
 
     'nav.logout': '退出登录'
+    ,
+    'nav.docs': '查看文档',
+    'landing.title': 'Ibiki SMS — 安全短信 API 中间层',
+    'landing.subtitle': '为 ExtremeSMS 提供安全透传，支持多客户、价格管理、余额与全量 API。',
+    'landing.cta': '开始使用',
+    'landing.login': '登录',
+    'landing.features.secure': '安全',
+    'landing.features.secureDesc': '在安全的 API 层后隐藏 ExtremeSMS 凭证。',
+    'landing.features.flexible': '灵活',
+    'landing.features.flexibleDesc': '支持多客户、价格控制、余额与用量统计。',
+    'landing.features.complete': '完整',
+    'landing.features.completeDesc': '完整端点、管理看板与多语言界面。'
   }
 };
 
