@@ -75,7 +75,7 @@ export function DashboardHeader() {
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <LanguageToggle />
-          {location === '/inbox' && (
+          {location.startsWith('/inbox') && (
             <Button
               variant="outline"
               size="sm"
