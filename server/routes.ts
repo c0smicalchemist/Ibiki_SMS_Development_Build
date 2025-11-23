@@ -2975,7 +2975,11 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         ? req.query.userId 
         : req.user.userId;
       
-      const conversation = await storage.getConversationHistory(targetUserId, phoneNumber);
+      let conversation = await storage.getConversationHistory(targetUserId, phoneNumber);
+      if (req.user.role !== 'admin' && (conversation.incoming.length === 0 && conversation.outgoing.length === 0)) {
+        await storage.seedExampleData(targetUserId);
+        conversation = await storage.getConversationHistory(targetUserId, phoneNumber);
+      }
       
       res.json({
         success: true,

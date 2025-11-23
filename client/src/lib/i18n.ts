@@ -106,3 +106,49 @@ export const translations: Record<Language, Record<string, string>> = {
 export function translate(key: string, lang: Language): string {
   return (translations[lang] as Record<string, string>)[key] || key;
 }
+    // Dashboard headings
+    'dashboard.title': 'Dashboard',
+    'dashboard.subtitle': 'Overview and quick actions',
+    'dashboard.stats.messages': 'Messages',
+    'dashboard.stats.inbox': 'Inbox',
+    'dashboard.stats.credits': 'Credits',
+    'dashboard.stats.online': 'Online',
+    'clientDashboard.sendSms': 'Send SMS',
+    'clientDashboard.inbox': 'Inbox',
+    'messageHistory.title': 'Message History',
+    'worldClock.title': 'World Clock',
+    'inbox.title': 'Inbox',
+    'inbox.description': 'View and reply to incoming messages',
+    'clientDashboard.pricing': 'Pricing',
+    'clientDashboard.apiKeys': 'API Keys',
+
+    // Inbox dialog
+    'inbox.conversation': 'Conversation',
+    'inbox.typeReply': 'Type your reply…',
+    'inbox.pressEnterToSend': 'Press Enter to send, Shift+Enter for new line',
+    'inbox.success.replySent': 'Reply sent',
+    'inbox.error.replyFailed': 'Failed to send reply',
+    'inbox.error.enterReply': 'Please enter a reply',
+    // Dashboard headings
+    'dashboard.title': '仪表盘',
+    'dashboard.subtitle': '概览与快捷操作',
+    'dashboard.stats.messages': '消息',
+    'dashboard.stats.inbox': '收件箱',
+    'dashboard.stats.credits': '余额',
+    'dashboard.stats.online': '在线',
+    'clientDashboard.sendSms': '发送短信',
+    'clientDashboard.inbox': '收件箱',
+    'messageHistory.title': '短信历史',
+    'worldClock.title': '世界时钟',
+    'inbox.title': '收件箱',
+    'inbox.description': '查看并回复收到的短信',
+    'clientDashboard.pricing': '价格',
+    'clientDashboard.apiKeys': 'API密钥',
+
+    // Inbox dialog
+    'inbox.conversation': '会话',
+    'inbox.typeReply': '输入您的回复…',
+    'inbox.pressEnterToSend': '按Enter发送，Shift+Enter换行',
+    'inbox.success.replySent': '回复已发送',
+    'inbox.error.replyFailed': '发送回复失败',
+    'inbox.error.enterReply': '请输入回复内容',
