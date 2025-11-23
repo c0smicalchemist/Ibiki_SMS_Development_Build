@@ -522,6 +522,9 @@ export class MemStorage implements IStorage {
     // Add one example incoming message
     await this.createIncomingMessage({
       userId,
+      firstname: 'Alex',
+      lastname: 'Demo',
+      business: 'Demo Co',
       from: '+1-555-0123',
       message: 'Hi! This is an example incoming message.',
       status: 'received',
@@ -1450,6 +1453,9 @@ export class DbStorage implements IStorage {
     // Add one example incoming message
     await this.db.insert(incomingMessages).values({
       userId,
+      firstname: 'Alex',
+      lastname: 'Demo',
+      business: 'Demo Co',
       from: '+1-555-0123',
       message: 'Hi! This is an example incoming message.',
       status: 'received',
