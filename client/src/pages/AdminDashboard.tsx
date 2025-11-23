@@ -804,19 +804,31 @@ export default function AdminDashboard() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm">JWT Secret</span>
-                      {secretsStatusQuery.data?.configured?.jwt_secret ? <Badge>Configured</Badge> : <Badge variant="secondary">Not set</Badge>}
+                      <div className="flex items-center gap-2">
+                        {secretsStatusQuery.data?.configured?.jwt_secret ? <Badge>Configured</Badge> : <Badge variant="secondary">Not set</Badge>}
+                        {secretsStatusQuery.data?.envPresent?.JWT_SECRET ? <Badge>Env present</Badge> : <Badge variant="secondary">Env missing</Badge>}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Session Secret</span>
-                      {secretsStatusQuery.data?.configured?.session_secret ? <Badge>Configured</Badge> : <Badge variant="secondary">Not set</Badge>}
+                      <div className="flex items-center gap-2">
+                        {secretsStatusQuery.data?.configured?.session_secret ? <Badge>Configured</Badge> : <Badge variant="secondary">Not set</Badge>}
+                        {secretsStatusQuery.data?.envPresent?.SESSION_SECRET ? <Badge>Env present</Badge> : <Badge variant="secondary">Env missing</Badge>}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Webhook Secret</span>
-                      {secretsStatusQuery.data?.configured?.webhook_secret ? <Badge>Configured</Badge> : <Badge variant="secondary">Not set</Badge>}
+                      <div className="flex items-center gap-2">
+                        {secretsStatusQuery.data?.configured?.webhook_secret ? <Badge>Configured</Badge> : <Badge variant="secondary">Not set</Badge>}
+                        {secretsStatusQuery.data?.envPresent?.WEBHOOK_SECRET ? <Badge>Env present</Badge> : <Badge variant="secondary">Env missing</Badge>}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Resend API Key</span>
-                      {secretsStatusQuery.data?.configured?.resend_api_key ? <Badge>Configured</Badge> : <Badge variant="secondary">Not set</Badge>}
+                      <div className="flex items-center gap-2">
+                        {secretsStatusQuery.data?.configured?.resend_api_key ? <Badge>Configured</Badge> : <Badge variant="secondary">Not set</Badge>}
+                        {secretsStatusQuery.data?.envPresent?.RESEND_API_KEY ? <Badge>Env present</Badge> : <Badge variant="secondary">Env missing</Badge>}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
@@ -840,10 +852,10 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-3">
-                <Label className="text-base font-semibold">Webhook URL</Label>
+                <Label className="text-base font-semibold">Suggested Webhook URL (current environment)</Label>
                 <div className="flex items-center gap-2">
                   <Input
-                    value="http://151.243.109.79/webhook/incoming-sms"
+                    value={secretsStatusQuery.data?.suggestedWebhook || ''}
                     readOnly
                     className="font-mono text-sm"
                     data-testid="input-webhook-url"
@@ -852,11 +864,9 @@ export default function AdminDashboard() {
                     variant="outline"
                     size="icon"
                     onClick={() => {
-                      navigator.clipboard.writeText("http://151.243.109.79/webhook/incoming-sms");
-                      toast({
-                        title: "Copied!",
-                        description: "Webhook URL copied to clipboard"
-                      });
+                      const val = secretsStatusQuery.data?.suggestedWebhook || '';
+                      navigator.clipboard.writeText(val);
+                      toast({ title: "Copied!", description: "Webhook URL copied to clipboard" });
                     }}
                     data-testid="button-copy-webhook"
                   >
@@ -864,8 +874,27 @@ export default function AdminDashboard() {
                   </Button>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Copy this URL and configure it in your SMS provider dashboard under "Incoming Messages" or webhook settings
+                  Configure this URL in your SMS provider dashboard under "Incoming Messages" or webhook settings
                 </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                  <div>
+                    <Label>Configured Webhook URL</Label>
+                    <Input
+                      defaultValue={secretsStatusQuery.data?.configuredWebhook || ''}
+                      onBlur={(e) => {
+                        const url = e.target.value.trim();
+                        if (url) setWebhookUrlMutation.mutate(url);
+                      }}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button variant="outline" onClick={() => {
+                      const val = secretsStatusQuery.data?.suggestedWebhook || '';
+                      if (val) setWebhookUrlMutation.mutate(val);
+                    }}>Set to suggested</Button>
+                  </div>
+                </div>
               </div>
 
               <div className="border-t pt-6 space-y-3">

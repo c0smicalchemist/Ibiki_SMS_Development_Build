@@ -78,6 +78,22 @@ export default function Inbox() {
   });
 
   const messages: IncomingMessage[] = (inboxData as any)?.messages || [];
+  const seedExample = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const userId = effectiveUserId || profile?.user?.id;
+      await fetch('/api/admin/seed-example', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ userId })
+      });
+      // Force refresh inbox data
+      window.setTimeout(() => window.location.reload(), 500);
+    } catch {}
+  };
 
   const handleOpenConversation = (phoneNumber: string) => {
     setSelectedPhoneNumber(phoneNumber);
@@ -149,6 +165,11 @@ export default function Inbox() {
                 <p className="text-muted-foreground">
                   {t('inbox.noMessagesDesc')}
                 </p>
+                {isAdmin && (
+                  <div className="mt-6">
+                    <Button onClick={seedExample} data-testid="button-seed-example">Add Example Conversation</Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ) : (
