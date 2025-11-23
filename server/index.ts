@@ -270,6 +270,192 @@ app.use((req, res, next) => {
       }
     } catch (e: any) {
       console.warn('⚠️  Startup migrations skipped or failed:', e?.message || e);
+      // Fallback: ensure essential tables exist for runtime
+      try {
+        if (process.env.DATABASE_URL) {
+          const { Pool } = await import('pg');
+          const connectionString = process.env.DATABASE_URL;
+          const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
+          const pool = new Pool(useSSL ? { connectionString, ssl: { rejectUnauthorized: false } } : { connectionString });
+          const exec = async (q: string) => {
+            try { await pool.query(q); } catch (err: any) { console.warn('⚠️  Bootstrap step warning:', err?.message || err); }
+          };
+          console.log('🔧 Attempting schema bootstrap (CREATE TABLE IF NOT EXISTS)');
+          await exec(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+          await exec(`CREATE TABLE IF NOT EXISTS users (
+            id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+            email text NOT NULL UNIQUE,
+            password text NOT NULL,
+            name text NOT NULL,
+            company text,
+            role text NOT NULL DEFAULT 'client',
+            is_active boolean NOT NULL DEFAULT true,
+            reset_token text,
+            reset_token_expiry timestamp,
+            created_at timestamp NOT NULL DEFAULT now()
+          )`);
+          await exec(`CREATE INDEX IF NOT EXISTS email_idx ON users(email)`);
+          await exec(`CREATE INDEX IF NOT EXISTS reset_token_idx ON users(reset_token)`);
+
+          await exec(`CREATE TABLE IF NOT EXISTS api_keys (
+            id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id varchar NOT NULL,
+            key_hash text NOT NULL UNIQUE,
+            key_prefix text NOT NULL,
+            key_suffix text NOT NULL,
+            is_active boolean NOT NULL DEFAULT true,
+            created_at timestamp NOT NULL DEFAULT now(),
+            last_used_at timestamp,
+            CONSTRAINT fk_api_keys_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+          )`);
+          await exec(`CREATE INDEX IF NOT EXISTS user_id_idx ON api_keys(user_id)`);
+          await exec(`CREATE INDEX IF NOT EXISTS key_hash_idx ON api_keys(key_hash)`);
+
+          await exec(`CREATE TABLE IF NOT EXISTS client_profiles (
+            id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id varchar NOT NULL UNIQUE,
+            credits numeric(10,2) NOT NULL DEFAULT 0.00,
+            currency text NOT NULL DEFAULT 'USD',
+            custom_markup numeric(10,4),
+            assigned_phone_numbers text[],
+            rate_limit_per_minute integer NOT NULL DEFAULT 200,
+            business_name text,
+            updated_at timestamp NOT NULL DEFAULT now(),
+            CONSTRAINT fk_client_profiles_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+          )`);
+
+          await exec(`CREATE TABLE IF NOT EXISTS system_config (
+            id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+            key text NOT NULL UNIQUE,
+            value text NOT NULL,
+            updated_at timestamp NOT NULL DEFAULT now()
+          )`);
+
+          await exec(`CREATE TABLE IF NOT EXISTS message_logs (
+            id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id varchar NOT NULL,
+            message_id text NOT NULL,
+            endpoint text NOT NULL,
+            recipient text,
+            recipients text[],
+            sender_phone_number text,
+            status text NOT NULL,
+            cost_per_message numeric(10,4) NOT NULL,
+            charge_per_message numeric(10,4) NOT NULL,
+            total_cost numeric(10,2) NOT NULL,
+            total_charge numeric(10,2) NOT NULL,
+            message_count integer NOT NULL DEFAULT 1,
+            request_payload text,
+            response_payload text,
+            is_example boolean NOT NULL DEFAULT false,
+            created_at timestamp NOT NULL DEFAULT now(),
+            CONSTRAINT fk_message_logs_user FOREIGN KEY(user_id) REFERENCES users(id)
+          )`);
+          await exec(`CREATE INDEX IF NOT EXISTS message_user_id_idx ON message_logs(user_id)`);
+          await exec(`CREATE INDEX IF NOT EXISTS message_created_at_idx ON message_logs(created_at)`);
+          await exec(`CREATE INDEX IF NOT EXISTS message_id_idx ON message_logs(message_id)`);
+          await exec(`CREATE INDEX IF NOT EXISTS message_sender_phone_idx ON message_logs(sender_phone_number)`);
+          await exec(`CREATE INDEX IF NOT EXISTS message_is_example_idx ON message_logs(is_example)`);
+
+          await exec(`CREATE TABLE IF NOT EXISTS credit_transactions (
+            id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id varchar NOT NULL,
+            amount numeric(10,2) NOT NULL,
+            type text NOT NULL,
+            description text NOT NULL,
+            balance_before numeric(10,2) NOT NULL,
+            balance_after numeric(10,2) NOT NULL,
+            message_log_id varchar,
+            created_at timestamp NOT NULL DEFAULT now(),
+            CONSTRAINT fk_credit_tx_user FOREIGN KEY(user_id) REFERENCES users(id),
+            CONSTRAINT fk_credit_tx_message FOREIGN KEY(message_log_id) REFERENCES message_logs(id)
+          )`);
+          await exec(`CREATE INDEX IF NOT EXISTS transaction_user_id_idx ON credit_transactions(user_id)`);
+          await exec(`CREATE INDEX IF NOT EXISTS transaction_created_at_idx ON credit_transactions(created_at)`);
+
+          await exec(`CREATE TABLE IF NOT EXISTS incoming_messages (
+            id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id varchar,
+            from text NOT NULL,
+            firstname text,
+            lastname text,
+            business text,
+            message text NOT NULL,
+            status text NOT NULL,
+            matched_block_word text,
+            receiver text NOT NULL,
+            usedmodem text,
+            port text,
+            timestamp timestamp NOT NULL,
+            message_id text NOT NULL,
+            is_read boolean NOT NULL DEFAULT false,
+            is_example boolean NOT NULL DEFAULT false,
+            created_at timestamp NOT NULL DEFAULT now(),
+            CONSTRAINT fk_incoming_user FOREIGN KEY(user_id) REFERENCES users(id)
+          )`);
+          await exec(`CREATE INDEX IF NOT EXISTS incoming_user_id_idx ON incoming_messages(user_id)`);
+          await exec(`CREATE INDEX IF NOT EXISTS incoming_receiver_idx ON incoming_messages(receiver)`);
+          await exec(`CREATE INDEX IF NOT EXISTS incoming_timestamp_idx ON incoming_messages(timestamp)`);
+          await exec(`CREATE INDEX IF NOT EXISTS incoming_message_id_idx ON incoming_messages(message_id)`);
+          await exec(`CREATE INDEX IF NOT EXISTS incoming_from_idx ON incoming_messages("from")`);
+          await exec(`CREATE INDEX IF NOT EXISTS incoming_is_example_idx ON incoming_messages(is_example)`);
+
+          await exec(`CREATE TABLE IF NOT EXISTS client_contacts (
+            id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id varchar NOT NULL,
+            phone_number text NOT NULL,
+            firstname text,
+            lastname text,
+            business text,
+            created_at timestamp NOT NULL DEFAULT now(),
+            updated_at timestamp NOT NULL DEFAULT now(),
+            CONSTRAINT fk_client_contacts_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+          )`);
+          await exec(`CREATE INDEX IF NOT EXISTS contact_user_id_idx ON client_contacts(user_id)`);
+          await exec(`CREATE INDEX IF NOT EXISTS contact_phone_idx ON client_contacts(phone_number)`);
+          await exec(`CREATE INDEX IF NOT EXISTS contact_business_idx ON client_contacts(business)`);
+          await exec(`CREATE INDEX IF NOT EXISTS contact_phone_user_idx ON client_contacts(phone_number, user_id)`);
+
+          await exec(`CREATE TABLE IF NOT EXISTS contact_groups (
+            id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id varchar NOT NULL,
+            name text NOT NULL,
+            description text,
+            business_unit_prefix text,
+            created_at timestamp NOT NULL DEFAULT now(),
+            updated_at timestamp NOT NULL DEFAULT now(),
+            CONSTRAINT fk_contact_groups_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+          )`);
+          await exec(`CREATE INDEX IF NOT EXISTS group_user_id_idx ON contact_groups(user_id)`);
+
+          await exec(`CREATE TABLE IF NOT EXISTS contacts (
+            id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id varchar NOT NULL,
+            group_id varchar,
+            phone_number text NOT NULL,
+            name text,
+            email text,
+            notes text,
+            synced_to_extremesms boolean NOT NULL DEFAULT false,
+            last_exported_at timestamp,
+            is_example boolean NOT NULL DEFAULT false,
+            created_at timestamp NOT NULL DEFAULT now(),
+            updated_at timestamp NOT NULL DEFAULT now(),
+            CONSTRAINT fk_contacts_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+            CONSTRAINT fk_contacts_group FOREIGN KEY(group_id) REFERENCES contact_groups(id) ON DELETE SET NULL
+          )`);
+          await exec(`CREATE INDEX IF NOT EXISTS contacts_user_id_idx ON contacts(user_id)`);
+          await exec(`CREATE INDEX IF NOT EXISTS contacts_group_id_idx ON contacts(group_id)`);
+          await exec(`CREATE INDEX IF NOT EXISTS contacts_phone_idx ON contacts(phone_number)`);
+          await exec(`CREATE INDEX IF NOT EXISTS contacts_synced_idx ON contacts(synced_to_extremesms)`);
+          await exec(`CREATE INDEX IF NOT EXISTS contacts_is_example_idx ON contacts(is_example)`);
+
+          await pool.end();
+          console.log('✅ Schema bootstrap completed');
+        }
+      } catch (bootErr: any) {
+        console.warn('⚠️  Schema bootstrap failed:', bootErr?.message || bootErr);
+      }
     }
 
     server = await registerRoutes(app);
