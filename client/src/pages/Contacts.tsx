@@ -426,11 +426,6 @@ export default function Contacts() {
             <Download className="h-4 w-4 mr-2" />
             {t('contacts.export')}
           </Button>
-          <div className="mt-2">
-            <label className="flex items-center gap-2 text-xs">
-              <input type="checkbox" checked={includeBusiness} onChange={(e) => setIncludeBusiness(e.target.checked)} /> Include business
-            </label>
-          </div>
 
           <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
             <DialogTrigger asChild>
@@ -591,6 +586,12 @@ export default function Contacts() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          <div className="mt-2">
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={includeBusiness} onChange={(e) => setIncludeBusiness(e.target.checked)} /> Include business
+            </label>
+          </div>
         </div>
       </div>
       </div>
