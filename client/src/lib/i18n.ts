@@ -148,11 +148,11 @@ export const translations = {
     'admin.config.error.saveFailed': 'Failed to save configuration',
     'admin.config.error.connectionFailed': 'Failed to connect to ExtremeSMS API',
     'admin.config.error.updatePhonesFailed': 'Failed to update phone numbers',
-    'admin.webhook.suggestedUrl': 'Suggested Webhook URL (current environment)',
-    'admin.webhook.configuredUrl': 'Configured Webhook URL',
-    'admin.webhook.setToSuggested': 'Set to suggested',
-    'admin.envDb.title': 'Environment & Database',
-    'admin.envDb.runMigrations': 'Run Migrations',
+//    'admin.webhook.suggestedUrl': 'Suggested Webhook URL (current environment)',
+//    'admin.webhook.configuredUrl': 'Configured Webhook URL',
+//    'admin.webhook.setToSuggested': 'Set to suggested',
+//    'admin.envDb.title': 'Environment & Database',
+//    'admin.envDb.runMigrations': 'Run Migrations',
     
     // API Documentation
     'docs.title': 'API Documentation',
@@ -426,7 +426,7 @@ export const translations = {
     'common.next': 'Next',
     'common.active': 'Active',
     'common.inactive': 'Inactive',
-    'common.refresh': 'Refresh',
+//    'common.refresh': 'Refresh',
   },
   zh: {
     // Landing Page
@@ -852,26 +852,24 @@ export const translations = {
     'common.active': '活跃',
     'common.inactive': '不活跃',
     'common.refresh': '刷新',
-*/
   }
 };
 
 export function translate(key: string, lang: Language): string {
   return (translations[lang] as Record<string, string>)[key] || key;
 }
-*/
-/*
+//
     // Admin Webhook section
     'admin.webhook.suggestedUrl': 'Suggested Webhook URL (current environment)',
     'admin.webhook.configuredUrl': 'Configured Webhook URL',
     'admin.webhook.setToSuggested': 'Set to suggested',
     'admin.envDb.title': 'Environment & Database',
     'admin.envDb.runMigrations': 'Run Migrations',
-    'common.refresh': 'Refresh',
+//    'common.refresh': 'Refresh',
     // Admin Webhook section
-    'admin.webhook.suggestedUrl': '建议的Webhook URL（当前环境）',
-    'admin.webhook.configuredUrl': '已配置的Webhook URL',
-    'admin.webhook.setToSuggested': '设置为建议值',
-    'admin.envDb.title': '环境与数据库',
-    'admin.envDb.runMigrations': '运行迁移',
-    'common.refresh': '刷新',
+//    'admin.webhook.suggestedUrl': '建议的Webhook URL（当前环境）',
+//    'admin.webhook.configuredUrl': '已配置的Webhook URL',
+//    'admin.webhook.setToSuggested': '设置为建议值',
+//    'admin.envDb.title': '环境与数据库',
+//    'admin.envDb.runMigrations': '运行迁移',
+//    'common.refresh': '刷新',
