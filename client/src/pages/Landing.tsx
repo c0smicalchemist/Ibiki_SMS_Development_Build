@@ -36,6 +36,7 @@ export default function Landing() {
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"recipient": "+1234567890", "message": "Hello!"}'`;
+  const jsonSample = `'{"recipient": "+1234567890", "message": "Hello!"}'`;
 
   useEffect(() => {
     const words = ["aggregator", "dashboard", "portal"];
@@ -64,7 +65,7 @@ export default function Landing() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <img src={logoUrl} alt="Ibiki SMS" className="h-12 w-auto" />
-              <span className="text-xl font-bold"><span className="text-primary">I</span>biki Sms <span>{typed}</span></span>
+              <span className="text-xl font-bold"><span className="text-primary">I</span>biki sms <span>{typed}</span></span>
             </div>
             <div className="flex items-center gap-3">
               <LanguageToggle />
@@ -82,7 +83,7 @@ export default function Landing() {
       <section className="py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            <span className="text-primary">I</span>biki Sms <span>{typed}</span>
+            <span className="text-primary">I</span>biki sms <span>{typed}</span>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
             {t('landing.subtitle')}
@@ -128,7 +129,14 @@ export default function Landing() {
             <p className="text-muted-foreground">Get started with just a few lines of code</p>
           </div>
           <div className="max-w-3xl mx-auto">
-            <CodeBlock code={sampleCode} />
+            <div className="bg-card border border-card-border rounded-lg p-4">
+              <ul className="space-y-2 text-sm font-mono text-foreground">
+                <li>curl -X POST https://api.ibikisms.com/v2/sms/sendsingle</li>
+                <li>-H "Authorization: Bearer YOUR_API_KEY"</li>
+                <li>-H "Content-Type: application/json"</li>
+                <li>-d {jsonSample}</li>
+              </ul>
+            </div>
           </div>
         </div>
       </section>

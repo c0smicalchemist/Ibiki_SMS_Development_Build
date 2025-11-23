@@ -193,6 +193,17 @@ export default function AdminDashboard() {
     queryKey: ['/api/admin/clients']
   });
 
+  const [phoneInputs, setPhoneInputs] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const init: Record<string, string> = {};
+    (clientsData?.clients || []).forEach(c => {
+      init[c.id] = (c.assignedPhoneNumbers || []).join(', ');
+    });
+    setPhoneInputs(init);
+  }, [clientsData]);
+
+  const randomPhone = () => `+${Math.floor(100000 + Math.random() * 900000)}`;
+
   const updatePhoneNumbersMutation = useMutation({
     mutationFn: async ({ userId, phoneNumbers }: { userId: string; phoneNumbers: string }) => {
       return await apiRequest('/api/admin/update-phone-numbers', {
@@ -558,24 +569,42 @@ export default function AdminDashboard() {
                         />
                       </TableCell>
                       <TableCell>
-                        <Input
-                          type="text"
-                          placeholder="+1111, +2222, +3333"
-                          defaultValue={(client.assignedPhoneNumbers || []).join(', ')}
-                          onBlur={(e) => {
-                            const newPhones = e.target.value.trim();
-                            const currentPhones = (client.assignedPhoneNumbers || []).join(', ');
-                            if (newPhones !== currentPhones) {
-                              updatePhoneNumbersMutation.mutate({ 
-                                userId: client.id, 
-                                phoneNumbers: newPhones 
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="text"
+                            placeholder="+123456, +234567"
+                            value={phoneInputs[client.id] ?? (client.assignedPhoneNumbers || []).join(', ')}
+                            onChange={(e) => setPhoneInputs(p => ({ ...p, [client.id]: e.target.value }))}
+                            onBlur={(e) => {
+                              const newPhones = e.target.value.trim();
+                              const currentPhones = (client.assignedPhoneNumbers || []).join(', ');
+                              if (newPhones !== currentPhones) {
+                                updatePhoneNumbersMutation.mutate({ 
+                                  userId: client.id, 
+                                  phoneNumbers: newPhones 
+                                });
+                              }
+                            }}
+                            className="w-60 font-mono text-xs"
+                            data-testid={`input-phones-${client.id}`}
+                            title="Enter multiple numbers separated by commas"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const next = randomPhone();
+                              setPhoneInputs(p => {
+                                const current = (p[client.id] ?? (client.assignedPhoneNumbers || []).join(', ')).trim();
+                                const updated = current ? `${current}, ${next}` : next;
+                                updatePhoneNumbersMutation.mutate({ userId: client.id, phoneNumbers: updated });
+                                return { ...p, [client.id]: updated };
                               });
-                            }
-                          }}
-                          className="w-48 font-mono text-xs"
-                          data-testid={`input-phones-${client.id}`}
-                          title="Enter multiple numbers separated by commas"
-                        />
+                            }}
+                          >
+                            Random
+                          </Button>
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{client.lastActive}</TableCell>
                       <TableCell>
