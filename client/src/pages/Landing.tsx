@@ -10,7 +10,9 @@ import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.png";
 
 export default function Landing() {
   const { t } = useLanguage();
-  const [animatedCode, setAnimatedCode] = useState("");
+  const [wordIndex, setWordIndex] = useState(0);
+  const [typed, setTyped] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const features = [
     {
@@ -36,26 +38,24 @@ export default function Landing() {
   -d '{"recipient": "+1234567890", "message": "Hello!"}'`;
 
   useEffect(() => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+{}[]<>?";
-    let i = 0;
-    const steps = 15;
+    const words = ["aggregator", "dashboard", "portal"];
+    const current = words[wordIndex % words.length];
     const interval = setInterval(() => {
-      const pct = Math.min(1, i / steps);
-      const keep = Math.floor(sampleCode.length * pct);
-      const scrambleLen = sampleCode.length - keep;
-      let s = sampleCode.slice(0, keep);
-      for (let j = 0; j < scrambleLen; j++) {
-        s += chars[Math.floor(Math.random() * chars.length)];
+      if (!deleting) {
+        setTyped((prev) => (prev.length < current.length ? current.slice(0, prev.length + 1) : prev));
+        if (typed === current) {
+          setTimeout(() => setDeleting(true), 1200);
+        }
+      } else {
+        setTyped((prev) => (prev.length > 0 ? current.slice(0, prev.length - 1) : prev));
+        if (typed.length === 0) {
+          setDeleting(false);
+          setWordIndex((i) => i + 1);
+        }
       }
-      setAnimatedCode(s);
-      i++;
-      if (pct >= 1) {
-        clearInterval(interval);
-        setAnimatedCode(sampleCode);
-      }
-    }, 60);
+    }, deleting ? 60 : 90);
     return () => clearInterval(interval);
-  }, []);
+  }, [wordIndex, deleting, typed]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -64,7 +64,7 @@ export default function Landing() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <img src={logoUrl} alt="Ibiki SMS" className="h-12 w-auto" />
-              <span className="text-xl font-bold"><span className="text-primary">I</span>biki SMS Aggregator</span>
+              <span className="text-xl font-bold"><span className="text-primary">I</span>biki Sms <span>{typed}</span></span>
             </div>
             <div className="flex items-center gap-3">
               <LanguageToggle />
@@ -82,7 +82,7 @@ export default function Landing() {
       <section className="py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            <span className="text-primary">I</span>biki SMS Aggregator
+            <span className="text-primary">I</span>biki Sms <span>{typed}</span>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
             {t('landing.subtitle')}
@@ -128,7 +128,7 @@ export default function Landing() {
             <p className="text-muted-foreground">Get started with just a few lines of code</p>
           </div>
           <div className="max-w-3xl mx-auto">
-            <CodeBlock code={animatedCode || sampleCode} />
+            <CodeBlock code={sampleCode} />
           </div>
         </div>
       </section>

@@ -33,8 +33,8 @@ export default function CodeBlock({ code, language = "bash" }: CodeBlockProps) {
           )}
         </Button>
       </div>
-      <pre className="bg-card border border-card-border rounded-lg p-4 overflow-x-auto">
-        <code className="text-sm font-mono text-foreground">{code}</code>
+      <pre className="bg-card border border-card-border rounded-lg p-4 overflow-x-hidden">
+        <code className="text-sm font-mono text-foreground whitespace-pre-wrap break-words">{code}</code>
       </pre>
     </div>
   );
