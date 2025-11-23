@@ -420,6 +420,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/admin/seed-delete', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { userId } = (req.body || {}) as { userId?: string };
+      const targetUserId = userId || req.user.userId;
+      await storage.deleteExampleData(targetUserId);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
   // Persist webhook URL
   app.post('/api/admin/webhook/set-url', authenticateToken, requireAdmin, async (req, res) => {
     try {

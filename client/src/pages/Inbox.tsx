@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -90,8 +91,42 @@ export default function Inbox() {
         },
         body: JSON.stringify({ userId })
       });
-      // Force refresh inbox data
-      window.setTimeout(() => window.location.reload(), 500);
+      await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
+      await queryClient.refetchQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
+    } catch {}
+  };
+
+  const seedExampleForAdmin = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const userId = profile?.user?.id;
+      await fetch('/api/admin/seed-example', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ userId })
+      });
+      await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox", undefined] });
+      await queryClient.refetchQueries({ queryKey: ["/api/web/inbox", undefined] });
+    } catch {}
+  };
+
+  const deleteExample = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const userId = effectiveUserId || profile?.user?.id;
+      await fetch('/api/admin/seed-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ userId })
+      });
+      await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
+      await queryClient.refetchQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
     } catch {}
   };
 
@@ -166,8 +201,10 @@ export default function Inbox() {
                   {t('inbox.noMessagesDesc')}
                 </p>
                 {isAdmin && (
-                  <div className="mt-6">
-                    <Button onClick={seedExample} data-testid="button-seed-example">Add Example Conversation</Button>
+                  <div className="mt-6 flex items-center gap-2 justify-center">
+                    <Button onClick={seedExample} data-testid="button-seed-example-client">Add Example (Selected Client)</Button>
+                    <Button variant="outline" onClick={seedExampleForAdmin} data-testid="button-seed-example-admin">Add Example (Admin)</Button>
+                    <Button variant="destructive" onClick={deleteExample} data-testid="button-delete-example">Delete Example</Button>
                   </div>
                 )}
               </CardContent>

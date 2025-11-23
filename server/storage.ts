@@ -130,6 +130,7 @@ export interface IStorage {
   
   // Example/Seed data methods
   seedExampleData(userId: string): Promise<void>; // Add example data for new users
+  deleteExampleData(userId: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -530,6 +531,30 @@ export class MemStorage implements IStorage {
       isRead: false,
       isExample: true
     });
+  }
+
+  async deleteExampleData(userId: string): Promise<void> {
+    for (const [id, msg] of this.incomingMessages) {
+      if ((msg as any).userId === userId && (msg as any).isExample) {
+        this.incomingMessages.delete(id);
+      }
+    }
+    for (const [id, log] of this.messageLogs) {
+      if ((log as any).userId === userId && (log as any).isExample) {
+        this.messageLogs.delete(id);
+      }
+    }
+    for (const [id, c] of this.contacts) {
+      if ((c as any).userId === userId && (c as any).isExample) {
+        this.contacts.delete(id);
+      }
+    }
+  }
+
+  async deleteExampleData(userId: string): Promise<void> {
+    await this.db.delete(incomingMessages).where(eq(incomingMessages.userId, userId)).where(eq(incomingMessages.isExample, true as any));
+    await this.db.delete(messageLogs).where(eq(messageLogs.userId, userId)).where(eq(messageLogs.isExample, true as any));
+    await this.db.delete(contacts).where(eq(contacts.userId, userId)).where(eq(contacts.isExample, true as any));
   }
 
   // Credit Transaction methods
