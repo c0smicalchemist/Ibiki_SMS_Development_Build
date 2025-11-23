@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Users, List, ArrowLeft } from "lucide-react";
+import { Send, Users, List, ArrowLeft, Upload } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { ClientSelector } from "@/components/ClientSelector";
@@ -62,6 +62,8 @@ export default function SendSMS() {
   const [bulkRecipients, setBulkRecipients] = useState("");
   const [bulkMessage, setBulkMessage] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [bulkCsvFile, setBulkCsvFile] = useState<File | null>(null);
+  const [bulkCsvNumbers, setBulkCsvNumbers] = useState<string[]>([]);
 
   // Bulk Multi SMS state
   const [bulkMultiMessages, setBulkMultiMessages] = useState([
@@ -192,6 +194,8 @@ export default function SendSMS() {
       recipients = contacts
         .filter((c: Contact) => c.groupId === selectedGroupId)
         .map((c: Contact) => c.phoneNumber);
+    } else if (bulkCsvNumbers.length > 0) {
+      recipients = bulkCsvNumbers;
     } else {
       // Parse manual recipients
       recipients = bulkRecipients
@@ -278,7 +282,7 @@ export default function SendSMS() {
         </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="single" data-testid="tab-single">
             <Send className="h-4 w-4 mr-2" />
             {t('sendSms.tabs.single')}
@@ -290,6 +294,10 @@ export default function SendSMS() {
           <TabsTrigger value="bulk-multi" data-testid="tab-bulk-multi">
             <List className="h-4 w-4 mr-2" />
             {t('sendSms.tabs.bulkMulti')}
+          </TabsTrigger>
+          <TabsTrigger value="bulk-csv" data-testid="tab-bulk-csv">
+            <Upload className="h-4 w-4 mr-2" />
+            Bulk CSV
           </TabsTrigger>
         </TabsList>
 
@@ -352,6 +360,7 @@ export default function SendSMS() {
                   <TabsList>
                     <TabsTrigger value="manual">{t('sendSms.bulk.manualEntry')}</TabsTrigger>
                     <TabsTrigger value="group">{t('sendSms.bulk.fromGroup')}</TabsTrigger>
+                    <TabsTrigger value="csv">CSV</TabsTrigger>
                   </TabsList>
                   <TabsContent value="manual" className="space-y-2">
                     <Textarea
@@ -386,6 +395,41 @@ export default function SendSMS() {
                         {contacts.filter((c: Contact) => c.groupId === selectedGroupId).length} recipients selected
                       </Badge>
                     )}
+                  </TabsContent>
+                  <TabsContent value="csv" className="space-y-2">
+                    <Input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setBulkCsvFile(file);
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            const text = String(event.target?.result || '');
+                            const lines = text.split('\n').filter(l => l.trim());
+                            // Try to parse headers if present
+                            const firstLine = lines[0] || '';
+                            const hasHeader = /phone|recipient/i.test(firstLine);
+                            const dataLines = hasHeader ? lines.slice(1) : lines;
+                            const nums = dataLines.map(l => {
+                              const parts = l.split(',').map(p => p.trim());
+                              // phone might be first column; fallback to whole line
+                              const candidate = parts[0] || l.trim();
+                              return candidate;
+                            }).filter(n => n);
+                            setBulkCsvNumbers(nums);
+                          };
+                          reader.readAsText(file);
+                        } else {
+                          setBulkCsvNumbers([]);
+                        }
+                      }}
+                      data-testid="input-bulk-csv"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {bulkCsvNumbers.length} recipients from CSV
+                    </p>
                   </TabsContent>
                 </Tabs>
               </div>
@@ -474,6 +518,69 @@ export default function SendSMS() {
               >
                 <List className="h-4 w-4 mr-2" />
                 {sendBulkMultiMutation.isPending ? t('sendSms.bulkMulti.sending') : `${t('sendSms.bulkMulti.send')} ${bulkMultiMessages.filter(m => m.to && m.message).length} ${t('sendSms.bulkMulti.messages')}`}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Bulk CSV (top-level) */}
+        <TabsContent value="bulk-csv">
+          <Card>
+            <CardHeader>
+              <CardTitle>Bulk CSV</CardTitle>
+              <CardDescription>Upload a CSV of recipients and send a single message</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>CSV File</Label>
+                <Input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setBulkCsvFile(file);
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const text = String(event.target?.result || '');
+                        const lines = text.split('\n').filter(l => l.trim());
+                        const firstLine = lines[0] || '';
+                        const hasHeader = /phone|recipient/i.test(firstLine);
+                        const dataLines = hasHeader ? lines.slice(1) : lines;
+                        const nums = dataLines.map(l => {
+                          const parts = l.split(',').map(p => p.trim());
+                          return parts[0] || l.trim();
+                        }).filter(n => n);
+                        setBulkCsvNumbers(nums);
+                      };
+                      reader.readAsText(file);
+                    } else {
+                      setBulkCsvNumbers([]);
+                    }
+                  }}
+                  data-testid="input-bulk-csv-top"
+                />
+                <p className="text-sm text-muted-foreground mt-1">{bulkCsvNumbers.length} recipients from CSV</p>
+              </div>
+              <div>
+                <Label htmlFor="bulk-csv-message">Message *</Label>
+                <Textarea
+                  id="bulk-csv-message"
+                  value={bulkMessage}
+                  onChange={(e) => setBulkMessage(e.target.value)}
+                  placeholder="Type your message here..."
+                  rows={6}
+                  data-testid="textarea-bulk-csv-message"
+                />
+              </div>
+              <Button
+                onClick={handleSendBulk}
+                disabled={sendBulkMutation.isPending}
+                className="w-full"
+                data-testid="button-send-bulk-csv"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {sendBulkMutation.isPending ? t('sendSms.bulk.sending') : t('sendSms.bulk.send')}
               </Button>
             </CardContent>
           </Card>

@@ -263,3 +263,110 @@ export type InsertContactGroup = z.infer<typeof insertContactGroupSchema>;
 
 export type Contact = typeof contacts.$inferSelect;
 export type InsertContact = z.infer<typeof insertContactSchema>;
+
+// Social media platform accounts
+export const socialMediaAccounts = pgTable("social_media_accounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(), // facebook, instagram, tiktok, twitter, linkedin
+  accountName: text("account_name").notNull(),
+  accountId: text("account_id").notNull(), // Platform-specific account ID
+  accessToken: text("access_token").notNull(), // Encrypted access token
+  refreshToken: text("refresh_token"), // Encrypted refresh token
+  tokenExpiry: timestamp("token_expiry"), // When the access token expires
+  isActive: boolean("is_active").notNull().default(true),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index("social_user_id_idx").on(table.userId),
+  platformIdx: index("social_platform_idx").on(table.platform),
+  accountIdIdx: index("social_account_id_idx").on(table.accountId),
+  isActiveIdx: index("social_is_active_idx").on(table.isActive),
+}));
+
+// Social media campaigns
+export const socialMediaCampaigns = pgTable("social_media_campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  message: text("message").notNull(),
+  platforms: text("platforms").array().notNull(), // Array of platform names
+  status: text("status").notNull().default("draft"), // draft, scheduled, sending, sent, paused, failed
+  scheduledFor: timestamp("scheduled_for"), // When to send the campaign
+  sentAt: timestamp("sent_at"), // When the campaign was sent
+  totalRecipients: integer("total_recipients").notNull().default(0),
+  successfulDeliveries: integer("successful_deliveries").notNull().default(0),
+  failedDeliveries: integer("failed_deliveries").notNull().default(0),
+  costPerMessage: decimal("cost_per_message", { precision: 10, scale: 4 }).notNull().default("0.0000"),
+  totalCost: decimal("total_cost", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  totalCharge: decimal("total_charge", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index("campaign_user_id_idx").on(table.userId),
+  statusIdx: index("campaign_status_idx").on(table.status),
+  scheduledForIdx: index("campaign_scheduled_for_idx").on(table.scheduledFor),
+  createdAtIdx: index("campaign_created_at_idx").on(table.createdAt),
+}));
+
+// Social media recipients for campaigns
+export const socialMediaRecipients = pgTable("social_media_recipients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").notNull().references(() => socialMediaCampaigns.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  recipientId: text("recipient_id").notNull(), // Platform-specific recipient ID
+  recipientUsername: text("recipient_username"), // Username/handle for display
+  recipientName: text("recipient_name"), // Display name
+  status: text("status").notNull().default("pending"), // pending, sent, delivered, failed, read
+  sentAt: timestamp("sent_at"),
+  deliveredAt: timestamp("delivered_at"),
+  failedAt: timestamp("failed_at"),
+  errorMessage: text("error_message"),
+  platformMessageId: text("platform_message_id"), // Platform-specific message ID
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  campaignIdIdx: index("recipient_campaign_id_idx").on(table.campaignId),
+  platformIdx: index("recipient_platform_idx").on(table.platform),
+  statusIdx: index("recipient_status_idx").on(table.status),
+  recipientIdIdx: index("recipient_recipient_id_idx").on(table.recipientId),
+}));
+
+// Zod schemas for social media tables
+export const insertSocialMediaAccountSchema = createInsertSchema(socialMediaAccounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastUsedAt: true,
+});
+
+export const insertSocialMediaCampaignSchema = createInsertSchema(socialMediaCampaigns).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  sentAt: true,
+  successfulDeliveries: true,
+  failedDeliveries: true,
+  totalCost: true,
+  totalCharge: true,
+});
+
+export const insertSocialMediaRecipientSchema = createInsertSchema(socialMediaRecipients).omit({
+  id: true,
+  createdAt: true,
+  sentAt: true,
+  deliveredAt: true,
+  failedAt: true,
+  errorMessage: true,
+  platformMessageId: true,
+});
+
+// Types for social media tables
+export type SocialMediaAccount = typeof socialMediaAccounts.$inferSelect;
+export type InsertSocialMediaAccount = z.infer<typeof insertSocialMediaAccountSchema>;
+
+export type SocialMediaCampaign = typeof socialMediaCampaigns.$inferSelect;
+export type InsertSocialMediaCampaign = z.infer<typeof insertSocialMediaCampaignSchema>;
+
+export type SocialMediaRecipient = typeof socialMediaRecipients.$inferSelect;
+export type InsertSocialMediaRecipient = z.infer<typeof insertSocialMediaRecipientSchema>;
