@@ -4,12 +4,7 @@
     "node_modules",
     "build",
     "dist",
-    "**/*.test.ts",
-    "client/src/pages/SocialMediaHub.tsx",
-    "client/src/pages/ContactScrapingDashboard.tsx",
-    "client/src/components/ContactScrapingInterface.tsx",
-    "client/src/components/ScrapingAnalytics.tsx",
-    "client/src/components/YouTubeIntegration.tsx"
+    "**/*.test.ts"
   ],
   "compilerOptions": {
     "incremental": true,
