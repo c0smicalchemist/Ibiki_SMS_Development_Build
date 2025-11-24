@@ -615,17 +615,7 @@ export class MemStorage implements IStorage {
     await this.db.delete(users).where(eq(users.id, userId));
   }
 
-  async hasExampleData(userId: string): Promise<boolean> {
-    const inc = await this.db.select().from(incomingMessages).where(sql`${incomingMessages.userId} = ${userId} AND ${incomingMessages.isExample} = true`).limit(1);
-    const logs = await this.db.select().from(messageLogs).where(sql`${messageLogs.userId} = ${userId} AND ${messageLogs.isExample} = true`).limit(1);
-    return inc.length > 0 || logs.length > 0;
-  }
-
-  async deleteExampleData(userId: string): Promise<void> {
-    await this.db.delete(incomingMessages).where(eq(incomingMessages.userId, userId)).where(eq(incomingMessages.isExample, true as any));
-    await this.db.delete(messageLogs).where(eq(messageLogs.userId, userId)).where(eq(messageLogs.isExample, true as any));
-    await this.db.delete(contacts).where(eq(contacts.userId, userId)).where(eq(contacts.isExample, true as any));
-  }
+  
 
   // Credit Transaction methods
   async createCreditTransaction(insertTransaction: InsertCreditTransaction): Promise<CreditTransaction> {
