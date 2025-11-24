@@ -12,7 +12,7 @@ export default function CodeBlock({ code, language = "bash" }: CodeBlockProps) {
 
   const copyText = async (text: string) => {
     try {
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      if (navigator.clipboard && window.isSecureContext && typeof navigator.clipboard.writeText === 'function') {
         await navigator.clipboard.writeText(text);
         return true;
       }
@@ -28,6 +28,15 @@ export default function CodeBlock({ code, language = "bash" }: CodeBlockProps) {
     try {
       success = document.execCommand('copy');
     } catch {}
+    if (!success) {
+      const handler = (e: ClipboardEvent) => {
+        e.preventDefault();
+        e.clipboardData?.setData('text/plain', text);
+      };
+      document.addEventListener('copy', handler);
+      try { success = document.execCommand('copy'); } catch {}
+      document.removeEventListener('copy', handler);
+    }
     document.body.removeChild(textarea);
     return success;
   };

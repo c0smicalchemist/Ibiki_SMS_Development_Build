@@ -207,7 +207,7 @@ export default function ContactExportDialog({
     const text = generatePreview();
     const copyText = async (t: string) => {
       try {
-        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        if (navigator.clipboard && window.isSecureContext && typeof navigator.clipboard.writeText === 'function') {
           await navigator.clipboard.writeText(t);
           return true;
         }
@@ -223,6 +223,15 @@ export default function ContactExportDialog({
       try {
         success = document.execCommand('copy');
       } catch {}
+      if (!success) {
+        const handler = (e: ClipboardEvent) => {
+          e.preventDefault();
+          e.clipboardData?.setData('text/plain', t);
+        };
+        document.addEventListener('copy', handler);
+        try { success = document.execCommand('copy'); } catch {}
+        document.removeEventListener('copy', handler);
+      }
       document.body.removeChild(textarea);
       return success;
     };

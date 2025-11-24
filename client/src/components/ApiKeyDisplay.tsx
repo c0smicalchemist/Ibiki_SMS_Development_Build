@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Copy, Eye, EyeOff, Check } from "lucide-react";
@@ -16,11 +17,12 @@ export default function ApiKeyDisplay({
 }: ApiKeyDisplayProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
 
   const handleCopy = async () => {
     const copyText = async (text: string) => {
       try {
-        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        if (navigator.clipboard && window.isSecureContext && typeof navigator.clipboard.writeText === 'function') {
           await navigator.clipboard.writeText(text);
           return true;
         }
@@ -36,13 +38,26 @@ export default function ApiKeyDisplay({
       try {
         success = document.execCommand('copy');
       } catch {}
+      if (!success) {
+        const handler = (e: ClipboardEvent) => {
+          e.preventDefault();
+          e.clipboardData?.setData('text/plain', text);
+        };
+        document.addEventListener('copy', handler);
+        try { success = document.execCommand('copy'); } catch {}
+        document.removeEventListener('copy', handler);
+      }
       document.body.removeChild(textarea);
       return success;
     };
     const ok = await copyText(apiKey);
-    if (!ok) return;
+    if (!ok) {
+      toast({ title: 'Copy failed', description: 'Unable to copy to clipboard', variant: 'destructive' });
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    toast({ title: 'Copied', description: 'API key copied to clipboard' });
   };
 
   const maskedKey = apiKey.slice(0, 8) + "•".repeat(24) + apiKey.slice(-4);
