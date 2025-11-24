@@ -5,7 +5,7 @@ const path = require('path');
 const server = http.createServer((req, res) => {
   let filePath = '.' + req.url;
   if (filePath === './') {
-    filePath = './social-media-preview.html';
+    filePath = './index.html';
   }
 
   const extname = String(path.extname(filePath)).toLowerCase();
@@ -48,5 +48,4 @@ const server = http.createServer((req, res) => {
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}/`);
-  console.log(`Social Media Hub Preview: http://localhost:${PORT}/social-media-preview.html`);
 });
