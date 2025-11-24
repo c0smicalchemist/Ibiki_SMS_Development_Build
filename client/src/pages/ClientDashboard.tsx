@@ -164,6 +164,7 @@ export default function ClientDashboard() {
               </CardHeader>
             </Link>
           </Card>
+          {/* Removed non-SMS tiles */}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
