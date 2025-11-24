@@ -1185,9 +1185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               name: user.name,
               email: user.email,
               apiKey: displayKey,
-              status: user.isActive === false
-                ? 'disabled'
-                : (apiKeys.length > 0 && apiKeys[0].isActive ? 'active' : 'inactive'),
+              status: user.isActive ? 'active' : 'disabled',
               messagesSent: messageLogs.length,
               credits: profile?.credits || "0.00",
               rateLimitPerMinute: profile?.rateLimitPerMinute || 200,
