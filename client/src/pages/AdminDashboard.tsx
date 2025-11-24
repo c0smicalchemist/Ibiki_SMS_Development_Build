@@ -195,6 +195,7 @@ export default function AdminDashboard() {
     email: string;
     apiKey: string;
     status: string;
+    isActive?: boolean;
     messagesSent: number;
     credits: string;
     lastActive: string;
@@ -529,8 +530,8 @@ export default function AdminDashboard() {
                       <TableCell>{client.email}</TableCell>
                       <TableCell className="font-mono text-sm">{client.apiKey}</TableCell>
                       <TableCell>
-                        <Badge variant={client.status === "active" ? "default" : "secondary"}>
-                          {client.status}
+                        <Badge variant={(client.isActive ?? client.status === "active") ? "default" : "secondary"}>
+                          {(client.isActive ?? client.status === "active") ? 'active' : 'disabled'}
                         </Badge>
                       </TableCell>
                       <TableCell>{client.messagesSent.toLocaleString()}</TableCell>
@@ -626,7 +627,7 @@ export default function AdminDashboard() {
                             clientName={client.name}
                             currentCredits={client.credits}
                           />
-                          {client.status === 'disabled' ? (
+                          {!(client.isActive ?? client.status === 'active') ? (
                             <Button
                               size="sm"
                               variant="outline"
