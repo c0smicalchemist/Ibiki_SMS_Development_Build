@@ -5,7 +5,11 @@ echo "=== Safe Deployment Started ==="
 
 # 1. Backup before deployment
 echo "1. Creating pre-deployment backup..."
-/usr/local/bin/ibiki-backup.sh
+if [ -x /usr/local/bin/ibiki-backup.sh ]; then
+  /usr/local/bin/ibiki-backup.sh
+else
+  /opt/ibiki-sms/scripts/backup.sh
+fi
 
 # 2. Save current environment
 echo "2. Backing up current configuration..."
@@ -62,4 +66,3 @@ echo "10. Verifying users are intact..."
 psql "$DATABASE_URL" -c "SELECT email, role, is_active FROM users ORDER BY email;" 2>/dev/null || echo "Database check failed"
 
 echo "=== Safe Deployment Complete! ==="
-
