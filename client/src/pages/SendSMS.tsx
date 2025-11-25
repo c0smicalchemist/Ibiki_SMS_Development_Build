@@ -221,8 +221,6 @@ export default function SendSMS() {
 
     const defaultDial = countries.find(c => c.code === singleCountry)?.dial || '+1';
     const normalizedRecipients = recipients.map(r => r.startsWith('+') ? r : `${defaultDial}${r.replace(/^\+/, '')}`);
-    const defaultDial = countries.find(c => c.code === singleCountry)?.dial || '+1';
-    const normalizedRecipients = recipients.map(r => r.startsWith('+') ? r : `${defaultDial}${r.replace(/^\+/, '')}`);
     const payload: { recipients: string[]; message: string; userId?: string } = {
       recipients: normalizedRecipients,
       message: bulkMessage
@@ -239,11 +237,6 @@ export default function SendSMS() {
       toast({ title: t('common.error'), description: t('sendSms.error.provideMessage'), variant: "destructive" });
       return;
     }
-    const defaultDialMulti = countries.find(c => c.code === singleCountry)?.dial || '+1';
-    const normalizedMulti = validMessages.map(m => ({
-      to: m.to.startsWith('+') ? m.to : `${defaultDialMulti}${m.to.replace(/^\+/, '')}`,
-      message: m.message
-    }));
     const defaultDialMulti = countries.find(c => c.code === singleCountry)?.dial || '+1';
     const normalizedMulti = validMessages.map(m => ({
       to: m.to.startsWith('+') ? m.to : `${defaultDialMulti}${m.to.replace(/^\+/, '')}`,
