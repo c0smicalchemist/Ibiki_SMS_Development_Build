@@ -197,9 +197,9 @@ export function WorldClock() {
               <div className="text-xs text-muted-foreground/60">
                 {tz.offset}
               </div>
-              <div className="mt-2 grid grid-cols-4 gap-1 text-[10px] text-muted-foreground text-center" data-testid={`cities-${tz.timezone}`}>
-                {tz.cities.slice(0, 8).map((c) => (
-                  <span key={c} className="whitespace-nowrap">{c}</span>
+              <div className="mt-2 grid grid-cols-3 gap-1.5 text-[10px] leading-4 text-muted-foreground text-center" data-testid={`cities-${tz.timezone}`}>
+                {tz.cities.slice(0, 9).map((c) => (
+                  <span key={c} className="whitespace-normal break-words">{c}</span>
                 ))}
               </div>
             </div>
