@@ -8,14 +8,45 @@ interface TimeZoneConfig {
   nameZh: string;
   timezone: string;
   offset: string;
+  cities: string[];
 }
 
 const timeZones: TimeZoneConfig[] = [
-  { name: "Chicago", nameZh: "芝加哥", timezone: "America/Chicago", offset: "GMT-6" },
-  { name: "Denver", nameZh: "丹佛", timezone: "America/Denver", offset: "GMT-7" },
-  { name: "Los Angeles", nameZh: "洛杉矶", timezone: "America/Los_Angeles", offset: "GMT-8" },
-  { name: "Anchorage", nameZh: "安克雷奇", timezone: "America/Anchorage", offset: "GMT-9" },
-  { name: "Honolulu", nameZh: "檀香山", timezone: "Pacific/Honolulu", offset: "GMT-10" },
+  {
+    name: "Chicago",
+    nameZh: "芝加哥",
+    timezone: "America/Chicago",
+    offset: "GMT-6",
+    cities: ["Dallas", "Houston", "Minneapolis", "St. Louis", "Kansas City", "New Orleans"],
+  },
+  {
+    name: "Denver",
+    nameZh: "丹佛",
+    timezone: "America/Denver",
+    offset: "GMT-7",
+    cities: ["Phoenix", "Salt Lake City", "Boise", "Albuquerque", "Colorado Springs", "Tucson"],
+  },
+  {
+    name: "Los Angeles",
+    nameZh: "洛杉矶",
+    timezone: "America/Los_Angeles",
+    offset: "GMT-8",
+    cities: ["San Francisco", "Seattle", "Portland", "San Diego", "Sacramento", "Las Vegas"],
+  },
+  {
+    name: "Anchorage",
+    nameZh: "安克雷奇",
+    timezone: "America/Anchorage",
+    offset: "GMT-9",
+    cities: ["Fairbanks", "Juneau", "Sitka", "Ketchikan", "Kenai", "Kodiak"],
+  },
+  {
+    name: "Honolulu",
+    nameZh: "檀香山",
+    timezone: "Pacific/Honolulu",
+    offset: "GMT-10",
+    cities: ["Hilo", "Kailua", "Kapolei", "Pearl City", "Lahaina", "Kahului"],
+  },
 ];
 
 export function WorldClock() {
@@ -101,8 +132,16 @@ export function WorldClock() {
               <div className="text-xs text-muted-foreground/60">
                 {tz.offset}
               </div>
+              <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-muted-foreground text-center" data-testid={`cities-${tz.timezone}`}>
+                {tz.cities.slice(0, 6).map((c) => (
+                  <span key={c} className="truncate">{c}</span>
+                ))}
+              </div>
             </div>
           ))}
+        </div>
+        <div className="mt-4 text-xs italic text-muted-foreground">
+          SMS campaign messages in the USA between 8 a.m. and 9 p.m. in the recipient's local time zone
         </div>
       </CardContent>
     </Card>
