@@ -2660,7 +2660,19 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         ? req.query.userId 
         : req.user.userId;
       const contacts = await storage.getContactsByUserId(targetUserId);
-      res.json({ success: true, contacts });
+      let clientContacts: any[] = [];
+      try {
+        clientContacts = await storage.getClientContactsByUserId(targetUserId);
+      } catch {}
+      const businessByPhone = new Map<string, string>();
+      clientContacts.forEach((cc: any) => {
+        if (cc.phoneNumber && cc.business) businessByPhone.set(cc.phoneNumber, cc.business);
+      });
+      const enriched = contacts.map((c: any) => ({
+        ...c,
+        business: businessByPhone.get(c.phoneNumber) || null
+      }));
+      res.json({ success: true, contacts: enriched });
     } catch (error) {
       console.error("Get contacts error:", error);
       res.status(500).json({ error: "Failed to retrieve contacts" });
@@ -2949,6 +2961,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
 
       res.json({ success: true, messageId: response.data.messageId, data: response.data });
     } catch (error: any) {
+      if (error?.response?.status === 401) {
+        return res.status(401).json({ error: 'Unauthorized: Provider rejected API key' });
+      }
       if (error.message === 'Insufficient credits') {
         try {
           const extremeApiKey = await storage.getSystemConfig("extreme_api_key");
@@ -2993,14 +3008,12 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         ? userId 
         : req.user.userId;
 
-      const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
-      
-      const response = await axios.post(`${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulk`, {
-        username: extremeUsername,
-        password: extremePassword,
-        recipients,
-        message
-      });
+      const extremeApiKey = await getExtremeApiKey();
+      const response = await axios.post(
+        `${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulk`,
+        { recipients, message },
+        { headers: { Authorization: `Bearer ${extremeApiKey}`, "Content-Type": "application/json" } }
+      );
 
       if (req.user.role === 'admin' && targetUserId === req.user.userId) {
         await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, message }, response.data, undefined, recipients);
@@ -3022,6 +3035,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       }
       res.json({ success: true, messageId: response.data.messageId, data: response.data });
     } catch (error: any) {
+      if (error?.response?.status === 401) {
+        return res.status(401).json({ error: 'Unauthorized: Provider rejected API key' });
+      }
       if (error.message === 'Insufficient credits') {
         try {
           const extremeApiKey = await storage.getSystemConfig("extreme_api_key");
@@ -3066,13 +3082,12 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         ? userId 
         : req.user.userId;
 
-      const { extremeUsername, extremePassword } = await getExtremeSMSCredentials();
-      
-      const response = await axios.post(`${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulkmulti`, {
-        username: extremeUsername,
-        password: extremePassword,
-        messages
-      });
+      const extremeApiKey = await getExtremeApiKey();
+      const response = await axios.post(
+        `${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulkmulti`,
+        { messages },
+        { headers: { Authorization: `Bearer ${extremeApiKey}`, "Content-Type": "application/json" } }
+      );
 
       if (req.user.role === 'admin' && targetUserId === req.user.userId) {
         await createAdminAuditLog(req.user.userId, 'web-ui-bulk-multi', response.data.messageId || 'unknown', 'sent', { messages }, response.data);
@@ -3092,6 +3107,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       }
       res.json({ success: true, messageId: response.data.messageId, data: response.data });
     } catch (error: any) {
+      if (error?.response?.status === 401) {
+        return res.status(401).json({ error: 'Unauthorized: Provider rejected API key' });
+      }
       if (error.message === 'Insufficient credits') {
         try {
           const extremeApiKey = await storage.getSystemConfig("extreme_api_key");

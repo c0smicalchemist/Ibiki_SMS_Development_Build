@@ -197,15 +197,15 @@ export function WorldClock() {
               <div className="text-xs text-muted-foreground/60">
                 {tz.offset}
               </div>
-              <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-muted-foreground text-center" data-testid={`cities-${tz.timezone}`}>
-                {tz.cities.slice(0, 6).map((c) => (
-                  <span key={c} className="truncate">{c}</span>
+              <div className="mt-2 grid grid-cols-4 gap-1 text-[10px] text-muted-foreground text-center" data-testid={`cities-${tz.timezone}`}>
+                {tz.cities.slice(0, 12).map((c) => (
+                  <span key={c} className="whitespace-normal break-words">{c}</span>
                 ))}
               </div>
             </div>
           ))}
         </div>
-        <div className="mt-4 text-xs italic text-muted-foreground">
+        <div className="mt-6 mb-2 text-xs font-bold text-center">
           SMS campaign messages in the USA between 8 a.m. and 9 p.m. in the recipient's local time zone
         </div>
       </CardContent>

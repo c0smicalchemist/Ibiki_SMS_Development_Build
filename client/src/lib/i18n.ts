@@ -92,6 +92,9 @@ export const translations: Record<Language, Record<string, string>> = {
 
     'docs.webhook.title': 'Webhook Configuration (2-Way SMS)',
     'docs.webhook.description': 'Configure this webhook URL in your SMS provider to receive incoming messages',
+    'docs.title': 'API Documentation',
+    'docs.subtitle': 'Endpoints, authentication, and usage examples',
+    'docs.endpoints.title': 'Endpoints',
 
     'admin.tabs.clients': 'Clients',
     'admin.tabs.configuration': 'Configuration',
@@ -311,6 +314,9 @@ export const translations: Record<Language, Record<string, string>> = {
 
     'docs.webhook.title': 'Webhook配置（双向短信）',
     'docs.webhook.description': '请在短信服务商的控制台设置此Webhook URL以接收来信',
+    'docs.title': 'API 文档',
+    'docs.subtitle': '端点、认证与使用示例',
+    'docs.endpoints.title': '接口列表',
 
     'admin.tabs.clients': '客户',
     'admin.tabs.configuration': '配置',

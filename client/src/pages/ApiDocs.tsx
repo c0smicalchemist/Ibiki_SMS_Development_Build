@@ -31,13 +31,13 @@ export default function ApiDocs() {
       method: "POST" as const,
       path: "/api/v2/sms/sendbulk",
       title: 'Send Bulk',
-      description: 'Send a single SMS to multiple recipients',
+      description: 'Send the same SMS to multiple recipients',
       requestExample: `curl -X POST http://151.243.109.79/api/v2/sms/sendbulk \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
   "recipients": ["${t('examples.phone.sample1')}", "${t('examples.phone.sample2')}"],
-  "content": "${t('examples.sms.orderShipped')}"
+  "message": "${t('examples.sms.orderShipped')}"
 }'`,
       responseExample: `{
   "success": true,
@@ -50,13 +50,13 @@ export default function ApiDocs() {
       method: "POST" as const,
       path: "/api/v2/sms/sendbulkmulti",
       title: 'Send Bulk Multi',
-      description: 'Send multiple messages to different recipients in one request',
+      description: 'Send different messages to multiple recipients in one request',
       requestExample: `curl -X POST http://151.243.109.79/api/v2/sms/sendbulkmulti \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '[
-  {"recipient": "${t('examples.phone.sample1')}", "content": "${t('examples.sms.verificationCode')}"},
-  {"recipient": "${t('examples.phone.sample2')}", "content": "${t('examples.sms.orderShipped')}"}
+  {"to": "${t('examples.phone.sample1')}", "message": "${t('examples.sms.verificationCode')}"},
+  {"to": "${t('examples.phone.sample2')}", "message": "${t('examples.sms.orderShipped')}"}
 ]'`,
       responseExample: `{
   "success": true,

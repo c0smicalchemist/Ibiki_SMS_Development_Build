@@ -599,6 +599,19 @@ export default function SendSMS() {
               <CardDescription>Upload a CSV of recipients and send a single message</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex gap-2 items-center">
+                <Select value={bulkCountry} onValueChange={setBulkCountry}>
+                  <SelectTrigger className="w-40" data-testid="select-bulk-csv-country">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {countries.map(c => (
+                      <SelectItem key={c.code} value={c.code}>{c.flag} {c.name} ({c.dial})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground">Applied to recipients without + prefix</span>
+              </div>
               <div>
                 <Label>CSV File</Label>
                 <Input
