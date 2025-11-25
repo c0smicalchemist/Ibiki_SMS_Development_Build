@@ -11,6 +11,7 @@ import { ClientSelector } from "@/components/ClientSelector";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { ConversationDialog } from "@/components/ConversationDialog";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface IncomingMessage {
   id: string;
@@ -28,6 +29,7 @@ interface IncomingMessage {
 
 export default function Inbox() {
   const { t } = useLanguage();
+  const { toast } = useToast();
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState<string | null>(null);
   const [showConversationDialog, setShowConversationDialog] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(() => {
@@ -146,6 +148,7 @@ export default function Inbox() {
       if (!resp.ok) throw new Error('Failed to retrieve inbox');
       await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
       await queryClient.refetchQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
+      toast({ title: t('common.success'), description: t('inbox.retrieveSuccess') });
     } catch {}
   };
 

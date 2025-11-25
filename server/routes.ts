@@ -2626,20 +2626,25 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   app.delete("/api/contact-groups/:id", authenticateToken, async (req: any, res) => {
     try {
       const { id } = req.params;
-      
-      // Verify ownership
+      // Allow admin to delete on behalf of another user via query userId
+      if (req.query.userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      }
+      const targetUserId = (req.user.role === 'admin' && req.query.userId)
+        ? req.query.userId
+        : req.user.userId;
+
       const group = await storage.getContactGroup(id);
       if (!group) {
         return res.status(404).json({ error: "Group not found" });
       }
-      if (group.userId !== req.user.userId) {
+      if (group.userId !== targetUserId) {
         return res.status(403).json({ error: "Unauthorized" });
       }
-      
-      // Delete associated contacts
+
       await storage.deleteContactsByGroupId(id);
       await storage.deleteContactGroup(id);
-      
+
       res.json({ success: true });
     } catch (error) {
       console.error("Delete contact group error:", error);
@@ -3011,7 +3016,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       const extremeApiKey = await getExtremeApiKey();
       const response = await axios.post(
         `${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulk`,
-        { recipients, message },
+        { recipients, message, content: message },
         { headers: { Authorization: `Bearer ${extremeApiKey}`, "Content-Type": "application/json" } }
       );
 
@@ -3037,6 +3042,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
     } catch (error: any) {
       if (error?.response?.status === 401) {
         return res.status(401).json({ error: 'Unauthorized: Provider rejected API key' });
+      }
+      if (error?.response?.status === 400) {
+        return res.status(400).json({ error: error?.response?.data || 'Bad Request to provider' });
       }
       if (error.message === 'Insufficient credits') {
         try {
@@ -3083,9 +3091,10 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         : req.user.userId;
 
       const extremeApiKey = await getExtremeApiKey();
+      const transformed = messages.map((m: any) => ({ recipient: m.to, message: m.message, content: m.message }));
       const response = await axios.post(
         `${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulkmulti`,
-        { messages },
+        transformed,
         { headers: { Authorization: `Bearer ${extremeApiKey}`, "Content-Type": "application/json" } }
       );
 
@@ -3109,6 +3118,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
     } catch (error: any) {
       if (error?.response?.status === 401) {
         return res.status(401).json({ error: 'Unauthorized: Provider rejected API key' });
+      }
+      if (error?.response?.status === 400) {
+        return res.status(400).json({ error: error?.response?.data || 'Bad Request to provider' });
       }
       if (error.message === 'Insufficient credits') {
         try {

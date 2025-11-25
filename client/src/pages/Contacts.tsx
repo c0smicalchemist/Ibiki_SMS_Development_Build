@@ -641,7 +641,7 @@ export default function Contacts() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => apiRequest(`/api/contact-groups/${group.id}`, { method: 'DELETE' }).then(() => {
+                    onClick={() => apiRequest(`/api/contact-groups/${group.id}${effectiveUserId ? `?userId=${effectiveUserId}` : ''}` , { method: 'DELETE' }).then(() => {
                       queryClient.invalidateQueries({ queryKey: ['/api/contact-groups', effectiveUserId] });
                       queryClient.invalidateQueries({ queryKey: ['/api/contacts', effectiveUserId] });
                       toast({ title: t('common.success'), description: 'Group deleted' });
