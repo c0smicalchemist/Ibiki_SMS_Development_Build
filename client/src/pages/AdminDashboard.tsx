@@ -30,10 +30,10 @@ export default function AdminDashboard() {
   const [timezone, setTimezone] = useState("America/New_York");
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown');
   const [webhookFrom, setWebhookFrom] = useState('');
-  const [webhookReceiver, setWebhookReceiver] = useState('');
+  const [webhookBusiness, setWebhookBusiness] = useState('');
   const [webhookMessage, setWebhookMessage] = useState('');
   const [webhookMessageId, setWebhookMessageId] = useState('');
-  const [flowReceiver, setFlowReceiver] = useState('');
+  const [flowBusiness, setFlowBusiness] = useState('');
 
   const usTimezones = [
     { value: "America/New_York", label: "Eastern Time (ET)" },
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
     mutationFn: async () => {
       return await apiRequest('/api/admin/webhook/test', {
         method: 'POST',
-        body: JSON.stringify({ from: webhookFrom, receiver: webhookReceiver, message: webhookMessage, messageId: webhookMessageId || undefined })
+        body: JSON.stringify({ from: webhookFrom, business: webhookBusiness, message: webhookMessage, messageId: webhookMessageId || undefined })
       });
     },
     onSuccess: () => {
@@ -178,7 +178,7 @@ export default function AdminDashboard() {
 
   const flowCheckMutation = useMutation({
     mutationFn: async () => {
-      const params = new URLSearchParams({ receiver: flowReceiver });
+      const params = new URLSearchParams({ business: flowBusiness });
       return await apiRequest(`/api/admin/webhook/flow-check?${params.toString()}`);
     },
     onSuccess: (data: any) => {
@@ -1063,8 +1063,8 @@ export default function AdminDashboard() {
                   <Input value={webhookFrom} onChange={(e) => setWebhookFrom(e.target.value)} placeholder="+1-555-0000" />
                 </div>
                 <div>
-                  <Label>Receiver (your number)</Label>
-                  <Input value={webhookReceiver} onChange={(e) => setWebhookReceiver(e.target.value)} placeholder="Assigned phone number" />
+                  <Label>Business</Label>
+                  <Input value={webhookBusiness} onChange={(e) => setWebhookBusiness(e.target.value)} placeholder="Client business name" />
                 </div>
                 <div>
                   <Label>Message</Label>
@@ -1093,8 +1093,8 @@ export default function AdminDashboard() {
                 </div>
                 <div className="p-3 border rounded">
                   <h4 className="font-semibold mb-2">Flow Check</h4>
-                  <Label>Receiver Number</Label>
-                  <Input value={flowReceiver} onChange={(e) => setFlowReceiver(e.target.value)} placeholder="Assigned phone number" />
+                  <Label>Business</Label>
+                  <Input value={flowBusiness} onChange={(e) => setFlowBusiness(e.target.value)} placeholder="Client business name" />
                   <Button className="mt-2" onClick={() => flowCheckMutation.mutate()} disabled={flowCheckMutation.isPending}>
                     {flowCheckMutation.isPending ? t('common.loading') : 'Check Routing'}
                   </Button>

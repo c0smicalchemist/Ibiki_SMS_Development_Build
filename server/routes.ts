@@ -1431,13 +1431,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin: Webhook flow check for a receiver number
+  // Admin: Webhook flow check (by business or receiver)
   app.get('/api/admin/webhook/flow-check', authenticateToken, requireAdmin, async (req, res) => {
     try {
-      const { receiver } = req.query as { receiver?: string };
-      if (!receiver) return res.status(400).json({ success: false, error: 'receiver required' });
+      const { receiver, business } = req.query as { receiver?: string; business?: string };
+      let routedUserId: string | null = null;
+      if (business && business.trim().length > 0) {
+        const profileByBiz = await storage.getClientProfileByBusinessName(String(business));
+        routedUserId = profileByBiz?.userId || null;
+        return res.json({ success: true, business, routedUserId });
+      }
+      if (!receiver) return res.status(400).json({ success: false, error: 'business or receiver required' });
       const profile = await storage.getClientProfileByPhoneNumber(receiver);
-      res.json({ success: true, receiver, routedUserId: profile?.userId || null });
+      routedUserId = profile?.userId || null;
+      res.json({ success: true, receiver, routedUserId });
     } catch (error) {
       console.error('Webhook flow check error:', error);
       res.status(500).json({ success: false, error: 'Failed to check flow' });
@@ -1448,9 +1455,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/webhook/test', authenticateToken, requireAdmin, async (req, res) => {
     try {
       const { from, receiver, message, timestamp, messageId, firstname, lastname, business, status } = req.body || {};
-      if (!from || !receiver || !message) {
-        return res.status(400).json({ success: false, error: 'from, receiver and message are required' });
+      if (!from || !message) {
+        return res.status(400).json({ success: false, error: 'from and message are required' });
       }
+      const effectiveReceiver = receiver && String(receiver).trim() !== '' ? receiver : 'diag-test-number';
 
       // Reuse routing logic
       let assignedUserId: string | null = null;
@@ -1464,7 +1472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (clientFromOutbound) assignedUserId = clientFromOutbound;
       }
       if (!assignedUserId) {
-        const clientProfile = await storage.getClientProfileByPhoneNumber(receiver);
+        const clientProfile = await storage.getClientProfileByPhoneNumber(effectiveReceiver);
         if (clientProfile) assignedUserId = clientProfile.userId;
       }
 
@@ -1477,14 +1485,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message,
         status: status || 'received',
         matchedBlockWord: null,
-        receiver,
+        receiver: effectiveReceiver,
         usedmodem: null,
         port: null,
         timestamp: timestamp ? new Date(timestamp) : new Date(),
         messageId: messageId || `diag-${Date.now()}`,
       });
 
-      await storage.setSystemConfig('last_webhook_event', JSON.stringify({ from, receiver, message, timestamp: created.timestamp, messageId: created.messageId }));
+      await storage.setSystemConfig('last_webhook_event', JSON.stringify({ from, business: business || null, receiver: effectiveReceiver, message, timestamp: created.timestamp, messageId: created.messageId }));
       await storage.setSystemConfig('last_webhook_event_at', new Date().toISOString());
       await storage.setSystemConfig('last_webhook_routed_user', created.userId || 'unassigned');
 
