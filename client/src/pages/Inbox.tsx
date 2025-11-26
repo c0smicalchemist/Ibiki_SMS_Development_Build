@@ -304,9 +304,10 @@ export default function Inbox() {
                     </div>
                   </div>
                 )}
-                <Table>
+                <div className="max-h-[65vh] overflow-y-auto rounded border">
+                <Table className="min-w-full">
                   <TableHeader>
-                    <TableRow>
+                    <TableRow className="sticky top-0 bg-background z-10">
                       <TableHead>Recipient</TableHead>
                       <TableHead>Message</TableHead>
                       <TableHead>Date</TableHead>
@@ -354,6 +355,7 @@ export default function Inbox() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           )}

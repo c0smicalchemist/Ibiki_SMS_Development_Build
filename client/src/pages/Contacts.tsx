@@ -671,9 +671,10 @@ export default function Contacts() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
+            <div className="max-h-[65vh] overflow-y-auto rounded border">
+            <Table className="min-w-full">
               <TableHeader>
-                <TableRow>
+                <TableRow className="sticky top-0 bg-background z-10">
                   <TableHead>{t("contacts.table.name")}</TableHead>
                   <TableHead>{t("contacts.table.phone")}</TableHead>
                   <TableHead>{t("contacts.table.email")}</TableHead>
@@ -730,6 +731,7 @@ export default function Contacts() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       </div>

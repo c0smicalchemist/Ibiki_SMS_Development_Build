@@ -136,6 +136,7 @@ export default function MessageHistory() {
   const messages = messagesData?.messages || [];
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkNumbers, setBulkNumbers] = useState<string[]>([]);
+  const [idsOpen, setIdsOpen] = useState(false);
   const [bulkIds, setBulkIds] = useState<string[]>([]);
 
   // Safe JSON parse helper
@@ -332,10 +333,10 @@ export default function MessageHistory() {
               </div>
             ) : (
               <>
-                <div className="rounded-md border">
-                  <Table>
+                <div className="rounded-md border max-h-[65vh] overflow-y-auto">
+                  <Table className="min-w-full">
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="sticky top-0 bg-background z-10">
                         <TableHead>{t('messageHistory.table.recipient')}</TableHead>
                         <TableHead>Business Name</TableHead>
                         <TableHead>{t('messageHistory.table.message')}</TableHead>
@@ -357,19 +358,9 @@ export default function MessageHistory() {
                               variant="outline"
                               size="sm"
                               className="ml-2 border-blue-500 text-blue-600 font-bold"
-                            onClick={() => { setBulkNumbers(msg.recipients || []); setBulkIds(extractMessageIds(msg)); setBulkOpen(true); }}
+                              onClick={() => { setBulkNumbers(msg.recipients || []); setBulkOpen(true); }}
                             >
                               {t('messageHistory.bulk')} ({msg.recipients.length})
-                            </Button>
-                          )}
-                          {msg.recipients && Array.isArray(msg.recipients) && msg.recipients.length > 0 && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="ml-2 border-purple-500 text-purple-600 font-bold"
-                              onClick={() => { setBulkNumbers(msg.recipients || []); setBulkIds(extractMessageIds(msg)); setBulkOpen(true); }}
-                            >
-                              IDs ({extractMessageIds(msg).length})
                             </Button>
                           )}
                           </TableCell>
@@ -389,21 +380,19 @@ export default function MessageHistory() {
                           <TableCell className="font-mono text-xs" data-testid={`messageid-${msg.id}`}>
                             {(() => {
                               const ids = extractMessageIds(msg);
-                              if (msg.recipients && ids.length > 0) {
+                              if (ids.length > 1) {
                                 return (
-                                  <span>
-                                    {ids.length === 1 ? ids[0] : `multiple (${ids.length})`}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="ml-2"
-                                      onClick={() => { setBulkNumbers(msg.recipients || []); setBulkIds(ids); setBulkOpen(true); }}
-                                    >
-                                      View IDs
-                                    </Button>
-                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-purple-500 text-purple-600 font-bold"
+                                    onClick={() => { setBulkIds(ids); setIdsOpen(true); }}
+                                  >
+                                    IDs ({ids.length})
+                                  </Button>
                                 );
                               }
+                              if (ids.length === 1) return ids[0];
                               return msg.messageId || '-';
                             })()}
                           </TableCell>
@@ -481,90 +470,25 @@ export default function MessageHistory() {
                 </Badge>
               ))}
             </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold">Message IDs</h4>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    const text = bulkIds.join('\n');
-                    try {
-                      if (navigator.clipboard && (window as any).isSecureContext && typeof navigator.clipboard.writeText === 'function') {
-                        await navigator.clipboard.writeText(text);
-                      } else {
-                        const ta = document.createElement('textarea');
-                        ta.value = text;
-                        ta.style.position = 'fixed';
-                        ta.style.opacity = '0';
-                        document.body.appendChild(ta);
-                        ta.focus();
-                        ta.select();
-                        try { document.execCommand('copy'); } catch {}
-                        document.body.removeChild(ta);
-                      }
-                    } catch {}
-                  }}
-                >
-                  Copy All
-                </Button>
-              </div>
-              {bulkIds.length > 0 && bulkNumbers.length === bulkIds.length ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {bulkNumbers.map((n, i) => (
-                    <div key={`pair-${i}`} className="flex items-center justify-between gap-2 border rounded p-2">
-                      <Badge variant="outline" className="font-mono">{n}</Badge>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="font-mono">{bulkIds[i]}</Badge>
-                        <Button variant="ghost" size="sm" onClick={async () => {
-                          const text = bulkIds[i];
-                          try {
-                            if (navigator.clipboard && (window as any).isSecureContext && typeof navigator.clipboard.writeText === 'function') {
-                              await navigator.clipboard.writeText(text);
-                            } else {
-                              const ta = document.createElement('textarea');
-                              ta.value = text;
-                              ta.style.position = 'fixed';
-                              ta.style.opacity = '0';
-                              document.body.appendChild(ta);
-                              ta.focus();
-                              ta.select();
-                              try { document.execCommand('copy'); } catch {}
-                              document.body.removeChild(ta);
-                            }
-                          } catch {}
-                        }}>Copy</Button>
-                      </div>
-                    </div>
-                  ))}
+            
+          </DialogContent>
+        </Dialog>
+        <Dialog open={idsOpen} onOpenChange={setIdsOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Bulk Message IDs</DialogTitle>
+            </DialogHeader>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-semibold">IDs ({bulkIds.length})</h4>
+              <Button variant="outline" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(bulkIds.join('\n')); } catch {} }}>Copy All</Button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {bulkIds.map((id, i) => (
+                <div key={`id-${i}`} className="flex items-center justify-between gap-2 border rounded p-2">
+                  <Badge variant="outline" className="font-mono">{id}</Badge>
+                  <Button variant="ghost" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(id); } catch {} }}>Copy</Button>
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {bulkIds.map((id, i) => (
-                    <div key={`id-${i}`} className="flex items-center justify-between gap-2 border rounded p-2">
-                      <Badge variant="outline" className="font-mono">{id}</Badge>
-                      <Button variant="ghost" size="sm" onClick={async () => {
-                        const text = id;
-                        try {
-                          if (navigator.clipboard && (window as any).isSecureContext && typeof navigator.clipboard.writeText === 'function') {
-                            await navigator.clipboard.writeText(text);
-                          } else {
-                            const ta = document.createElement('textarea');
-                            ta.value = text;
-                            ta.style.position = 'fixed';
-                            ta.style.opacity = '0';
-                            document.body.appendChild(ta);
-                            ta.focus();
-                            ta.select();
-                            try { document.execCommand('copy'); } catch {}
-                            document.body.removeChild(ta);
-                          }
-                        } catch {}
-                      }}>Copy</Button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              ))}
             </div>
           </DialogContent>
         </Dialog>
