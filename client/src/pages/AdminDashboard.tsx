@@ -521,23 +521,23 @@ export default function AdminDashboard() {
               <CardDescription>View and manage all connected clients</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded border max-h-[65vh] overflow-y-auto">
+              <div className="rounded border max-h-[65vh] overflow-y-auto relative">
               <Table className="min-w-full">
                 <TableHeader>
-                  <TableRow className="sticky top-0 bg-background z-10">
-                    <TableHead>Client Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>API Key</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Messages Sent</TableHead>
-                    <TableHead>Credits</TableHead>
-                    <TableHead>{t('admin.clients.table.rateLimit')}</TableHead>
-                <TableHead>{t('admin.clients.table.businessName')}</TableHead>
-                <TableHead>Assigned Numbers</TableHead>
-                <TableHead>Last Active</TableHead>
-                <TableHead>Delivery Mode</TableHead>
-                <TableHead>Webhook</TableHead>
-                <TableHead>Actions</TableHead>
+                  <TableRow>
+                    <TableHead className="sticky top-0 bg-background z-10">Client Name</TableHead>
+                    <TableHead className="sticky top-0 bg-background z-10">Email</TableHead>
+                    <TableHead className="sticky top-0 bg-background z-10">API Key</TableHead>
+                    <TableHead className="sticky top-0 bg-background z-10">Status</TableHead>
+                    <TableHead className="sticky top-0 bg-background z-10">Messages Sent</TableHead>
+                    <TableHead className="sticky top-0 bg-background z-10">Credits</TableHead>
+                    <TableHead className="sticky top-0 bg-background z-10">{t('admin.clients.table.rateLimit')}</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10">{t('admin.clients.table.businessName')}</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10">Assigned Numbers</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10">Last Active</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10">Delivery Mode</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10">Webhook</TableHead>
+                <TableHead className="sticky top-0 bg-background z-10">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

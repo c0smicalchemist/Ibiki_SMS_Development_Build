@@ -671,17 +671,17 @@ export default function Contacts() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="max-h-[65vh] overflow-y-auto rounded border">
+            <div className="max-h-[65vh] overflow-y-auto rounded border relative">
             <Table className="min-w-full">
               <TableHeader>
-                <TableRow className="sticky top-0 bg-background z-10">
-                  <TableHead>{t("contacts.table.name")}</TableHead>
-                  <TableHead>{t("contacts.table.phone")}</TableHead>
-                  <TableHead>{t("contacts.table.email")}</TableHead>
-                  <TableHead>{t("contacts.table.group")}</TableHead>
-                  <TableHead>Business</TableHead>
-                  <TableHead>Sync Status</TableHead>
-                  <TableHead>{t("contacts.table.actions")}</TableHead>
+                <TableRow>
+                  <TableHead className="sticky top-0 bg-background z-10">{t("contacts.table.name")}</TableHead>
+                  <TableHead className="sticky top-0 bg-background z-10">{t("contacts.table.phone")}</TableHead>
+                  <TableHead className="sticky top-0 bg-background z-10">{t("contacts.table.email")}</TableHead>
+                  <TableHead className="sticky top-0 bg-background z-10">{t("contacts.table.group")}</TableHead>
+                  <TableHead className="sticky top-0 bg-background z-10">Business</TableHead>
+                  <TableHead className="sticky top-0 bg-background z-10">Sync Status</TableHead>
+                  <TableHead className="sticky top-0 bg-background z-10">{t("contacts.table.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

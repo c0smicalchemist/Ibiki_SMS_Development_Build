@@ -335,19 +335,19 @@ export default function MessageHistory() {
               </div>
             ) : (
               <>
-                <div className="rounded-md border max-h-[65vh] overflow-y-auto">
+                <div className="rounded-md border max-h-[65vh] overflow-y-auto relative">
                   <Table className="min-w-full">
                     <TableHeader>
-                      <TableRow className="sticky top-0 bg-background z-10">
-                        <TableHead>{t('messageHistory.table.recipient')}</TableHead>
-                        <TableHead>Business Name</TableHead>
-                        <TableHead>{t('messageHistory.table.message')}</TableHead>
-                        <TableHead>Message ID</TableHead>
-                        <TableHead>{t('messageHistory.table.type')}</TableHead>
-                        <TableHead>{t('messageHistory.table.status')}</TableHead>
-                        <TableHead>{t('messageHistory.table.date')}</TableHead>
-                        <TableHead className="text-right">{t('messageHistory.table.cost')}</TableHead>
-                        <TableHead className="text-right">{t('messageHistory.table.actions')}</TableHead>
+                      <TableRow>
+                        <TableHead className="sticky top-0 bg-background z-10">{t('messageHistory.table.recipient')}</TableHead>
+                        <TableHead className="sticky top-0 bg-background z-10">Business Name</TableHead>
+                        <TableHead className="sticky top-0 bg-background z-10">{t('messageHistory.table.message')}</TableHead>
+                        <TableHead className="sticky top-0 bg-background z-10">Message ID</TableHead>
+                        <TableHead className="sticky top-0 bg-background z-10">{t('messageHistory.table.type')}</TableHead>
+                        <TableHead className="sticky top-0 bg-background z-10">{t('messageHistory.table.status')}</TableHead>
+                        <TableHead className="sticky top-0 bg-background z-10">{t('messageHistory.table.date')}</TableHead>
+                        <TableHead className="sticky top-0 bg-background z-10 text-right">{t('messageHistory.table.cost')}</TableHead>
+                        <TableHead className="sticky top-0 bg-background z-10 text-right">{t('messageHistory.table.actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>

@@ -304,15 +304,15 @@ export default function Inbox() {
                     </div>
                   </div>
                 )}
-                <div className="max-h-[65vh] overflow-y-auto rounded border">
+                <div className="max-h-[65vh] overflow-y-auto rounded border relative">
                 <Table className="min-w-full">
                   <TableHeader>
-                    <TableRow className="sticky top-0 bg-background z-10">
-                      <TableHead>Recipient</TableHead>
-                      <TableHead>Message</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                    <TableRow>
+                      <TableHead className="sticky top-0 bg-background z-10">Recipient</TableHead>
+                      <TableHead className="sticky top-0 bg-background z-10">Message</TableHead>
+                      <TableHead className="sticky top-0 bg-background z-10">Date</TableHead>
+                      <TableHead className="sticky top-0 bg-background z-10">Time</TableHead>
+                      <TableHead className="sticky top-0 bg-background z-10 text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
