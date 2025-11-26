@@ -3511,6 +3511,27 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         : req.user.userId;
       
       let conversation = await storage.getConversationHistory(targetUserId, phoneNumber);
+      try {
+        const outgoing = (conversation.outgoing || []).map((msg: any) => {
+          let body = '';
+          try {
+            const req = typeof msg.requestPayload === 'string' ? JSON.parse(msg.requestPayload || '') : msg.requestPayload;
+            body = (req?.message || req?.content || msg.message || '') as string;
+          } catch {}
+          if (!body) {
+            try {
+              const resp = typeof msg.responsePayload === 'string' ? JSON.parse(msg.responsePayload || '') : msg.responsePayload;
+              body = (resp?.message || resp?.content || body || '') as string;
+            } catch {}
+          }
+          if (!body && typeof msg.requestPayload === 'string') {
+            const m = (msg.requestPayload as string).match(/"message"\s*:\s*"([\s\S]*?)"/i) || (msg.requestPayload as string).match(/"content"\s*:\s*"([\s\S]*?)"/i);
+            if (m && m[1]) body = m[1];
+          }
+          return { ...msg, message: body };
+        });
+        conversation = { ...conversation, outgoing };
+      } catch {}
       if (req.user.role !== 'admin' && (conversation.incoming.length === 0 && conversation.outgoing.length === 0)) {
         await storage.seedExampleData(targetUserId);
         conversation = await storage.getConversationHistory(targetUserId, phoneNumber);

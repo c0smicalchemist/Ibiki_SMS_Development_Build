@@ -380,7 +380,27 @@ export default function MessageHistory() {
                           <TableCell className="max-w-xs truncate" data-testid={`message-${msg.id}`}>
                             {getMessagePreview(msg)}
                           </TableCell>
-                          <TableCell className="font-mono text-xs" data-testid={`messageid-${msg.id}`}>{msg.messageId || '-'}</TableCell>
+                          <TableCell className="font-mono text-xs" data-testid={`messageid-${msg.id}`}>
+                            {(() => {
+                              const ids = extractMessageIds(msg);
+                              if (msg.recipients && ids.length > 0) {
+                                return (
+                                  <span>
+                                    {ids.length === 1 ? ids[0] : `multiple (${ids.length})`}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="ml-2"
+                                      onClick={() => { setBulkNumbers(msg.recipients || []); setBulkIds(ids); setBulkOpen(true); }}
+                                    >
+                                      View IDs
+                                    </Button>
+                                  </span>
+                                );
+                              }
+                              return msg.messageId || '-';
+                            })()}
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline">SMS</Badge>
                           </TableCell>
