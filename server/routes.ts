@@ -3387,6 +3387,51 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
     }
   });
 
+  // Aliases for docs: /api/web/sms/inbox → same as /api/web/inbox
+  app.get("/api/web/sms/inbox", authenticateToken, async (req: any, res) => {
+    const url = new URL(req.protocol + '://' + req.get('host') + req.originalUrl);
+    const limitParam = url.searchParams.get('limit') || (req.query.limit as string);
+    req.query.limit = limitParam || req.query.limit;
+    return app._router.handle({ ...req, url: '/api/web/inbox' } as any, res, () => {});
+  });
+
+  // Web API: account balance for acting user
+  app.get("/api/web/account/balance", authenticateToken, async (req: any, res) => {
+    try {
+      const targetUserId = req.user.role === 'admin' && req.query.userId ? String(req.query.userId) : req.user.userId;
+      const profile = await storage.getClientProfileByUserId(targetUserId);
+      const credits = profile?.credits ?? '0.00';
+      const currency = profile?.currency ?? 'USD';
+      res.json({ success: true, balance: parseFloat(credits), currency });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to fetch balance' });
+    }
+  });
+
+  // Web API: sent messages list
+  app.get("/api/web/sms/messages", authenticateToken, async (req: any, res) => {
+    try {
+      const targetUserId = req.user.role === 'admin' && req.query.userId ? String(req.query.userId) : req.user.userId;
+      const limit = resolveFetchLimit((req.query.limit as string) || '100');
+      const logs = await storage.getMessageLogsByUserId(targetUserId, limit);
+      res.json({ success: true, messages: logs, count: logs.length, limit });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to fetch messages' });
+    }
+  });
+
+  // Web API: check delivery/status by messageId
+  app.get("/api/web/sms/status/:messageId", authenticateToken, async (req: any, res) => {
+    try {
+      const { messageId } = req.params;
+      const log = await storage.getMessageLogByMessageId(messageId);
+      if (!log) return res.status(404).json({ error: 'Not found' });
+      res.json({ success: true, messageId: log.messageId, status: log.status, deliveredAt: log.status === 'delivered' ? log.createdAt : null });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to fetch status' });
+    }
+  });
+
   app.post("/api/web/inbox/retrieve", authenticateToken, async (req: any, res) => {
     try {
       if (req.body.userId && req.user.role !== 'admin') {
