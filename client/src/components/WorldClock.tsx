@@ -12,6 +12,25 @@ interface TimeZoneConfig {
 }
 
 const timeZones: TimeZoneConfig[] = [
+  // GMT-5 first
+  {
+    name: "New York",
+    nameZh: "纽约",
+    timezone: "America/New_York",
+    offset: "GMT-5",
+    cities: [
+      "New York",
+      "Philadelphia",
+      "Miami",
+      "Atlanta",
+      "Boston",
+      "Washington D.C.",
+      "Detroit",
+      "Baltimore",
+      "Charlotte",
+    ],
+  },
+  // GMT-6
   {
     name: "Chicago",
     nameZh: "芝加哥",
@@ -32,6 +51,7 @@ const timeZones: TimeZoneConfig[] = [
       "Kansas",
     ],
   },
+  // GMT-7
   {
     name: "Denver",
     nameZh: "丹佛",
@@ -52,26 +72,28 @@ const timeZones: TimeZoneConfig[] = [
       "North Dakota (west)",
     ],
   },
-      {
-        name: "Los Angeles",
-        nameZh: "洛杉矶",
-        timezone: "America/Los_Angeles",
-        offset: "GMT-8",
-        cities: [
-          "California",
-          "Washington",
-          "Oregon",
-          "Nevada",
-          "Idaho",
-          "Arizona",
-          "British Columbia",
-          "Baja California",
-          "Alberta",
-          "Yukon (south)",
-          "Hermosillo",
-          "Tijuana",
-        ],
-      },
+  // GMT-8
+  {
+    name: "Los Angeles",
+    nameZh: "洛杉矶",
+    timezone: "America/Los_Angeles",
+    offset: "GMT-8",
+    cities: [
+      "California",
+      "Washington",
+      "Oregon",
+      "Nevada",
+      "Idaho",
+      "Arizona",
+      "British Columbia",
+      "Baja California",
+      "Alberta",
+      "Yukon (south)",
+      "Hermosillo",
+      "Tijuana",
+    ],
+  },
+  // GMT-9
   {
     name: "Anchorage",
     nameZh: "安克雷奇",
@@ -90,23 +112,6 @@ const timeZones: TimeZoneConfig[] = [
       "Nome",
       "Barrow",
       "Homer",
-    ],
-  },
-  {
-    name: "New York",
-    nameZh: "纽约",
-    timezone: "America/New_York",
-    offset: "GMT-5",
-    cities: [
-      "New York",
-      "Philadelphia",
-      "Miami",
-      "Atlanta",
-      "Boston",
-      "Washington D.C.",
-      "Detroit",
-      "Baltimore",
-      "Charlotte",
     ],
   },
 ];
