@@ -162,7 +162,7 @@ function serveStatic(app: express.Express) {
     return;
   }
   app.use(express.static(distPath));
-  app.use("*", (_req, res) => {
+  app.get(/^(?!\/api).*/, (_req, res) => {
     const indexPath = path.resolve(distPath, "index.html");
     res.sendFile(indexPath);
   });
@@ -376,7 +376,7 @@ app.use((req, res, next) => {
           await exec(`CREATE TABLE IF NOT EXISTS incoming_messages (
             id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
             user_id varchar,
-            from text NOT NULL,
+            "from" text NOT NULL,
             firstname text,
             lastname text,
             business text,

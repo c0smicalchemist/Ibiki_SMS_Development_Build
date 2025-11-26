@@ -3696,9 +3696,6 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
-}
   app.post('/api/v2/webhooks/register', authenticateApiKey, async (req: any, res) => {
     try {
       const { url, secret } = req.body || {};
@@ -3759,3 +3756,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       res.status(500).json({ error: e?.message || 'Failed to set webhook' });
     }
   });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}
