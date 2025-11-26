@@ -3587,6 +3587,21 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
     }
   });
 
+  app.post("/api/web/inbox/delete-permanent", authenticateToken, async (req: any, res) => {
+    try {
+      const { id, userId } = req.body;
+      if (!id) return res.status(400).json({ error: 'id required' });
+      const targetUserId = req.user.role === 'admin' && userId ? userId : req.user.userId;
+      const { Pool } = await import('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pool.query('DELETE FROM incoming_messages WHERE id = $1 AND is_deleted = true AND (user_id = $2 OR ($2 IS NULL AND user_id IS NULL))', [id, targetUserId || null]);
+      await pool.end();
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to permanently delete message' });
+    }
+  });
+
   app.post("/api/web/inbox/purge-deleted", authenticateToken, async (req: any, res) => {
     try {
       const { userId } = req.body || {};

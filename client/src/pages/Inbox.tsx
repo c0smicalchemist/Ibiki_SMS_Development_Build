@@ -178,6 +178,24 @@ export default function Inbox() {
     }
   });
 
+  const deletePermanentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const token = localStorage.getItem('token');
+      const resp = await fetch('/api/web/inbox/delete-permanent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ id, userId: effectiveUserId })
+      });
+      if (!resp.ok) throw new Error('Failed to permanently delete message');
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox/deleted", effectiveUserId] });
+    }
+  });
+
 
   const handleOpenConversation = (phoneNumber: string) => {
     setSelectedPhoneNumber(phoneNumber);
@@ -266,7 +284,7 @@ export default function Inbox() {
               <CardHeader className="py-3">
                 <div className="flex items-center gap-2">
                   <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search inbox" className="w-64" />
-                  <Button onClick={() => setShowDeleted(!showDeleted)} variant={showDeleted ? "default" : "outline"}>{showDeleted ? 'Deleted Messages' : 'Show Deleted'}</Button>
+                  <Button onClick={() => setShowDeleted(!showDeleted)} variant="destructive">{showDeleted ? 'Deleted Messages' : 'Show Deleted'}</Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -305,17 +323,30 @@ export default function Inbox() {
                       const dt = new Date((msg as any).timestamp || (msg as any).createdAt);
                       const dateStr = format(dt, 'MMM d, yyyy');
                       const timeStr = format(dt, 'HH:mm');
+                      const phone = (msg as any).from || (msg as any).receiver;
                       return (
-                        <TableRow key={msg.id}>
+                        <TableRow key={msg.id} onClick={() => !showDeleted && handleOpenConversation(phone)} className="cursor-pointer">
                           <TableCell className="font-mono text-sm whitespace-nowrap">{(msg as any).from || (msg as any).receiver}</TableCell>
                           <TableCell className="text-sm truncate max-w-[380px]">{(msg as any).message}</TableCell>
                           <TableCell className="text-sm whitespace-nowrap">{dateStr}</TableCell>
                           <TableCell className="text-sm whitespace-nowrap">{timeStr}</TableCell>
                           <TableCell className="text-right">
                             {!showDeleted && (
-                              <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate((msg as any).id)}>
+                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate((msg as any).id); }}>
                                 <Trash2 className="w-4 h-4 text-red-600" />
                               </Button>
+                            )}
+                            {showDeleted && (
+                              <div className="flex justify-end gap-2">
+                                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); fetch('/api/web/inbox/restore', {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: (msg as any).id, userId: effectiveUserId })
+                                }).then(() => queryClient.invalidateQueries({ queryKey: ["/api/web/inbox/deleted", effectiveUserId] })); }}>
+                                  Restore
+                                </Button>
+                                <Button variant="destructive" size="sm" onClick={(e) => { e.stopPropagation(); deletePermanentMutation.mutate((msg as any).id); }}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             )}
                           </TableCell>
                         </TableRow>

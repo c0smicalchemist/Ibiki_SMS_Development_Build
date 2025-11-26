@@ -49,6 +49,7 @@ export default function Contacts() {
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [groupSearch, setGroupSearch] = useState<string>('');
   const [groupName, setGroupName] = useState("");
   const [groupDescription, setGroupDescription] = useState("");
   const [businessUnitPrefix, setBusinessUnitPrefix] = useState("");
