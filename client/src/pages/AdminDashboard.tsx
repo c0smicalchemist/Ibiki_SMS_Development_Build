@@ -669,14 +669,14 @@ export default function AdminDashboard() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col gap-2">
+                        <div className="grid grid-cols-1 gap-2">
                           <AddCreditsToClientDialog 
                             clientId={client.id}
                             clientName={client.name}
                             currentCredits={client.credits}
                             triggerMode="add"
                             triggerLabel="$ Add"
-                            buttonClassName="block w-28 justify-start"
+                            buttonClassName="w-28 justify-start"
                           />
                           <AddCreditsToClientDialog 
                             clientId={client.id}
@@ -684,7 +684,7 @@ export default function AdminDashboard() {
                             currentCredits={client.credits}
                             triggerMode="deduct"
                             triggerLabel="$ Deduct"
-                            buttonClassName="block w-28 justify-start"
+                            buttonClassName="w-28 justify-start"
                           />
                           {!(client.isActive ?? client.status === 'active') ? (
                             <Button
