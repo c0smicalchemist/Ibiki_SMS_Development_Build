@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Inbox as InboxIcon, MessageSquare, ArrowLeft } from "lucide-react";
@@ -38,6 +41,8 @@ export default function Inbox() {
   const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
     return localStorage.getItem('isAdminMode') === 'true';
   });
+  const [search, setSearch] = useState('');
+  const [showDeleted, setShowDeleted] = useState(false);
 
   // Store selected client in localStorage
   useEffect(() => {
@@ -65,12 +70,13 @@ export default function Inbox() {
 
   // Fetch inbox messages
   const { data: inboxData, isLoading } = useQuery({
-    queryKey: ["/api/web/inbox", effectiveUserId],
+    queryKey: [showDeleted ? "/api/web/inbox/deleted" : "/api/web/inbox", effectiveUserId],
     queryFn: async () => {
       const token = localStorage.getItem('token');
+      const base = showDeleted ? '/api/web/inbox/deleted' : '/api/web/inbox';
       const url = effectiveUserId 
-        ? `/api/web/inbox?userId=${effectiveUserId}`
-        : '/api/web/inbox';
+        ? `${base}?userId=${effectiveUserId}`
+        : base;
       const response = await fetch(url, {
         headers: token ? { "Authorization": `Bearer ${token}` } : {}
       });
@@ -151,6 +157,25 @@ export default function Inbox() {
       toast({ title: t('common.success'), description: t('inbox.retrieveSuccess') });
     } catch {}
   };
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const token = localStorage.getItem('token');
+      const resp = await fetch('/api/web/inbox/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ id, userId: effectiveUserId })
+      });
+      if (!resp.ok) throw new Error('Failed to delete message');
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox/deleted", effectiveUserId] });
+    }
+  });
 
 
   const handleOpenConversation = (phoneNumber: string) => {
@@ -236,59 +261,53 @@ export default function Inbox() {
               </CardContent>
             </Card>
           ) : (
-            Object.entries(groupedMessages).map(([sender, msgs]: [string, any]) => {
-              const latestMsg = msgs[msgs.length - 1];
-              const hasUnread = msgs.some((msg: IncomingMessage) => !msg.isRead);
-              const senderName = latestMsg.firstname && latestMsg.lastname
-                ? `${latestMsg.firstname} ${latestMsg.lastname}`
-                : latestMsg.firstname || latestMsg.lastname || sender;
-
-              return (
-                <Card
-                  key={sender}
-                  data-testid={`conversation-${sender}`}
-                  className="hover-elevate active-elevate-2 cursor-pointer"
-                  onClick={() => handleOpenConversation(sender)}
-                >
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <CardTitle className="flex items-center gap-2 text-base">
-                              <MessageSquare className="h-4 w-4" />
-                              {senderName}
-                            </CardTitle>
-                            {hasUnread && (
-                              <Badge variant="default" className="bg-primary text-primary-foreground text-xs">
-                                {t('inbox.unreadIndicator')}
-                              </Badge>
+            <Card>
+              <CardHeader className="py-3">
+                <div className="flex items-center gap-2">
+                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search inbox" className="w-64" />
+                  <Button onClick={() => setShowDeleted(!showDeleted)} variant={showDeleted ? "default" : "outline"}>{showDeleted ? 'Deleted Messages' : 'Show Deleted'}</Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Recipient</TableHead>
+                      <TableHead>Message</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Time</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {messages.filter(m => {
+                      const q = search.trim().toLowerCase();
+                      if (!q) return true;
+                      return (m.from || '').toLowerCase().includes(q) || (m.receiver || '').toLowerCase().includes(q) || (m.message || '').toLowerCase().includes(q);
+                    }).map(msg => {
+                      const dt = new Date((msg as any).timestamp || (msg as any).createdAt);
+                      const dateStr = format(dt, 'MMM d, yyyy');
+                      const timeStr = format(dt, 'HH:mm');
+                      return (
+                        <TableRow key={msg.id}>
+                          <TableCell className="font-mono text-sm whitespace-nowrap">{(msg as any).from || (msg as any).receiver}</TableCell>
+                          <TableCell className="text-sm truncate max-w-[380px]">{(msg as any).message}</TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">{dateStr}</TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">{timeStr}</TableCell>
+                          <TableCell className="text-right">
+                            {!showDeleted && (
+                              <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate((msg as any).id)}>
+                                <Trash2 className="w-4 h-4 text-red-600" />
+                              </Button>
                             )}
-                          </div>
-                          <CardDescription className="font-mono text-xs mt-1">{sender}</CardDescription>
-                          {latestMsg.business && (
-                            <Badge variant="outline" className="mt-2">{latestMsg.business}</Badge>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(latestMsg.timestamp), "MMM d, h:mm a")}
-                        </p>
-                        <Badge variant="secondary" className="mt-1 text-xs">
-                          {msgs.length} {msgs.length === 1 ? 'message' : 'messages'}
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {latestMsg.message}
-                    </p>
-                  </CardContent>
-                </Card>
-              );
-            })
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>

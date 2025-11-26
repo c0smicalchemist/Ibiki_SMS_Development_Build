@@ -3343,27 +3343,27 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
             const db = drizzle(pool);
             const migrationsFolder = path.resolve(import.meta.dirname, '..', 'migrations');
             try {
-              await migrate(db, { migrationsFolder });
-            } catch {
-              const exec = async (q: string) => { try { await pool.query(q); } catch {} };
-              await exec(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
-              await exec(`CREATE TABLE IF NOT EXISTS users (id varchar PRIMARY KEY DEFAULT gen_random_uuid(), email text NOT NULL UNIQUE, password text NOT NULL, name text NOT NULL, company text, role text NOT NULL DEFAULT 'client', is_active boolean NOT NULL DEFAULT true, reset_token text, reset_token_expiry timestamp, created_at timestamp NOT NULL DEFAULT now())`);
-              await exec(`CREATE TABLE IF NOT EXISTS incoming_messages (id varchar PRIMARY KEY DEFAULT gen_random_uuid(), user_id varchar, "from" text NOT NULL, firstname text, lastname text, business text, message text NOT NULL, status text NOT NULL, matched_block_word text, receiver text NOT NULL, usedmodem text, port text, timestamp timestamp NOT NULL, message_id text NOT NULL, is_read boolean NOT NULL DEFAULT false, is_example boolean NOT NULL DEFAULT false, created_at timestamp NOT NULL DEFAULT now())`);
-              await exec(`CREATE INDEX IF NOT EXISTS incoming_user_id_idx ON incoming_messages(user_id)`);
-              await exec(`CREATE INDEX IF NOT EXISTS incoming_receiver_idx ON incoming_messages(receiver)`);
-            }
-            await pool.end();
-            messages = await storage.getIncomingMessagesByUserId(targetUserId, limit);
-          } catch (bootErr: any) {
-            console.error('Inbox bootstrap error:', bootErr?.message || bootErr);
-            return res.status(500).json({ error: 'Failed to retrieve inbox' });
+            await migrate(db, { migrationsFolder });
+          } catch {
+            const exec = async (q: string) => { try { await pool.query(q); } catch {} };
+            await exec(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+            await exec(`CREATE TABLE IF NOT EXISTS users (id varchar PRIMARY KEY DEFAULT gen_random_uuid(), email text NOT NULL UNIQUE, password text NOT NULL, name text NOT NULL, company text, role text NOT NULL DEFAULT 'client', is_active boolean NOT NULL DEFAULT true, reset_token text, reset_token_expiry timestamp, created_at timestamp NOT NULL DEFAULT now())`);
+            await exec(`CREATE TABLE IF NOT EXISTS incoming_messages (id varchar PRIMARY KEY DEFAULT gen_random_uuid(), user_id varchar, "from" text NOT NULL, firstname text, lastname text, business text, message text NOT NULL, status text NOT NULL, matched_block_word text, receiver text NOT NULL, usedmodem text, port text, timestamp timestamp NOT NULL, message_id text NOT NULL, is_read boolean NOT NULL DEFAULT false, is_example boolean NOT NULL DEFAULT false, is_deleted boolean NOT NULL DEFAULT false, created_at timestamp NOT NULL DEFAULT now())`);
+            await exec(`CREATE INDEX IF NOT EXISTS incoming_user_id_idx ON incoming_messages(user_id)`);
+            await exec(`CREATE INDEX IF NOT EXISTS incoming_receiver_idx ON incoming_messages(receiver)`);
           }
-        } else {
-          console.error('Web UI inbox error:', err);
+          await pool.end();
+          messages = await storage.getIncomingMessagesByUserId(targetUserId, limit);
+        } catch (bootErr: any) {
+          console.error('Inbox bootstrap error:', bootErr?.message || bootErr);
           return res.status(500).json({ error: 'Failed to retrieve inbox' });
         }
+      } else {
+        console.error('Web UI inbox error:', err);
+        return res.status(500).json({ error: 'Failed to retrieve inbox' });
       }
-      
+    }
+    messages = messages.filter((m: any) => !m.isDeleted);
       // Auto-seed example for clients if inbox is empty (make example permanent)
       if (messages.length === 0 && req.user.role !== 'admin') {
         await storage.seedExampleData(targetUserId);
@@ -3537,3 +3537,49 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   const httpServer = createServer(app);
   return httpServer;
 }
+  app.get("/api/web/inbox/deleted", authenticateToken, async (req: any, res) => {
+    try {
+      const targetUserId = req.user.role === 'admin' && req.query.userId ? req.query.userId : req.user.userId;
+      const all = await storage.getIncomingMessagesByUserId(targetUserId, parseInt((req.query.limit as string) || '200'));
+      const deleted = all.filter((m: any) => !!m.isDeleted);
+      res.json({ success: true, messages: deleted, count: deleted.length });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to load deleted messages' });
+    }
+  });
+
+  app.post("/api/web/inbox/delete", authenticateToken, async (req: any, res) => {
+    try {
+      const { id, userId } = req.body;
+      if (!id) return res.status(400).json({ error: 'id required' });
+      const targetUserId = req.user.role === 'admin' && userId ? userId : req.user.userId;
+      try {
+        const { Pool } = await import('pg');
+        const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+        await pool.query('ALTER TABLE incoming_messages ADD COLUMN IF NOT EXISTS is_deleted boolean NOT NULL DEFAULT false');
+        await pool.end();
+      } catch {}
+      const { Pool } = await import('pg');
+      const pool2 = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pool2.query('UPDATE incoming_messages SET is_deleted = true WHERE id = $1 AND (user_id IS NULL OR user_id = $2)', [id, targetUserId]);
+      await pool2.end();
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to delete message' });
+    }
+  });
+
+  app.post("/api/web/inbox/restore", authenticateToken, async (req: any, res) => {
+    try {
+      const { id, userId } = req.body;
+      if (!id) return res.status(400).json({ error: 'id required' });
+      const targetUserId = req.user.role === 'admin' && userId ? userId : req.user.userId;
+      const { Pool } = await import('pg');
+      const pool2 = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pool2.query('UPDATE incoming_messages SET is_deleted = false WHERE id = $1 AND (user_id IS NULL OR user_id = $2)', [id, targetUserId]);
+      await pool2.end();
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to restore message' });
+    }
+  });
