@@ -521,9 +521,10 @@ export default function AdminDashboard() {
               <CardDescription>View and manage all connected clients</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
+              <div className="rounded border max-h-[65vh] overflow-y-auto">
+              <Table className="min-w-full">
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="sticky top-0 bg-background z-10">
                     <TableHead>Client Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>API Key</TableHead>
@@ -732,6 +733,7 @@ export default function AdminDashboard() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
