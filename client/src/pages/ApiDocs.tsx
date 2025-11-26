@@ -1,4 +1,5 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Info, ArrowLeft } from "lucide-react";
 import ApiEndpointCard from "@/components/ApiEndpointCard";
 import { WebhookRoutingDocs } from "@/components/WebhookRoutingDocs";
@@ -208,14 +209,26 @@ export default function ApiDocs() {
       ) : (
         <div className="mt-12">
           <h2 className="text-2xl font-semibold">API Error Codes</h2>
-          <div className="mt-4 grid gap-2">
-            <code className="block bg-muted p-2 rounded text-sm">200 — OK</code>
-            <code className="block bg-muted p-2 rounded text-sm">400 — Bad Request</code>
-            <code className="block bg-muted p-2 rounded text-sm">401 — Unauthorized</code>
-            <code className="block bg-muted p-2 rounded text-sm">402 — Payment Required</code>
-            <code className="block bg-muted p-2 rounded text-sm">404 — Not Found</code>
-            <code className="block bg-muted p-2 rounded text-sm">429 — Too Many Requests</code>
-            <code className="block bg-muted p-2 rounded text-sm">500 — Internal Server Error</code>
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[
+              { code: 200, status: 'OK' },
+              { code: 400, status: 'Bad Request' },
+              { code: 401, status: 'Unauthorized' },
+              { code: 402, status: 'Payment Required' },
+              { code: 404, status: 'Not Found' },
+              { code: 429, status: 'Too Many Requests' },
+              { code: 500, status: 'Internal Server Error' }
+            ].map(item => (
+              <Card key={item.code} className="border border-border/60">
+                <CardHeader className="py-3">
+                  <CardTitle className="flex items-center justify-between">
+                    <span className="font-mono text-lg">{item.code}</span>
+                    <span className="text-sm text-muted-foreground">{item.status}</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-0" />
+              </Card>
+            ))}
           </div>
         </div>
       )}

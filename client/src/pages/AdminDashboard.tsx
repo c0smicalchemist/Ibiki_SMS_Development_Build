@@ -371,6 +371,9 @@ export default function AdminDashboard() {
   const totalClients = statsData?.totalClients || clients.length;
   const extremeBalance = balanceData?.balance ?? null;
   const balanceCurrency = balanceData?.currency || 'USD';
+  const sumCredits = clients.reduce((sum, c) => sum + (parseFloat(c.credits || '0') || 0), 0);
+  const clientRateNumber = parseFloat(clientRate || config?.config?.client_rate_per_sms || '0') || 0;
+  const creditsValueUSD = (sumCredits * clientRateNumber).toFixed(2);
 
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
@@ -427,6 +430,12 @@ export default function AdminDashboard() {
             value={t('admin.stats.healthy')}
             icon={Settings}
             description={t('admin.stats.allRunning')}
+          />
+          <StatCard
+            title="Credits Value (USD)"
+            value={`$ ${creditsValueUSD}`}
+            icon={Wallet}
+            description={`Total credits × client rate (${clientRateNumber.toFixed(4)} USD)`}
           />
         </div>
 
@@ -536,9 +545,14 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell>{client.messagesSent.toLocaleString()}</TableCell>
                       <TableCell>
-                        <span className="font-mono font-semibold" data-testid={`text-credits-${client.id}`}>
-                          ${parseFloat(client.credits).toFixed(2)}
-                        </span>
+                        <div className="space-y-1">
+                          <span className="font-mono font-semibold" data-testid={`text-credits-${client.id}`}>
+                            {parseFloat(client.credits || '0').toFixed(2)} credits
+                          </span>
+                          <div className="text-xs text-muted-foreground">
+                            ≈ ${ ( (parseFloat(client.credits || '0') || 0) * clientRateNumber ).toFixed(2) } USD
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Input
