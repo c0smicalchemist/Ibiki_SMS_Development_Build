@@ -3363,6 +3363,12 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         return res.status(500).json({ error: 'Failed to retrieve inbox' });
       }
     }
+    try {
+      const { Pool } = await import('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pool.query('ALTER TABLE incoming_messages ADD COLUMN IF NOT EXISTS is_deleted boolean NOT NULL DEFAULT false');
+      await pool.end();
+    } catch {}
     messages = messages.filter((m: any) => !m.isDeleted);
       // Auto-seed example for clients if inbox is empty (make example permanent)
       if (messages.length === 0 && req.user.role !== 'admin') {
@@ -3534,9 +3540,6 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
-}
   app.get("/api/web/inbox/deleted", authenticateToken, async (req: any, res) => {
     try {
       const targetUserId = req.user.role === 'admin' && req.query.userId ? req.query.userId : req.user.userId;
@@ -3583,3 +3586,21 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       res.status(500).json({ error: 'Failed to restore message' });
     }
   });
+
+  app.post("/api/web/inbox/purge-deleted", authenticateToken, async (req: any, res) => {
+    try {
+      const { userId } = req.body || {};
+      const targetUserId = req.user.role === 'admin' && userId ? userId : req.user.userId;
+      const { Pool } = await import('pg');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pool.query('DELETE FROM incoming_messages WHERE is_deleted = true AND (user_id = $1 OR ($1 IS NULL AND user_id IS NULL))', [targetUserId || null]);
+      await pool.end();
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to purge deleted messages' });
+    }
+  });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}

@@ -87,6 +87,7 @@ export default function Inbox() {
   });
 
   const messages: IncomingMessage[] = (inboxData as any)?.messages || [];
+  const deletedCount: number = (inboxData as any)?.count || 0;
   const seedExample = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -269,6 +270,22 @@ export default function Inbox() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
+                {showDeleted && deletedCount >= 2000 && (
+                  <div className="px-4 pt-3">
+                    <div className="flex items-center justify-between rounded border border-red-500 bg-red-50 p-2">
+                      <span className="text-xs text-red-700">Bin has {deletedCount} messages. Purge bin to free space.</span>
+                      <Button variant="destructive" size="sm" onClick={async () => {
+                        const token = localStorage.getItem('token');
+                        await fetch('/api/web/inbox/purge-deleted', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                          body: JSON.stringify({ userId: effectiveUserId })
+                        });
+                        await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox/deleted", effectiveUserId] });
+                      }}>Purge Bin</Button>
+                    </div>
+                  </div>
+                )}
                 <Table>
                   <TableHeader>
                     <TableRow>

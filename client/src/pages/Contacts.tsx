@@ -612,6 +612,9 @@ export default function Contacts() {
             <CardTitle>Contact Groups</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
+            <div className="mb-2">
+              <Input placeholder="Search groups" value={groupSearch} onChange={(e) => setGroupSearch(e.target.value)} />
+            </div>
             <Button
               variant={selectedGroup === null ? "secondary" : "ghost"}
               className="w-full justify-start"
@@ -621,23 +624,18 @@ export default function Contacts() {
               <Users className="h-4 w-4 mr-2" />
               All Contacts ({contacts.length})
             </Button>
-            {groups.map((group: ContactGroup) => (
+            {(groups.filter((g: ContactGroup) => !groupSearch || g.name.toLowerCase().includes(groupSearch.toLowerCase()))).map((group: ContactGroup) => (
               <div key={group.id} className="space-y-1">
-                <Button
-                  variant={selectedGroup === group.id ? "secondary" : "ghost"}
-                  className="w-full justify-start"
-                  onClick={() => setSelectedGroup(group.id)}
-                  data-testid={`button-group-${group.id}`}
-                >
-                  <Folder className="h-4 w-4 mr-2" />
-                  <span className="flex-1 text-left">{group.name} ({contacts.filter((c: Contact) => c.groupId === group.id).length})</span>
-                </Button>
-                <div className="pl-6 flex justify-between items-center">
-                  {group.businessUnitPrefix && (
-                    <div className="text-xs text-muted-foreground">
-                      Business: {group.businessUnitPrefix}
-                    </div>
-                  )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={selectedGroup === group.id ? "secondary" : "ghost"}
+                    className="flex-1 justify-start"
+                    onClick={() => setSelectedGroup(group.id)}
+                    data-testid={`button-group-${group.id}`}
+                  >
+                    <Folder className="h-4 w-4 mr-2" />
+                    <span className="flex-1 text-left">{group.name} ({contacts.filter((c: Contact) => c.groupId === group.id).length})</span>
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -652,7 +650,9 @@ export default function Contacts() {
                     {t('common.delete')}
                   </Button>
                 </div>
-                
+                {group.businessUnitPrefix && (
+                  <div className="pl-6 text-[10px] text-muted-foreground">Business: {group.businessUnitPrefix}</div>
+                )}
               </div>
             ))}
           </CardContent>
