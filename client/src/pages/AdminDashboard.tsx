@@ -424,10 +424,10 @@ export default function AdminDashboard() {
             value={
               balanceLoading ? "Loading..." : 
               balanceError ? "Unavailable" :
-              extremeBalance !== null ? `${balanceCurrency} ${extremeBalance.toLocaleString()}` : "N/A"
+              extremeBalance !== null ? `${balanceCurrency} ${extremeBalance.toLocaleString()}${extremeUSD ? ` (≈ $ ${extremeUSD})` : ''}` : "N/A"
             }
             icon={Wallet}
-            description={balanceError ? "Unable to fetch balance" : (extremeUSD ? `≈ $ ${extremeUSD} USD at provider rate` : "Current account balance")}
+            description={balanceError ? "Unable to fetch balance" : "Current account balance"}
           />
           <StatCard
             title={t('admin.stats.systemStatus')}
