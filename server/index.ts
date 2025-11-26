@@ -161,7 +161,15 @@ function serveStatic(app: express.Express) {
     console.warn(`Skipping static file serving; missing ${distPath}`);
     return;
   }
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith("index.html")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      } else {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
+    }
+  }));
   app.get(/^(?!\/api).*/, (_req, res) => {
     const indexPath = path.resolve(distPath, "index.html");
     res.sendFile(indexPath);
