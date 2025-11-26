@@ -292,7 +292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const proto = (req.headers['x-forwarded-proto'] as string) || 'http';
       const host = (req.headers['x-forwarded-host'] as string) || req.headers.host || 'localhost:8080';
       const baseUrl = `${proto}://${host}`;
-      const suggestedWebhook = `${baseUrl}/webhook/incoming-sms`;
+      const suggestedWebhook = `${baseUrl}/api/webhook/extreme-sms`;
       const configuredWebhookRec = await storage.getSystemConfig('webhook_url');
       res.set('Cache-Control', 'no-store');
       res.json({ success: true, configured: out, envPresent, baseUrl, suggestedWebhook, configuredWebhook: configuredWebhookRec?.value || null });
