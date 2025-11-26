@@ -161,6 +161,14 @@ export default function MessageHistory() {
         }
       }
     }
+    if (ids.length === 0 && typeof msg.responsePayload === 'string' && msg.responsePayload) {
+      const text = msg.responsePayload as string;
+      const regex = /"messageId"\s*:\s*"([^"]+)"/g;
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        if (match[1]) ids.push(match[1]);
+      }
+    }
     if (ids.length === 0 && typeof msg.messageId === 'string' && msg.messageId && msg.messageId !== 'unknown' && msg.messageId !== '-') {
       ids.push(msg.messageId);
     }

@@ -139,6 +139,13 @@ export function ConversationDialog({ open, onClose, phoneNumber, userId, isAdmin
           body = (resp?.message || resp?.content || body || '') as string;
         } catch {}
       }
+      if (!body) {
+        const text = (msg.requestPayload || msg.responsePayload || '') as string;
+        if (typeof text === 'string' && text.length) {
+          const m = text.match(/"message"\s*:\s*"([\s\S]*?)"/i) || text.match(/"content"\s*:\s*"([\s\S]*?)"/i);
+          if (m && m[1]) body = m[1];
+        }
+      }
       return {
         ...msg,
         message: body,
