@@ -150,6 +150,8 @@ export default function MessageHistory() {
   };
 
   const extractMessageIds = (msg: MessageLog): string[] => {
+    const srv = (msg as any).computedIds as string[] | undefined;
+    if (srv && srv.length > 0) return srv;
     const ids: string[] = [];
     const response = safeJsonParse(msg.responsePayload);
     const collectFromObj = (obj: any) => {

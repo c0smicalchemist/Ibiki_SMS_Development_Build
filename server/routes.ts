@@ -950,7 +950,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const limit = await resolveFetchLimit(req.user.userId, req.user.role, req.query.limit as string | undefined);
       const logs = await storage.getMessageLogsByUserId(req.user.userId, limit);
-      res.json({ success: true, messages: logs, count: logs.length, limit });
+      const extractIds = (payload: any): string[] => {
+        const ids: string[] = [];
+        const safeParse = (v: any) => {
+          try { return typeof v === 'string' ? JSON.parse(v || '') : v; } catch { return null; }
+        };
+        const collect = (obj: any) => {
+          if (!obj || typeof obj !== 'object') return;
+          for (const [k, v] of Object.entries(obj)) {
+            if (typeof v === 'string') {
+              if (/messageId/i.test(k) || /message_id/i.test(k)) ids.push(v);
+              else if (/^id$/i.test(k) && v.length >= 6) ids.push(v);
+            } else if (Array.isArray(v)) v.forEach(collect);
+            else if (v && typeof v === 'object') collect(v);
+          }
+        };
+        const obj = safeParse(payload);
+        if (obj) collect(obj);
+        if (ids.length === 0 && typeof payload === 'string') {
+          const text = payload as string;
+          const regexes = [/"messageId"\s*:\s*"([^"]+)"/g, /"message_id"\s*:\s*"([^"]+)"/g];
+          for (const re of regexes) {
+            let m; while ((m = re.exec(text)) !== null) { if (m[1]) ids.push(m[1]); }
+          }
+        }
+        return ids;
+      };
+      const mapped = logs.map((log: any) => ({
+        ...log,
+        computedIds: extractIds(log.responsePayload)
+      }));
+      res.json({ success: true, messages: mapped, count: mapped.length, limit });
     } catch (error) {
       console.error("Message logs fetch error:", error);
       res.status(500).json({ error: "Failed to fetch messages" });
@@ -964,7 +994,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) return res.status(400).json({ error: "userId is required" });
       const limit = await resolveFetchLimit(userId, 'client', req.query.limit as string | undefined);
       const logs = await storage.getMessageLogsByUserId(userId, limit);
-      res.json({ success: true, messages: logs, count: logs.length, limit });
+      const extractIds = (payload: any): string[] => {
+        const ids: string[] = [];
+        const safeParse = (v: any) => {
+          try { return typeof v === 'string' ? JSON.parse(v || '') : v; } catch { return null; }
+        };
+        const collect = (obj: any) => {
+          if (!obj || typeof obj !== 'object') return;
+          for (const [k, v] of Object.entries(obj)) {
+            if (typeof v === 'string') {
+              if (/messageId/i.test(k) || /message_id/i.test(k)) ids.push(v);
+              else if (/^id$/i.test(k) && v.length >= 6) ids.push(v);
+            } else if (Array.isArray(v)) v.forEach(collect);
+            else if (v && typeof v === 'object') collect(v);
+          }
+        };
+        const obj = safeParse(payload);
+        if (obj) collect(obj);
+        if (ids.length === 0 && typeof payload === 'string') {
+          const text = payload as string;
+          const regexes = [/"messageId"\s*:\s*"([^"]+)"/g, /"message_id"\s*:\s*"([^"]+)"/g];
+          for (const re of regexes) {
+            let m; while ((m = re.exec(text)) !== null) { if (m[1]) ids.push(m[1]); }
+          }
+        }
+        return ids;
+      };
+      const mapped = logs.map((log: any) => ({
+        ...log,
+        computedIds: extractIds(log.responsePayload)
+      }));
+      res.json({ success: true, messages: mapped, count: mapped.length, limit });
     } catch (error) {
       console.error("Admin message logs fetch error:", error);
       res.status(500).json({ error: "Failed to fetch messages for client" });

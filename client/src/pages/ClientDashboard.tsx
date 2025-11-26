@@ -91,12 +91,7 @@ export default function ClientDashboard() {
             icon={MessageSquare}
             description={t('dashboard.stats.allTime')}
           />
-          <StatCard
-            title={t('dashboard.stats.inbox')}
-            value={inboxCount.toLocaleString()}
-            icon={Inbox}
-            description={t('dashboard.stats.inboxMessages')}
-          />
+          {/* Inbox stat removed to reduce clutter; dedicated tile exists below */}
           <StatCard
             title={t('dashboard.stats.credits')}
             value={`$${parseFloat(credits).toFixed(2)}`}
