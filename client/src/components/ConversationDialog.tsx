@@ -133,6 +133,12 @@ export function ConversationDialog({ open, onClose, phoneNumber, userId, isAdmin
       } catch {
         body = (msg.message || '') as string;
       }
+      if (!body) {
+        try {
+          const resp = typeof msg.responsePayload === 'string' ? JSON.parse(msg.responsePayload || '') : msg.responsePayload;
+          body = (resp?.message || resp?.content || body || '') as string;
+        } catch {}
+      }
       return {
         ...msg,
         message: body,

@@ -343,7 +343,7 @@ export default function MessageHistory() {
                               variant="outline"
                               size="sm"
                               className="ml-2 border-blue-500 text-blue-600 font-bold"
-                              onClick={() => { setBulkNumbers(msg.recipients || []); setBulkOpen(true); }}
+                            onClick={() => { setBulkNumbers(msg.recipients || []); setBulkIds(extractMessageIds(msg)); setBulkOpen(true); }}
                             >
                               {t('messageHistory.bulk')} ({msg.recipients.length})
                             </Button>
