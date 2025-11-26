@@ -10,10 +10,10 @@ $pkg = (Get-ChildItem -Path release -Filter "ibiki-sms-*.tar.gz" | Sort-Object L
 Write-Host "[local] Package: $pkg"
 
 Write-Host "[local] Uploading package and env"
-scp $pkg "$Server:/root/"
-scp $LocalEnv "$Server:$ServerEnv"
+scp $pkg "${Server}:/root/"
+scp $LocalEnv "${Server}:${ServerEnv}"
 
 Write-Host "[remote] Deploying"
-ssh $Server "bash -lc 'bash /opt/ibiki-sms/scripts/server-deploy.sh /root/$(basename $pkg) $ServerEnv'"
+ssh ${Server} "bash -lc 'bash /opt/ibiki-sms/scripts/server-deploy.sh /root/$(basename \"$pkg\") ${ServerEnv}'"
 
 Write-Host "[done] Deployment completed. App managed by PM2 (ibiki-sms)."
