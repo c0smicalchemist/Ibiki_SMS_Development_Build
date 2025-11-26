@@ -1080,6 +1080,26 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async setClientDeliveryMode(userId: string, mode: string): Promise<void> {
+    await this.db.update(clientProfiles)
+      .set({ deliveryMode: mode, updatedAt: new Date() })
+      .where(eq(clientProfiles.userId, userId));
+  }
+
+  async setClientWebhook(userId: string, url: string | null, secret: string | null): Promise<void> {
+    await this.db.update(clientProfiles)
+      .set({ webhookUrl: url, webhookSecret: secret, updatedAt: new Date() })
+      .where(eq(clientProfiles.userId, userId));
+  }
+
+  async getLastInboundForUserAndRecipient(userId: string, recipient: string): Promise<IncomingMessage | undefined> {
+    const result = await this.db.select().from(incomingMessages)
+      .where(sql`${incomingMessages.userId} = ${userId} AND ${incomingMessages.from} = ${recipient}`)
+      .orderBy(desc(incomingMessages.timestamp))
+      .limit(1);
+    return result[0];
+  }
+
   // System Config methods
   async getSystemConfig(key: string): Promise<SystemConfig | undefined> {
     const result = await this.db.select().from(systemConfig).where(eq(systemConfig.key, key));

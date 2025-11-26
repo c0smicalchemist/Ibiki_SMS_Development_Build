@@ -30,6 +30,23 @@ export default function ApiDocs() {
     },
     {
       method: "POST" as const,
+      path: "/api/v2/sms/reply",
+      title: 'Reply (Helper)',
+      description: 'Reply to a conversation; modem/port mapped from last inbound',
+      requestExample: `curl -X POST https://ibiki.run.place/api/v2/sms/reply \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+  "to": "${t('examples.phone.sample1')}",
+  "message": "${t('examples.sms.verificationCode')}"
+}'`,
+      responseExample: `{
+  "success": true,
+  "provider": { "status": "queued" }
+}`
+    },
+    {
+      method: "POST" as const,
       path: "/api/web/sms/send-bulk",
       title: 'Send Bulk',
       description: 'Send the same SMS to multiple recipients',

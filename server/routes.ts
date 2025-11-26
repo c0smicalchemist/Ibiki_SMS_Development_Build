@@ -1752,6 +1752,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      try {
+        if (created.userId) {
+          const profile = await storage.getClientProfileByUserId(created.userId);
+          const mode = (profile?.deliveryMode || 'poll').toLowerCase();
+          const url = profile?.webhookUrl || null;
+          const secret = profile?.webhookSecret || null;
+          if (url && (mode === 'push' || mode === 'both')) {
+            const payload = {
+              userId: created.userId,
+              from,
+              receiver,
+              business,
+              message,
+              status: 'received',
+              usedmodem,
+              port,
+              timestamp: timestamp.toISOString(),
+              messageId,
+            };
+            const body = JSON.stringify(payload);
+            const headers: any = { 'Content-Type': 'application/json' };
+            if (secret) {
+              const crypto = await import('crypto');
+              const sig = crypto.createHmac('sha256', secret).update(body).digest('hex');
+              headers['X-Ibiki-Signature'] = sig;
+            }
+            try {
+              await axios.post(url, body, { headers });
+            } catch (pushErr) {}
+          }
+        }
+      } catch {}
       res.json({ success: true });
     } catch (error) {
       console.error('Extreme webhook ingest error:', error);
@@ -3367,6 +3399,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       const { Pool } = await import('pg');
       const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
       await pool.query('ALTER TABLE incoming_messages ADD COLUMN IF NOT EXISTS is_deleted boolean NOT NULL DEFAULT false');
+      await pool.query('ALTER TABLE client_profiles ADD COLUMN IF NOT EXISTS delivery_mode text DEFAULT \'poll\'');
+      await pool.query('ALTER TABLE client_profiles ADD COLUMN IF NOT EXISTS webhook_url text');
+      await pool.query('ALTER TABLE client_profiles ADD COLUMN IF NOT EXISTS webhook_secret text');
       await pool.end();
     } catch {}
     messages = messages.filter((m: any) => !m.isDeleted);
@@ -3664,3 +3699,63 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   const httpServer = createServer(app);
   return httpServer;
 }
+  app.post('/api/v2/webhooks/register', authenticateApiKey, async (req: any, res) => {
+    try {
+      const { url, secret } = req.body || {};
+      const userId = req.apiUserId;
+      const safeUrl = typeof url === 'string' && url.startsWith('https://') ? url : null;
+      await storage.setClientWebhook(userId, safeUrl, secret || null);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to register webhook' });
+    }
+  });
+
+  app.get('/api/v2/webhooks/status', authenticateApiKey, async (req: any, res) => {
+    try {
+      const profile = await storage.getClientProfileByUserId(req.apiUserId);
+      res.json({ success: true, deliveryMode: profile?.deliveryMode || 'poll', webhookUrl: profile?.webhookUrl || null });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to load status' });
+    }
+  });
+
+  app.post('/api/v2/sms/reply', authenticateApiKey, async (req: any, res) => {
+    try {
+      const { to, message } = req.body || {};
+      if (!to || !message) return res.status(400).json({ error: 'to and message required' });
+      const last = await storage.getLastInboundForUserAndRecipient(req.apiUserId, to);
+      if (!last || !last.usedmodem || !last.port) return res.status(400).json({ error: 'No inbound context with modem/port found' });
+      const payload = { recipient: to, message, usemodem: last.usedmodem, port: last.port };
+      const extremeApiKey = await getExtremeApiKey();
+      const response = await axios.post(`${EXTREMESMS_BASE_URL}/api/v2/sms/sendsingle`, payload, { headers: { Authorization: `Bearer ${extremeApiKey}`, 'Content-Type': 'application/json' } });
+      res.json({ success: true, provider: response.data });
+    } catch (e: any) {
+      if (e?.response?.status === 401) return res.status(401).json({ error: 'Unauthorized: Provider rejected API key' });
+      res.status(500).json({ error: e?.message || 'Failed to reply' });
+    }
+  });
+
+  app.post('/api/admin/clients/:id/delivery-mode', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { mode } = req.body || {};
+      if (!['poll', 'push', 'both'].includes(String(mode))) return res.status(400).json({ error: 'Invalid mode' });
+      await storage.setClientDeliveryMode(id, String(mode));
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to set delivery mode' });
+    }
+  });
+
+  app.post('/api/admin/clients/:id/webhook', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { url, secret } = req.body || {};
+      const safeUrl = typeof url === 'string' && url.startsWith('https://') ? url : null;
+      await storage.setClientWebhook(id, safeUrl, secret || null);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to set webhook' });
+    }
+  });

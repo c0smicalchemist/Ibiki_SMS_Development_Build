@@ -526,10 +526,13 @@ export default function AdminDashboard() {
                     <TableHead>Messages Sent</TableHead>
                     <TableHead>Credits</TableHead>
                     <TableHead>{t('admin.clients.table.rateLimit')}</TableHead>
-                    <TableHead>{t('admin.clients.table.businessName')}</TableHead>
-                    <TableHead>Assigned Numbers</TableHead>
-                    <TableHead>Last Active</TableHead>
-                    <TableHead>Actions</TableHead>
+                <TableHead>{t('admin.clients.table.businessName')}</TableHead>
+                <TableHead>Assigned Numbers</TableHead>
+                <TableHead>Last Active</TableHead>
+                <TableHead>Delivery Mode</TableHead>
+                <TableHead>Webhook URL</TableHead>
+                <TableHead>Webhook Secret</TableHead>
+                <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -634,6 +637,33 @@ export default function AdminDashboard() {
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{client.lastActive}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <select
+                            className="border rounded px-2 py-1 text-xs"
+                            defaultValue={(client.deliveryMode || 'poll') as any}
+                            onChange={(e) => setEditDeliveryMode(e.target.value as any)}
+                          >
+                            <option value="poll">Poll</option>
+                            <option value="push">Push</option>
+                            <option value="both">Both</option>
+                          </select>
+                          <Button size="sm" variant="outline" onClick={() => {
+                            apiRequest(`/api/admin/clients/${client.id}/delivery-mode`, { method: 'POST', body: JSON.stringify({ mode: editDeliveryMode }) })
+                              .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
+                          }}>Save</Button>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Input className="text-xs" placeholder="https://..." defaultValue={client.webhookUrl || ''} onBlur={(e) => setEditWebhookUrl(e.target.value)} />
+                      </TableCell>
+                      <TableCell>
+                        <Input className="text-xs" placeholder="secret" defaultValue={client.webhookSecret || ''} onBlur={(e) => setEditWebhookSecret(e.target.value)} />
+                        <Button size="sm" variant="outline" className="ml-2" onClick={() => {
+                          apiRequest(`/api/admin/clients/${client.id}/webhook`, { method: 'POST', body: JSON.stringify({ url: editWebhookUrl, secret: editWebhookSecret }) })
+                            .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
+                        }}>Save</Button>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <AddCreditsToClientDialog 
