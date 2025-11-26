@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Search, RefreshCw, Clock } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Link } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -335,10 +336,10 @@ export default function MessageHistory() {
               </div>
             ) : (
               <>
-                <div className="rounded-md border max-h-[65vh] overflow-y-auto relative">
+                <ScrollArea className="h-[65vh] rounded-md border">
                   <Table className="min-w-full">
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="sticky top-0 bg-background z-10">
                         <TableHead className="sticky top-0 bg-background z-10">{t('messageHistory.table.recipient')}</TableHead>
                         <TableHead className="sticky top-0 bg-background z-10">Business Name</TableHead>
                         <TableHead className="sticky top-0 bg-background z-10">{t('messageHistory.table.message')}</TableHead>
@@ -425,7 +426,7 @@ export default function MessageHistory() {
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+                </ScrollArea>
 
                 {/* Pagination */}
                 <div className="flex items-center justify-between mt-4">

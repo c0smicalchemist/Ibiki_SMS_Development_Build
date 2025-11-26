@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Trash2 } from "lucide-react";
@@ -304,7 +305,7 @@ export default function Inbox() {
                     </div>
                   </div>
                 )}
-                <div className="max-h-[65vh] overflow-y-auto rounded border relative">
+                <ScrollArea className="h-[65vh] rounded border">
                 <Table className="min-w-full">
                   <TableHeader>
                     <TableRow>
@@ -355,7 +356,7 @@ export default function Inbox() {
                     })}
                   </TableBody>
                 </Table>
-                </div>
+                </ScrollArea>
               </CardContent>
             </Card>
           )}

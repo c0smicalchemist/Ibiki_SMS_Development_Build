@@ -4,6 +4,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -671,7 +672,7 @@ export default function Contacts() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="max-h-[65vh] overflow-y-auto rounded border relative">
+            <ScrollArea className="h-[65vh] rounded border">
             <Table className="min-w-full">
               <TableHeader>
                 <TableRow>
@@ -731,7 +732,7 @@ export default function Contacts() {
                 ))}
               </TableBody>
             </Table>
-            </div>
+            </ScrollArea>
           </CardContent>
         </Card>
       </div>

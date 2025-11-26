@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Users, Settings, Activity, ArrowLeft, Wallet, Copy, CheckCircle, Send, Inbox as InboxIcon, Clock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -521,10 +522,10 @@ export default function AdminDashboard() {
               <CardDescription>View and manage all connected clients</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded border max-h-[65vh] overflow-y-auto relative">
+              <ScrollArea className="h-[65vh] rounded border">
               <Table className="min-w-full">
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="sticky top-0 bg-background z-10">
                     <TableHead className="sticky top-0 bg-background z-10">Client Name</TableHead>
                     <TableHead className="sticky top-0 bg-background z-10">Email</TableHead>
                     <TableHead className="sticky top-0 bg-background z-10">API Key</TableHead>
@@ -733,7 +734,7 @@ export default function AdminDashboard() {
                   ))}
                 </TableBody>
               </Table>
-              </div>
+              </ScrollArea>
             </CardContent>
           </Card>
         </TabsContent>
