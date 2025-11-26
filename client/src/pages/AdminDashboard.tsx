@@ -676,6 +676,7 @@ export default function AdminDashboard() {
                             currentCredits={client.credits}
                             triggerMode="add"
                             triggerLabel="$ Add"
+                            buttonClassName="block w-28 justify-start"
                           />
                           <AddCreditsToClientDialog 
                             clientId={client.id}
@@ -683,6 +684,7 @@ export default function AdminDashboard() {
                             currentCredits={client.credits}
                             triggerMode="deduct"
                             triggerLabel="$ Deduct"
+                            buttonClassName="block w-28 justify-start"
                           />
                           {!(client.isActive ?? client.status === 'active') ? (
                             <Button

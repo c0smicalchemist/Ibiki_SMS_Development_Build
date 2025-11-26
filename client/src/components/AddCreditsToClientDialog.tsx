@@ -15,9 +15,10 @@ interface AddCreditsToClientDialogProps {
   currentCredits: string;
   triggerMode?: "add" | "deduct";
   triggerLabel?: string;
+  buttonClassName?: string;
 }
 
-export function AddCreditsToClientDialog({ clientId, clientName, currentCredits, triggerMode, triggerLabel }: AddCreditsToClientDialogProps) {
+export function AddCreditsToClientDialog({ clientId, clientName, currentCredits, triggerMode, triggerLabel, buttonClassName }: AddCreditsToClientDialogProps) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [operation, setOperation] = useState<"add" | "deduct">("add");
@@ -86,6 +87,7 @@ export function AddCreditsToClientDialog({ clientId, clientName, currentCredits,
         <Button 
           variant="outline" 
           size="sm" 
+          className={buttonClassName}
           data-testid={`button-add-credits-${clientId}`}
         >
           <DollarSign className="h-4 w-4 mr-1" />
