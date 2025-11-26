@@ -600,7 +600,7 @@ export default function Contacts() {
               <span className="mr-2 inline-block h-3 w-3 rounded-sm border border-muted-foreground align-middle bg-background">
                 {includeBusiness && <span className="block h-3 w-3 rounded-sm bg-muted" />}
               </span>
-              Include business
+              {t('contacts.includeBusiness')}
             </Button>
           </div>
         </div>

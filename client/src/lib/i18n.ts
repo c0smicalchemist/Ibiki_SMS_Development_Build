@@ -92,6 +92,13 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.retrieveInbox': 'Retrieve Inbox',
     'inbox.retrieveSuccess': 'Inbox retrieved from provider',
     'inbox.retrieveFailed': 'Failed to retrieve inbox',
+    'inbox.search': 'Search inbox',
+    'inbox.showDeleted': 'Show Deleted',
+    'inbox.deletedMessages': 'Deleted Messages',
+    'inbox.restore': 'Restore',
+    'inbox.deletePermanent': 'Delete permanently',
+    'inbox.binWarning': 'Bin has {count} messages. Purge bin to free space.',
+    'inbox.purgeBin': 'Purge Bin',
 
     'docs.webhook.title': 'Webhook Configuration (2-Way SMS)',
     'docs.webhook.description': 'Configure this webhook URL in your SMS provider to receive incoming messages',
@@ -231,6 +238,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'contacts.error.fetchGroupsFailed': 'Failed to fetch groups',
     'contacts.error.fetchFailed': 'Failed to fetch contacts',
     'contacts.error.exportFailed': 'Export failed',
+    'contacts.includeBusiness': 'Include business',
   },
   zh: {
     'common.loading': '加载中…',
@@ -323,6 +331,13 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.retrieveInbox': '拉取收件箱',
     'inbox.retrieveSuccess': '已从服务商拉取收件箱',
     'inbox.retrieveFailed': '拉取收件箱失败',
+    'inbox.search': '搜索收件箱',
+    'inbox.showDeleted': '显示已删除',
+    'inbox.deletedMessages': '已删除的消息',
+    'inbox.restore': '恢复',
+    'inbox.deletePermanent': '永久删除',
+    'inbox.binWarning': '回收站有 {count} 条消息。请清空释放空间。',
+    'inbox.purgeBin': '清空回收站',
 
     'docs.webhook.title': 'Webhook配置（双向短信）',
     'docs.webhook.description': '请在短信服务商的控制台设置此Webhook URL以接收来信',
@@ -462,6 +477,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'contacts.error.fetchGroupsFailed': '获取分组失败',
     'contacts.error.fetchFailed': '获取联系人失败',
     'contacts.error.exportFailed': '导出失败',
+    'contacts.includeBusiness': '包含公司',
   }
 };
 

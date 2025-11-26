@@ -283,15 +283,15 @@ export default function Inbox() {
             <Card>
               <CardHeader className="py-3">
                 <div className="flex items-center gap-2">
-                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search inbox" className="w-64" />
-                  <Button onClick={() => setShowDeleted(!showDeleted)} variant="destructive">{showDeleted ? 'Deleted Messages' : 'Show Deleted'}</Button>
+                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('inbox.search')} className="w-64" />
+                  <Button onClick={() => setShowDeleted(!showDeleted)} variant="destructive">{showDeleted ? t('inbox.deletedMessages') : t('inbox.showDeleted')}</Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
                 {showDeleted && deletedCount >= 2000 && (
                   <div className="px-4 pt-3">
                     <div className="flex items-center justify-between rounded border border-red-500 bg-red-50 p-2">
-                      <span className="text-xs text-red-700">Bin has {deletedCount} messages. Purge bin to free space.</span>
+                      <span className="text-xs text-red-700">{t('inbox.binWarning').replace('{count}', String(deletedCount))}</span>
                       <Button variant="destructive" size="sm" onClick={async () => {
                         const token = localStorage.getItem('token');
                         await fetch('/api/web/inbox/purge-deleted', {
@@ -300,7 +300,7 @@ export default function Inbox() {
                           body: JSON.stringify({ userId: effectiveUserId })
                         });
                         await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox/deleted", effectiveUserId] });
-                      }}>Purge Bin</Button>
+                      }}>{t('inbox.purgeBin')}</Button>
                     </div>
                   </div>
                 )}
@@ -341,10 +341,10 @@ export default function Inbox() {
                                 <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); fetch('/api/web/inbox/restore', {
                                   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: (msg as any).id, userId: effectiveUserId })
                                 }).then(() => queryClient.invalidateQueries({ queryKey: ["/api/web/inbox/deleted", effectiveUserId] })); }}>
-                                  Restore
+                                  {t('inbox.restore')}
                                 </Button>
                                 <Button variant="destructive" size="sm" onClick={(e) => { e.stopPropagation(); deletePermanentMutation.mutate((msg as any).id); }}>
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="w-4 h-4" /> {t('inbox.deletePermanent')}
                                 </Button>
                               </div>
                             )}
