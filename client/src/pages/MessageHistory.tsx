@@ -136,6 +136,8 @@ export default function MessageHistory() {
   const messages = messagesData?.messages || [];
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkNumbers, setBulkNumbers] = useState<string[]>([]);
+  const [idsOpen, setIdsOpen] = useState(false);
+  const [bulkIds, setBulkIds] = useState<string[]>([]);
 
   // Safe JSON parse helper
   const safeJsonParse = (jsonString: string | null): any => {
@@ -145,6 +147,28 @@ export default function MessageHistory() {
     } catch {
       return null;
     }
+  };
+
+  const extractMessageIds = (msg: MessageLog): string[] => {
+    const ids: string[] = [];
+    const response = safeJsonParse(msg.responsePayload);
+    if (response && typeof response === 'object') {
+      if (typeof response.messageId === 'string') ids.push(response.messageId);
+      if (Array.isArray(response.messageIds)) ids.push(...response.messageIds.filter((x: any) => typeof x === 'string'));
+      if (Array.isArray(response.ids)) ids.push(...response.ids.filter((x: any) => typeof x === 'string'));
+      if (Array.isArray(response.messages)) {
+        for (const m of response.messages) {
+          if (m && typeof m.messageId === 'string') ids.push(m.messageId);
+        }
+      }
+    }
+    if (ids.length === 0 && typeof msg.messageId === 'string' && msg.messageId && msg.messageId !== 'unknown' && msg.messageId !== '-') {
+      ids.push(msg.messageId);
+    }
+    if (ids.length === 0 && Array.isArray(msg.recipients)) {
+      return msg.recipients.map(() => 'unknown');
+    }
+    return ids;
   };
 
   // Filter messages based on search query
@@ -315,16 +339,26 @@ export default function MessageHistory() {
                         <TableRow key={msg.id} data-testid={`row-message-${msg.id}`}>
                           <TableCell className="font-mono text-sm" data-testid={`recipient-${msg.id}`}>
                             {getRecipientDisplay(msg)}
-                            {msg.recipients && Array.isArray(msg.recipients) && msg.recipients.length > 0 && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="ml-2 border-blue-500 text-blue-600 font-bold"
-                                onClick={() => { setBulkNumbers(msg.recipients || []); setBulkOpen(true); }}
-                              >
-                                {t('messageHistory.bulk')} ({msg.recipients.length})
-                              </Button>
-                            )}
+                          {msg.recipients && Array.isArray(msg.recipients) && msg.recipients.length > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="ml-2 border-blue-500 text-blue-600 font-bold"
+                              onClick={() => { setBulkNumbers(msg.recipients || []); setBulkOpen(true); }}
+                            >
+                              {t('messageHistory.bulk')} ({msg.recipients.length})
+                            </Button>
+                          )}
+                          {msg.recipients && Array.isArray(msg.recipients) && msg.recipients.length > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="ml-2 border-purple-500 text-purple-600 font-bold"
+                              onClick={() => { const ids = extractMessageIds(msg); setBulkIds(ids); setIdsOpen(true); }}
+                            >
+                              IDs ({extractMessageIds(msg).length})
+                            </Button>
+                          )}
                           </TableCell>
                           <TableCell className="max-w-[12rem] truncate">
                             <Badge variant="outline" className="max-w-[12rem] truncate">
@@ -414,6 +448,31 @@ export default function MessageHistory() {
                 </Badge>
               ))}
             </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={idsOpen} onOpenChange={setIdsOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Bulk message IDs</DialogTitle>
+            </DialogHeader>
+            {bulkIds.length > 0 && bulkNumbers.length === bulkIds.length ? (
+              <div className="grid grid-cols-2 gap-2">
+                {bulkNumbers.map((n, i) => (
+                  <div key={`pair-${i}`} className="flex items-center justify-between gap-2 border rounded p-2">
+                    <Badge variant="outline" className="font-mono">{n}</Badge>
+                    <Badge variant="outline" className="font-mono">{bulkIds[i]}</Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {bulkIds.map((id, i) => (
+                  <Badge key={`id-${i}`} variant="outline" className="justify-center font-mono">
+                    {id}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
