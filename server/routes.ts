@@ -227,6 +227,7 @@ async function getExtremeSMSCredentials() {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
   // ============================================
   // Health Check Routes
@@ -1451,6 +1452,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Webhook flow check alias
+  app.get('/api/admin/flow-check', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { receiver, business } = req.query as { receiver?: string; business?: string };
+      let routedUserId: string | null = null;
+      if (business && business.trim().length > 0) {
+        const profileByBiz = await storage.getClientProfileByBusinessName(String(business));
+        routedUserId = profileByBiz?.userId || null;
+        return res.json({ success: true, business, routedUserId });
+      }
+      if (!receiver) return res.status(400).json({ success: false, error: 'business or receiver required' });
+      const profile = await storage.getClientProfileByPhoneNumber(receiver);
+      routedUserId = profile?.userId || null;
+      res.json({ success: true, receiver, routedUserId });
+    } catch (error) {
+      console.error('Webhook flow check error:', error);
+      res.status(500).json({ success: false, error: 'Failed to check flow' });
+    }
+  });
+
   // Admin: Simulate webhook delivery (diagnostic only)
   app.post('/api/admin/webhook/test', authenticateToken, requireAdmin, async (req, res) => {
     try {
@@ -1581,6 +1602,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.setSystemConfig('last_webhook_routed_user', created.userId || 'unassigned');
 
       // Auto-capture contact for the routed user
+      if (created.userId) {
+        const existing = await storage.getClientContactsByUserId(created.userId);
+        if (!existing.find(c => c.phoneNumber === from)) {
+          const clientProfile = await storage.getClientProfileByUserId(created.userId);
+          await storage.createClientContact({
+            userId: created.userId,
+            phoneNumber: from,
+            firstname: null,
+            lastname: null,
+            business: clientProfile?.businessName || business || null,
+          });
+        }
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Extreme webhook ingest error:', error);
+      res.status(500).json({ success: false });
+    }
+  });
+
+  // Alias route for providers posting to /api/webhook/extreme-sms
+  app.post('/api/webhook/extreme-sms', async (req, res) => {
+    try {
+      const p = req.body || {};
+      const from = p.from || p.sender || p.msisdn;
+      const receiver = p.receiver || p.to || p.recipient;
+      const message = p.message || p.text || '';
+      const usedmodem = p.usedmodem || p.usemodem || null;
+      const port = p.port || null;
+      const messageId = p.messageId || p.id || `ext-${Date.now()}`;
+      const tsRaw = p.timestamp || p.time || Date.now();
+      const timestamp = new Date(typeof tsRaw === 'string' ? tsRaw : Number(tsRaw));
+      const business = p.business || null;
+
+      if (!from || !receiver || !message) {
+        return res.status(400).json({ success: false, error: 'Invalid webhook payload' });
+      }
+
+      let userId: string | undefined = undefined;
+      if (business && String(business).trim() !== '') {
+        const profileByBiz = await storage.getClientProfileByBusinessName(String(business));
+        userId = profileByBiz?.userId;
+      }
+      if (!userId) {
+        userId = await storage.findClientByRecipient(from);
+      }
+      if (!userId) {
+        const profile = await storage.getClientProfileByPhoneNumber(receiver);
+        userId = profile?.userId;
+      }
+
+      let created;
+      try {
+        created = await storage.createIncomingMessage({
+          userId,
+          from,
+          firstname: null,
+          lastname: null,
+          business,
+          message,
+          status: 'received',
+          matchedBlockWord: null,
+          receiver,
+          usedmodem,
+          port,
+          timestamp,
+          messageId,
+          extPayload: req.body ? req.body : null,
+        } as any);
+      } catch {
+        created = await storage.createIncomingMessage({
+          userId,
+          from,
+          firstname: null,
+          lastname: null,
+          business,
+          message,
+          status: 'received',
+          matchedBlockWord: null,
+          receiver,
+          usedmodem,
+          port,
+          timestamp,
+          messageId,
+        } as any);
+      }
+
+      await storage.setSystemConfig('last_webhook_event', JSON.stringify({ from, receiver, message, usedmodem, port }));
+      await storage.setSystemConfig('last_webhook_event_at', new Date().toISOString());
+      await storage.setSystemConfig('last_webhook_routed_user', created.userId || 'unassigned');
+
       if (created.userId) {
         const existing = await storage.getClientContactsByUserId(created.userId);
         if (!existing.find(c => c.phoneNumber === from)) {
