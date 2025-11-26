@@ -136,7 +136,6 @@ export default function MessageHistory() {
   const messages = messagesData?.messages || [];
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkNumbers, setBulkNumbers] = useState<string[]>([]);
-  const [idsOpen, setIdsOpen] = useState(false);
   const [bulkIds, setBulkIds] = useState<string[]>([]);
 
   // Safe JSON parse helper
@@ -354,7 +353,7 @@ export default function MessageHistory() {
                               variant="outline"
                               size="sm"
                               className="ml-2 border-purple-500 text-purple-600 font-bold"
-                              onClick={() => { const ids = extractMessageIds(msg); setBulkIds(ids); setIdsOpen(true); }}
+                              onClick={() => { setBulkNumbers(msg.recipients || []); setBulkIds(extractMessageIds(msg)); setBulkOpen(true); }}
                             >
                               IDs ({extractMessageIds(msg).length})
                             </Button>
@@ -448,31 +447,91 @@ export default function MessageHistory() {
                 </Badge>
               ))}
             </div>
-          </DialogContent>
-        </Dialog>
-        <Dialog open={idsOpen} onOpenChange={setIdsOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Bulk message IDs</DialogTitle>
-            </DialogHeader>
-            {bulkIds.length > 0 && bulkNumbers.length === bulkIds.length ? (
-              <div className="grid grid-cols-2 gap-2">
-                {bulkNumbers.map((n, i) => (
-                  <div key={`pair-${i}`} className="flex items-center justify-between gap-2 border rounded p-2">
-                    <Badge variant="outline" className="font-mono">{n}</Badge>
-                    <Badge variant="outline" className="font-mono">{bulkIds[i]}</Badge>
-                  </div>
-                ))}
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold">Message IDs</h4>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    const text = bulkIds.join('\n');
+                    try {
+                      if (navigator.clipboard && (window as any).isSecureContext && typeof navigator.clipboard.writeText === 'function') {
+                        await navigator.clipboard.writeText(text);
+                      } else {
+                        const ta = document.createElement('textarea');
+                        ta.value = text;
+                        ta.style.position = 'fixed';
+                        ta.style.opacity = '0';
+                        document.body.appendChild(ta);
+                        ta.focus();
+                        ta.select();
+                        try { document.execCommand('copy'); } catch {}
+                        document.body.removeChild(ta);
+                      }
+                    } catch {}
+                  }}
+                >
+                  Copy All
+                </Button>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {bulkIds.map((id, i) => (
-                  <Badge key={`id-${i}`} variant="outline" className="justify-center font-mono">
-                    {id}
-                  </Badge>
-                ))}
-              </div>
-            )}
+              {bulkIds.length > 0 && bulkNumbers.length === bulkIds.length ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {bulkNumbers.map((n, i) => (
+                    <div key={`pair-${i}`} className="flex items-center justify-between gap-2 border rounded p-2">
+                      <Badge variant="outline" className="font-mono">{n}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono">{bulkIds[i]}</Badge>
+                        <Button variant="ghost" size="sm" onClick={async () => {
+                          const text = bulkIds[i];
+                          try {
+                            if (navigator.clipboard && (window as any).isSecureContext && typeof navigator.clipboard.writeText === 'function') {
+                              await navigator.clipboard.writeText(text);
+                            } else {
+                              const ta = document.createElement('textarea');
+                              ta.value = text;
+                              ta.style.position = 'fixed';
+                              ta.style.opacity = '0';
+                              document.body.appendChild(ta);
+                              ta.focus();
+                              ta.select();
+                              try { document.execCommand('copy'); } catch {}
+                              document.body.removeChild(ta);
+                            }
+                          } catch {}
+                        }}>Copy</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {bulkIds.map((id, i) => (
+                    <div key={`id-${i}`} className="flex items-center justify-between gap-2 border rounded p-2">
+                      <Badge variant="outline" className="font-mono">{id}</Badge>
+                      <Button variant="ghost" size="sm" onClick={async () => {
+                        const text = id;
+                        try {
+                          if (navigator.clipboard && (window as any).isSecureContext && typeof navigator.clipboard.writeText === 'function') {
+                            await navigator.clipboard.writeText(text);
+                          } else {
+                            const ta = document.createElement('textarea');
+                            ta.value = text;
+                            ta.style.position = 'fixed';
+                            ta.style.opacity = '0';
+                            document.body.appendChild(ta);
+                            ta.focus();
+                            ta.select();
+                            try { document.execCommand('copy'); } catch {}
+                            document.body.removeChild(ta);
+                          }
+                        } catch {}
+                      }}>Copy</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </DialogContent>
         </Dialog>
       </div>

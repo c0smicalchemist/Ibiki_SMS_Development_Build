@@ -125,11 +125,21 @@ export function ConversationDialog({ open, onClose, phoneNumber, userId, isAdmin
       type: 'incoming' as const,
       timestamp: msg.timestamp
     }));
-    const outgoing = (conversationData.conversation.outgoing || []).map((msg: any) => ({
-      ...msg,
-      type: 'outgoing' as const,
-      timestamp: msg.createdAt
-    }));
+    const outgoing = (conversationData.conversation.outgoing || []).map((msg: any) => {
+      let body = '';
+      try {
+        const req = typeof msg.requestPayload === 'string' ? JSON.parse(msg.requestPayload || '') : msg.requestPayload;
+        body = (req?.message || req?.content || msg.message || '') as string;
+      } catch {
+        body = (msg.message || '') as string;
+      }
+      return {
+        ...msg,
+        message: body,
+        type: 'outgoing' as const,
+        timestamp: msg.createdAt
+      };
+    });
     messages.push(...incoming, ...outgoing);
     messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }
