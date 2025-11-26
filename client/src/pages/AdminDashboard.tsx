@@ -669,11 +669,20 @@ export default function AdminDashboard() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-2">
                           <AddCreditsToClientDialog 
                             clientId={client.id}
                             clientName={client.name}
                             currentCredits={client.credits}
+                            triggerMode="add"
+                            triggerLabel="$ Add"
+                          />
+                          <AddCreditsToClientDialog 
+                            clientId={client.id}
+                            clientName={client.name}
+                            currentCredits={client.credits}
+                            triggerMode="deduct"
+                            triggerLabel="$ Deduct"
                           />
                           {!(client.isActive ?? client.status === 'active') ? (
                             <Button
