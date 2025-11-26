@@ -223,8 +223,13 @@ export default function SendSMS() {
 
     const defaultDial = countries.find(c => c.code === bulkCountry)?.dial || '+1';
     const normalizedRecipients = recipients.map(r => r.startsWith('+') ? r : `${defaultDial}${r.replace(/^\+/, '')}`);
+    const uniqueNormalizedRecipients = Array.from(new Set(normalizedRecipients));
+    if (uniqueNormalizedRecipients.length > 3000) {
+      toast({ title: t('common.error'), description: 'Maximum 3000 recipients allowed per bulk send', variant: 'destructive' });
+      return;
+    }
     const payload: { recipients: string[]; message: string; userId?: string } = {
-      recipients: normalizedRecipients,
+      recipients: uniqueNormalizedRecipients,
       message: bulkMessage
     };
     if (effectiveUserId) {
@@ -244,6 +249,10 @@ export default function SendSMS() {
       to: m.to.startsWith('+') ? m.to : `${defaultDialMulti}${m.to.replace(/^\+/, '')}`,
       message: m.message
     }));
+    if (normalizedMulti.length > 3000) {
+      toast({ title: t('common.error'), description: 'Maximum 3000 messages allowed per bulk send', variant: 'destructive' });
+      return;
+    }
     const payload: { messages: Array<{ to: string; message: string }>; userId?: string } = {
       messages: normalizedMulti
     };
