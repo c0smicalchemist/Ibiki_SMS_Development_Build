@@ -151,22 +151,28 @@ export default function MessageHistory() {
   const extractMessageIds = (msg: MessageLog): string[] => {
     const ids: string[] = [];
     const response = safeJsonParse(msg.responsePayload);
-    if (response && typeof response === 'object') {
-      if (typeof response.messageId === 'string') ids.push(response.messageId);
-      if (Array.isArray(response.messageIds)) ids.push(...response.messageIds.filter((x: any) => typeof x === 'string'));
-      if (Array.isArray(response.ids)) ids.push(...response.ids.filter((x: any) => typeof x === 'string'));
-      if (Array.isArray(response.messages)) {
-        for (const m of response.messages) {
-          if (m && typeof m.messageId === 'string') ids.push(m.messageId);
+    const collectFromObj = (obj: any) => {
+      if (!obj || typeof obj !== 'object') return;
+      for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === 'string') {
+          if (/messageId/i.test(k) || /message_id/i.test(k)) ids.push(v);
+          else if (/^id$/i.test(k) && v.length >= 6) ids.push(v);
+        } else if (Array.isArray(v)) {
+          v.forEach(collectFromObj);
+        } else if (v && typeof v === 'object') {
+          collectFromObj(v);
         }
       }
-    }
+    };
+    if (response) collectFromObj(response);
     if (ids.length === 0 && typeof msg.responsePayload === 'string' && msg.responsePayload) {
       const text = msg.responsePayload as string;
-      const regex = /"messageId"\s*:\s*"([^"]+)"/g;
-      let match;
-      while ((match = regex.exec(text)) !== null) {
-        if (match[1]) ids.push(match[1]);
+      const regexes = [/"messageId"\s*:\s*"([^"]+)"/g, /"message_id"\s*:\s*"([^"]+)"/g];
+      for (const regex of regexes) {
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          if (match[1]) ids.push(match[1]);
+        }
       }
     }
     if (ids.length === 0 && typeof msg.messageId === 'string' && msg.messageId && msg.messageId !== 'unknown' && msg.messageId !== '-') {

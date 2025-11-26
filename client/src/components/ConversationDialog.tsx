@@ -126,25 +126,29 @@ export function ConversationDialog({ open, onClose, phoneNumber, userId, isAdmin
       timestamp: msg.timestamp
     }));
     const outgoing = (conversationData.conversation.outgoing || []).map((msg: any) => {
-      let body = '';
-      try {
-        const req = typeof msg.requestPayload === 'string' ? JSON.parse(msg.requestPayload || '') : msg.requestPayload;
-        body = (req?.message || req?.content || msg.message || '') as string;
-      } catch {
-        body = (msg.message || '') as string;
-      }
-      if (!body) {
+      const safeParse = (v: any) => {
         try {
-          const resp = typeof msg.responsePayload === 'string' ? JSON.parse(msg.responsePayload || '') : msg.responsePayload;
-          body = (resp?.message || resp?.content || body || '') as string;
-        } catch {}
-      }
-      if (!body) {
-        const text = (msg.requestPayload || msg.responsePayload || '') as string;
-        if (typeof text === 'string' && text.length) {
-          const m = text.match(/"message"\s*:\s*"([\s\S]*?)"/i) || text.match(/"content"\s*:\s*"([\s\S]*?)"/i);
-          if (m && m[1]) body = m[1];
+          return typeof v === 'string' ? JSON.parse(v || '') : v;
+        } catch {
+          return null;
         }
+      };
+      const findMessage = (obj: any): string | null => {
+        if (!obj || typeof obj !== 'object') return null;
+        for (const key of Object.keys(obj)) {
+          const val: any = (obj as any)[key];
+          if (typeof val === 'string' && (/message/i.test(key) || /content/i.test(key))) return val;
+          if (val && typeof val === 'object') {
+            const deep = findMessage(val);
+            if (deep) return deep;
+          }
+        }
+        return null;
+      };
+      let body = findMessage(safeParse(msg.requestPayload)) || findMessage(safeParse(msg.responsePayload)) || (msg.message || '') as string;
+      if (!body && typeof msg.requestPayload === 'string') {
+        const m = (msg.requestPayload as string).match(/"message"\s*:\s*"([\s\S]*?)"/i) || (msg.requestPayload as string).match(/"content"\s*:\s*"([\s\S]*?)"/i);
+        if (m && m[1]) body = m[1];
       }
       return {
         ...msg,
