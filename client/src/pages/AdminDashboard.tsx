@@ -34,6 +34,9 @@ export default function AdminDashboard() {
   const [webhookMessage, setWebhookMessage] = useState('');
   const [webhookMessageId, setWebhookMessageId] = useState('');
   const [flowBusiness, setFlowBusiness] = useState('');
+  const [editDeliveryMode, setEditDeliveryMode] = useState<'poll' | 'push' | 'both'>('poll');
+  const [editWebhookUrl, setEditWebhookUrl] = useState('');
+  const [editWebhookSecret, setEditWebhookSecret] = useState('');
 
   const usTimezones = [
     { value: "America/New_York", label: "Eastern Time (ET)" },
@@ -374,6 +377,7 @@ export default function AdminDashboard() {
   const sumCredits = clients.reduce((sum, c) => sum + (parseFloat(c.credits || '0') || 0), 0);
   const clientRateNumber = parseFloat(clientRate || config?.config?.client_rate_per_sms || '0') || 0;
   const creditsValueUSD = (sumCredits * clientRateNumber).toFixed(2);
+  const extremeUSD = (extremeBalance !== null) ? (extremeBalance * (parseFloat(extremeCost || '0') || 0)).toFixed(2) : null;
 
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
@@ -423,7 +427,7 @@ export default function AdminDashboard() {
               extremeBalance !== null ? `${balanceCurrency} ${extremeBalance.toLocaleString()}` : "N/A"
             }
             icon={Wallet}
-            description={balanceError ? "Unable to fetch balance" : "Current account balance"}
+            description={balanceError ? "Unable to fetch balance" : (extremeUSD ? `≈ $ ${extremeUSD} USD at provider rate` : "Current account balance")}
           />
           <StatCard
             title={t('admin.stats.systemStatus')}
@@ -431,12 +435,7 @@ export default function AdminDashboard() {
             icon={Settings}
             description={t('admin.stats.allRunning')}
           />
-          <StatCard
-            title="Credits Value (USD)"
-            value={`$ ${creditsValueUSD}`}
-            icon={Wallet}
-            description={`Total credits × client rate (${clientRateNumber.toFixed(4)} USD)`}
-          />
+          
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -510,6 +509,12 @@ export default function AdminDashboard() {
           </TabsList>
 
         <TabsContent value="clients" className="space-y-4">
+          <div className="bg-muted/50 rounded p-3 text-xs">
+            <div className="font-semibold mb-2">Delivery Mode Key</div>
+            <div>Poll: Dashboard fetches inbox periodically; no external webhook needed.</div>
+            <div>Push: System posts incoming messages to client's configured webhook URL.</div>
+            <div>Both: Enable polling and webhook delivery together for redundancy.</div>
+          </div>
           <Card className="border border-border/60">
             <CardHeader>
               <CardTitle>Client Management</CardTitle>
@@ -530,8 +535,7 @@ export default function AdminDashboard() {
                 <TableHead>Assigned Numbers</TableHead>
                 <TableHead>Last Active</TableHead>
                 <TableHead>Delivery Mode</TableHead>
-                <TableHead>Webhook URL</TableHead>
-                <TableHead>Webhook Secret</TableHead>
+                <TableHead>Webhook</TableHead>
                 <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -615,7 +619,7 @@ export default function AdminDashboard() {
                                 });
                               }
                             }}
-                            className="w-60 font-mono text-xs"
+                            className="w-40 font-mono text-xs"
                             data-testid={`input-phones-${client.id}`}
                             title="Enter multiple numbers separated by commas"
                           />
@@ -655,14 +659,14 @@ export default function AdminDashboard() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Input className="text-xs" placeholder="https://..." defaultValue={client.webhookUrl || ''} onBlur={(e) => setEditWebhookUrl(e.target.value)} />
-                      </TableCell>
-                      <TableCell>
-                        <Input className="text-xs" placeholder="secret" defaultValue={client.webhookSecret || ''} onBlur={(e) => setEditWebhookSecret(e.target.value)} />
-                        <Button size="sm" variant="outline" className="ml-2" onClick={() => {
-                          apiRequest(`/api/admin/clients/${client.id}/webhook`, { method: 'POST', body: JSON.stringify({ url: editWebhookUrl, secret: editWebhookSecret }) })
-                            .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
-                        }}>Save</Button>
+                        <div className="space-y-2 w-64">
+                          <Input className="text-xs font-mono" placeholder="https://..." defaultValue={client.webhookUrl || ''} onBlur={(e) => setEditWebhookUrl(e.target.value)} />
+                          <Input className="text-xs font-mono" placeholder="secret" defaultValue={client.webhookSecret || ''} onBlur={(e) => setEditWebhookSecret(e.target.value)} />
+                          <Button size="sm" variant="outline" onClick={() => {
+                            apiRequest(`/api/admin/clients/${client.id}/webhook`, { method: 'POST', body: JSON.stringify({ url: editWebhookUrl, secret: editWebhookSecret }) })
+                              .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
+                          }}>Save</Button>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
