@@ -105,6 +105,8 @@ export const translations: Record<Language, Record<string, string>> = {
     'docs.title': 'API Documentation',
     'docs.subtitle': 'Endpoints, authentication, and usage examples',
     'docs.endpoints.title': 'Endpoints',
+    'docs.authentication.strong': 'Authentication',
+    'docs.authentication.description': 'Use Bearer token with all Ibiki endpoints.',
 
     'admin.tabs.clients': 'Clients',
     'admin.tabs.configuration': 'Configuration',
@@ -344,6 +346,8 @@ export const translations: Record<Language, Record<string, string>> = {
     'docs.title': 'API 文档',
     'docs.subtitle': '端点、认证与使用示例',
     'docs.endpoints.title': '接口列表',
+    'docs.authentication.strong': '认证',
+    'docs.authentication.description': '所有 Ibiki 接口需使用 Bearer Token。',
 
     'admin.tabs.clients': '客户',
     'admin.tabs.configuration': '配置',

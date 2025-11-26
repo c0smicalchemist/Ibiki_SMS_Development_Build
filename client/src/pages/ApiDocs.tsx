@@ -15,10 +15,10 @@ export default function ApiDocs() {
   const endpoints = [
     {
       method: "POST" as const,
-      path: "/api/v2/sms/sendsingle",
+      path: "/api/web/sms/send-single",
       title: 'Send Single',
       description: 'Send a single SMS to one recipient',
-      requestExample: `curl -X POST http://151.243.109.79/api/v2/sms/sendsingle \\
+      requestExample: `curl -X POST https://ibiki.run.place/api/web/sms/send-single \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"recipient": "${t('examples.phone.sample1')}", "message": "${t('examples.sms.verificationCode')}"}'`,
@@ -30,10 +30,10 @@ export default function ApiDocs() {
     },
     {
       method: "POST" as const,
-      path: "/api/v2/sms/sendbulk",
+      path: "/api/web/sms/send-bulk",
       title: 'Send Bulk',
       description: 'Send the same SMS to multiple recipients',
-      requestExample: `curl -X POST http://151.243.109.79/api/v2/sms/sendbulk \\
+      requestExample: `curl -X POST https://ibiki.run.place/api/web/sms/send-bulk \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -49,10 +49,10 @@ export default function ApiDocs() {
     },
     {
       method: "POST" as const,
-      path: "/api/v2/sms/sendbulkmulti",
+      path: "/api/web/sms/send-bulk-multi",
       title: 'Send Bulk Multi',
       description: 'Send different messages to multiple recipients in one request',
-      requestExample: `curl -X POST http://151.243.109.79/api/v2/sms/sendbulkmulti \\
+      requestExample: `curl -X POST https://ibiki.run.place/api/web/sms/send-bulk-multi \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '[
@@ -70,10 +70,10 @@ export default function ApiDocs() {
     },
     {
       method: "GET" as const,
-      path: "/api/v2/sms/messages",
+      path: "/api/web/sms/messages",
       title: "Get All Sent Messages",
       description: "Retrieve all messages sent by your account with their status. Returns up to 100 messages by default. Use the 'limit' query parameter to control the number of messages returned.",
-      requestExample: `curl -X GET "http://151.243.109.79/api/v2/sms/messages?limit=50" \\
+      requestExample: `curl -X GET "https://ibiki.run.place/api/web/sms/messages?limit=50" \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
       responseExample: `{
   "success": true,
@@ -96,10 +96,10 @@ export default function ApiDocs() {
     },
     {
       method: "GET" as const,
-      path: "/api/v2/sms/status/{messageId}",
+      path: "/api/web/sms/status/{messageId}",
       title: 'Check Delivery',
       description: 'Get the delivery status for a specific messageId',
-      requestExample: `curl -X GET http://151.243.109.79/api/v2/sms/status/60f1a5b3e6e7c12345678901 \\
+      requestExample: `curl -X GET https://ibiki.run.place/api/web/sms/status/60f1a5b3e6e7c12345678901 \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
       responseExample: `{
   "success": true,
@@ -110,10 +110,10 @@ export default function ApiDocs() {
     },
     {
       method: "GET" as const,
-      path: "/api/v2/account/balance",
+      path: "/api/web/account/balance",
       title: 'Check Balance',
       description: 'Get your current credits balance',
-      requestExample: `curl -X GET http://151.243.109.79/api/v2/account/balance \\
+      requestExample: `curl -X GET https://ibiki.run.place/api/web/account/balance \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
       responseExample: `{
   "success": true,
@@ -123,10 +123,10 @@ export default function ApiDocs() {
     },
     {
       method: "GET" as const,
-      path: "/api/v2/sms/inbox",
+      path: "/api/web/sms/inbox",
       title: 'Inbox',
       description: 'Retrieve recent inbound messages to your account',
-      requestExample: `curl -X GET http://151.243.109.79/api/v2/sms/inbox?limit=50 \\
+      requestExample: `curl -X GET https://ibiki.run.place/api/web/sms/inbox?limit=50 \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
       responseExample: `{
   "success": true,
@@ -152,7 +152,7 @@ export default function ApiDocs() {
   const webhookInfo = {
     title: t('docs.webhook.title'),
     description: t('docs.webhook.description'),
-    webhookUrl: "http://151.243.109.79/webhook/incoming-sms",
+    webhookUrl: "https://ibiki.run.place/api/webhook/extreme-sms",
     payloadExample: `{
   "from": "${t('examples.phone.sample1')}",
   "firstname": "${t('examples.name.first')}",
