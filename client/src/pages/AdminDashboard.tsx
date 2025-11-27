@@ -419,23 +419,45 @@ export default function AdminDashboard() {
             icon={Activity}
             description={t('admin.stats.last30Days')}
           />
-          <StatCard
-            title="ExtremeSMS Balance"
-            value={
-              balanceLoading ? "Loading..." : 
-              balanceError ? "Unavailable" :
-              extremeBalance !== null ? `${balanceCurrency} ${extremeBalance.toLocaleString()}${extremeUSD ? ` (≈ $ ${extremeUSD})` : ''}` : "N/A"
-            }
-            icon={Wallet}
-            description={balanceError ? "Unable to fetch balance" : "Current account balance"}
-          />
+          <Card className="md:col-span-2 lg:col-span-4">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <p className="text-sm font-medium text-muted-foreground">Credits Overview</p>
+                <div className="p-3 rounded-lg bg-primary/10"><Wallet className="w-5 h-5 text-primary" /></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">ExtremeSMS Balance</p>
+                  <p className="text-2xl font-bold tracking-tight mt-1">
+                    {balanceLoading ? 'Loading...' : balanceError ? 'Unavailable' : (
+                      extremeBalance !== null ? `${extremeBalance.toLocaleString()} credits${extremeUSD ? ` (≈ $ ${extremeUSD})` : ''}` : 'N/A'
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Current account balance</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Allocated Credits</p>
+                  <p className="text-2xl font-bold tracking-tight mt-1 text-red-600">
+                    {sumCredits.toFixed(2)} credits (≈ $ {(sumCredits * clientRateNumber).toFixed(2)})
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Sum of all client credits</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Remaining Credits</p>
+                  <p className="text-2xl font-bold tracking-tight mt-1 text-red-600">
+                    {extremeBalance !== null ? `${Math.max(extremeBalance - sumCredits, 0).toFixed(2)} credits (≈ $ ${(Math.max(extremeBalance - sumCredits, 0) * (parseFloat(extremeCost || '0') || 0)).toFixed(2)})` : 'N/A'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">ExtremeSMS minus allocated</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           <StatCard
             title={t('admin.stats.systemStatus')}
             value={t('admin.stats.healthy')}
             icon={Settings}
             description={t('admin.stats.allRunning')}
           />
-          
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -676,7 +698,7 @@ export default function AdminDashboard() {
                             currentCredits={client.credits}
                             triggerMode="add"
                             triggerLabel="$ Add"
-                            buttonClassName="w-full justify-start"
+                            buttonClassName="w-full justify-start bg-green-600 text-white hover:bg-green-700"
                           />
                           <AddCreditsToClientDialog 
                             clientId={client.id}
@@ -684,7 +706,7 @@ export default function AdminDashboard() {
                             currentCredits={client.credits}
                             triggerMode="deduct"
                             triggerLabel="$ Deduct"
-                            buttonClassName="w-full justify-start"
+                            buttonClassName="w-full justify-start bg-gray-100 text-gray-800 border border-red-500 hover:bg-gray-200"
                           />
                           {!(client.isActive ?? client.status === 'active') ? (
                             <Button
