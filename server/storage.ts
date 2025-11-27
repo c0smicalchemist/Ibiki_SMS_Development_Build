@@ -1554,10 +1554,15 @@ function initializeStorage(): IStorage {
   }
 
   if (process.env.DATABASE_URL) {
-    const dbStorage = new DbStorage();
-    console.log('✅ Using PostgreSQL database storage');
-    console.log(`✅ Database: ${process.env.DATABASE_URL?.split('@')[1]?.split('?')[0] || 'connected'}`);
-    storageInstance = dbStorage;
+    try {
+      const dbStorage = new DbStorage();
+      console.log('✅ Using PostgreSQL database storage');
+      console.log(`✅ Database: ${process.env.DATABASE_URL?.split('@')[1]?.split('?')[0] || 'connected'}`);
+      storageInstance = dbStorage;
+    } catch (e: any) {
+      console.error('❌ Database init failed, falling back to in-memory storage:', e?.message || String(e));
+      storageInstance = new MemStorage();
+    }
   } else {
     console.warn('⚠️  DATABASE_URL not set - using in-memory storage (data will not persist)');
     storageInstance = new MemStorage();
