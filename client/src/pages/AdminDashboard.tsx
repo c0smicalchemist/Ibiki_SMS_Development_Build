@@ -603,12 +603,12 @@ export default function AdminDashboard() {
                     <TableHead className="whitespace-nowrap text-center">Status</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Messages</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Credits</TableHead>
-                    <TableHead className={profile?.user?.role === 'admin' ? 'text-center' : 'hidden'}>{t('admin.clients.table.rateLimit')}</TableHead>
+                    <TableHead className="text-center">{t('admin.clients.table.rateLimit')}</TableHead>
                     <TableHead className="text-center">{t('admin.clients.table.businessName')}</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Assigned Numbers</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Last Active</TableHead>
-                    <TableHead className={profile?.user?.role === 'admin' ? 'whitespace-nowrap text-center' : 'hidden'}>Delivery</TableHead>
-                    <TableHead className={profile?.user?.role === 'admin' ? 'whitespace-nowrap text-center' : 'hidden'}>Webhook</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Delivery</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Webhook</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Role</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Group ID</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Actions</TableHead>
@@ -639,7 +639,7 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className={profile?.user?.role === 'admin' ? '' : 'hidden'}>
+                      <TableCell>
                         <Input
                           type="number"
                           placeholder="200"
@@ -721,7 +721,7 @@ export default function AdminDashboard() {
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground py-2">{client.lastActive}</TableCell>
-                        <TableCell className={profile?.user?.role === 'admin' ? '' : 'hidden'}>
+                        <TableCell>
                           <div className="flex items-center gap-2">
                             <select
                               className="border rounded px-2 py-1 text-xs"
@@ -739,7 +739,7 @@ export default function AdminDashboard() {
                             }} className="h-7 px-2 text-xs">Save</Button>
                           </div>
                         </TableCell>
-                      <TableCell className={profile?.user?.role === 'admin' ? 'py-2' : 'hidden'}>
+                      <TableCell className="py-2">
                         <div className="w-40 flex items-center justify-center gap-2">
                           <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="URL" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
                           <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="Secret" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
