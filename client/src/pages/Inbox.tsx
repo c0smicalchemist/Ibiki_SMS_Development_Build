@@ -291,14 +291,26 @@ export default function Inbox() {
             <p className="text-muted-foreground">{t('clientDashboard.inboxDesc')}</p>
           </div>
           <div className="ml-auto flex items-center gap-3">
-            <div className="p-3 rounded-lg bg-primary/10 min-w-[3rem] text-right">
-              <p className="text-sm font-bold">{messages.length.toLocaleString()}</p>
-              <p className="text-[10px] text-muted-foreground">All</p>
-            </div>
-            <div className="p-3 rounded-lg bg-yellow-100 border border-yellow-500 min-w-[3rem] text-right">
-              <p className="text-sm font-bold text-yellow-800">{messages.filter(m => !m.isRead).length.toLocaleString()}</p>
-              <p className="text-[10px] text-yellow-700">Unread</p>
-            </div>
+            <Button
+              variant="default"
+              size="sm"
+              className="h-9 px-3 min-w-[3.5rem] flex flex-col items-center justify-center"
+              title="All"
+              disabled
+            >
+              <span className="text-sm font-bold leading-none">{messages.length.toLocaleString()}</span>
+              <span className="text-[11px] opacity-80 leading-none mt-0.5">All</span>
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              className="h-9 px-3 min-w-[3.5rem] flex flex-col items-center justify-center"
+              title="Unread"
+              disabled
+            >
+              <span className="text-sm font-bold leading-none">{messages.filter(m => !m.isRead).length.toLocaleString()}</span>
+              <span className="text-[11px] opacity-80 leading-none mt-0.5">Unread</span>
+            </Button>
             <Button onClick={handleRetrieveInbox}>Retrieve Inbox</Button>
           </div>
         </div>
