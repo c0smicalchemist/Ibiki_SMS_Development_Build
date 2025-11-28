@@ -277,7 +277,8 @@ export default function AdminDashboard() {
 
   const updateBusinessNameMutation = useMutation({
     mutationFn: async ({ userId, businessName }: { userId: string; businessName: string }) => {
-      return await apiRequest('/api/admin/update-business-name', {
+      const endpoint = (profile?.user?.role === 'supervisor') ? '/api/supervisor/update-business-name' : '/api/admin/update-business-name';
+      return await apiRequest(endpoint, {
         method: 'POST',
         body: JSON.stringify({ userId, businessName })
       });
@@ -606,23 +607,35 @@ export default function AdminDashboard() {
             <CardContent>
               <Table className="text-sm">
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="whitespace-nowrap text-center">Client Name</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Email</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">API Key</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Status</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Messages</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Credits</TableHead>
-                    <TableHead className="text-center">{t('admin.clients.table.rateLimit')}</TableHead>
-                    <TableHead className="text-center">{t('admin.clients.table.businessName')}</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Assigned Numbers</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Last Active</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Delivery</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Webhook</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Role</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Group ID</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Actions</TableHead>
-                  </TableRow>
+                  {profile?.user?.role === 'supervisor' ? (
+                    <TableRow>
+                      <TableHead className="whitespace-nowrap text-center">Client Name</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Email</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Messages</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Credits</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Last Active</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Role</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Group ID</TableHead>
+                    </TableRow>
+                  ) : (
+                    <TableRow>
+                      <TableHead className="whitespace-nowrap text-center">Client Name</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Email</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">API Key</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Status</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Messages</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Credits</TableHead>
+                      <TableHead className="text-center">{t('admin.clients.table.rateLimit')}</TableHead>
+                      <TableHead className="text-center">{t('admin.clients.table.businessName')}</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Assigned Numbers</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Last Active</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Delivery</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Webhook</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Role</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Group ID</TableHead>
+                      <TableHead className="whitespace-nowrap text-center">Actions</TableHead>
+                    </TableRow>
+                  )}
                 </TableHeader>
                 <TableBody>
                   {clients.map((client) => (

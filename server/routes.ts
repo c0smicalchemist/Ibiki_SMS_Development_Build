@@ -2527,6 +2527,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update client's business name (SUPERVISOR) with uniqueness and group check
+  app.post("/api/supervisor/update-business-name", authenticateToken, requireRole(['supervisor']), async (req: any, res) => {
+    try {
+      const { userId, businessName } = req.body as { userId?: string; businessName?: string };
+      if (!userId) return res.status(400).json({ error: "userId is required" });
+      const me = await storage.getUser(req.user.userId);
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) return res.status(404).json({ error: "Target user not found" });
+      if (((me as any)?.groupId || null) !== ((targetUser as any)?.groupId || null)) return res.status(403).json({ error: 'Unauthorized: client not in your group' });
+
+      const trimmed = (businessName || '').trim();
+      if (trimmed.length === 0) return res.status(400).json({ error: 'Business name required' });
+      const existing = await storage.getClientProfileByBusinessName(trimmed);
+      if (existing && (existing as any)?.userId !== userId) return res.status(409).json({ error: 'Business name already taken' });
+
+      await storage.updateClientBusinessName(userId, trimmed);
+      res.json({ success: true, businessName: trimmed });
+    } catch (e: any) {
+      console.error('Supervisor update business name error:', e?.message || e);
+      res.status(500).json({ error: 'Failed to update business name' });
+    }
+  });
+
 // --- Admin: Revoke API Key for a user ---
 app.post("/api/v2/account/revoke-api-key", authenticateToken, requireAdmin, async (req, res) => {
   try {

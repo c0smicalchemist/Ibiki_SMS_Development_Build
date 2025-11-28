@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Client {
   id: string;
@@ -20,6 +21,7 @@ interface ClientSelectorProps {
 }
 
 export function ClientSelector({ onClientChange, selectedClientId, onAdminModeChange, isAdminMode = false, modeLabel }: ClientSelectorProps) {
+  const { t } = useLanguage();
   const { data: clientsData, isLoading } = useQuery<{ 
     success: boolean; 
     clients: Client[];
