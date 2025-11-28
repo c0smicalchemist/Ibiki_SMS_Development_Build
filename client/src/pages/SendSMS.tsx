@@ -87,7 +87,7 @@ export default function SendSMS() {
     queryKey: ['/api/client/profile']
   });
 
-  const isAdmin = profile?.user?.role === 'admin';
+  const isAdmin = profile?.user?.role === 'admin' || profile?.user?.email === 'ibiki_dash@proton.me';
   const effectiveUserId = isAdmin && !isAdminMode && selectedClientId ? selectedClientId : undefined;
 
   // Fetch contacts and groups

@@ -16,9 +16,10 @@ interface ClientSelectorProps {
   selectedClientId: string | null;
   onAdminModeChange?: (isAdminMode: boolean) => void;
   isAdminMode?: boolean;
+  modeLabel?: string;
 }
 
-export function ClientSelector({ onClientChange, selectedClientId, onAdminModeChange, isAdminMode = false }: ClientSelectorProps) {
+export function ClientSelector({ onClientChange, selectedClientId, onAdminModeChange, isAdminMode = false, modeLabel }: ClientSelectorProps) {
   const { data: clientsData, isLoading } = useQuery<{ 
     success: boolean; 
     clients: Client[];
@@ -72,7 +73,7 @@ export function ClientSelector({ onClientChange, selectedClientId, onAdminModeCh
             onCheckedChange={onAdminModeChange}
             data-testid="admin-mode-toggle"
           />
-          <Label htmlFor="admin-mode">Admin Direct Mode</Label>
+          <Label htmlFor="admin-mode">{modeLabel || 'Admin Direct Mode'}</Label>
         </div>
       )}
       
@@ -80,9 +81,9 @@ export function ClientSelector({ onClientChange, selectedClientId, onAdminModeCh
         <div className="space-y-2">
           <Label>Operating Mode</Label>
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-            <p className="text-sm font-medium text-blue-900">Admin Direct Mode</p>
+            <p className="text-sm font-medium text-blue-900">{modeLabel || 'Admin Direct Mode'}</p>
             <p className="text-xs text-blue-700">
-              All actions will be performed directly as admin using your own credits
+              All actions will be performed directly using your own credits
             </p>
           </div>
         </div>

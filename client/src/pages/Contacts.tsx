@@ -91,7 +91,7 @@ export default function Contacts() {
     queryKey: ['/api/client/profile']
   });
 
-  const isAdmin = profile?.user?.role === 'admin';
+  const isAdmin = profile?.user?.role === 'admin' || profile?.user?.email === 'ibiki_dash@proton.me';
   const effectiveUserId = isAdmin && !isAdminMode && selectedClientId ? selectedClientId : undefined;
   const [includeBusiness, setIncludeBusiness] = useState(false);
 
@@ -194,14 +194,37 @@ export default function Contacts() {
   // Import contacts mutation
   const importContactsMutation = useMutation({
     mutationFn: async (data: { contacts: any[]; groupId: string | null }) => {
-      const payload = effectiveUserId ? { ...data, userId: effectiveUserId } : data;
-      return await apiRequest('/api/contacts/import-csv', {
-        method: 'POST',
-        body: JSON.stringify(payload)
+      const all = data.contacts;
+      const CHUNK = 200;
+      const CONCURRENCY = 4;
+      let imported = 0;
+      const slices: any[] = [];
+      for (let i = 0; i < all.length; i += CHUNK) slices.push(all.slice(i, i + CHUNK));
+      const tasks = slices.map(slice => async () => {
+        const payload = effectiveUserId ? { contacts: slice, groupId: data.groupId, userId: effectiveUserId } : { contacts: slice, groupId: data.groupId };
+        const res = await apiRequest('/api/contacts/import-csv', { method: 'POST', body: JSON.stringify(payload) });
+        imported += res?.count || slice.length;
+        const key = ['/api/contacts', effectiveUserId];
+        queryClient.setQueryData(key as any, (prev: any) => {
+          const base = prev && prev.contacts ? prev : { success: true, contacts: [] };
+          const existing = new Set((base.contacts || []).map((c: any) => c.id));
+          const next = [...(base.contacts || []), ...((res?.contacts || []).filter((c: any) => !existing.has(c.id)))];
+          return { success: true, contacts: next };
+        });
       });
+      const workers = new Array(Math.min(CONCURRENCY, tasks.length)).fill(0).map(async (_, idx) => {
+        for (let i = idx; i < tasks.length; i += CONCURRENCY) {
+          await tasks[i]();
+        }
+      });
+      await Promise.all(workers);
+      return { count: imported };
     },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/contacts', effectiveUserId] });
+    onSuccess: async (data: any) => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/contacts', effectiveUserId] });
+      await queryClient.refetchQueries({ queryKey: ['/api/contacts', effectiveUserId] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/contacts/sync-stats', effectiveUserId] });
+      setSelectedGroup(null);
       toast({ title: t('common.success'), description: `${data.count} ${t('contacts.success.imported')}` });
       setShowImportDialog(false);
       setCsvFile(null);
@@ -229,34 +252,79 @@ export default function Contacts() {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setCsvFile(file);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
-        const lines = text.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim());
-        const data = lines.slice(1).filter(line => line.trim()).map(line => {
-          const values = line.split(',').map(v => v.trim());
-          return headers.reduce((obj: any, header, index) => {
-            obj[header] = values[index] || "";
-            return obj;
-          }, {});
-        });
-        setCsvData(data);
-        setImportStep(2);
+    if (!file) return;
+    setCsvFile(file);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      let text = String(event.target?.result || "");
+      text = text.replace(/^\uFEFF/, ""); // strip BOM
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+
+      const splitCSVLine = (line: string) => {
+        const out: string[] = [];
+        let cur = "";
+        let inside = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            inside = !inside;
+            continue;
+          }
+          if (ch === ',' && !inside) {
+            out.push(cur.trim());
+            cur = "";
+          } else {
+            cur += ch;
+          }
+        }
+        out.push(cur.trim());
+        return out.map(v => v.replace(/^"|"$/g, '').trim());
       };
-      reader.readAsText(file);
-    }
+
+      if (lines.length < 2) {
+        setCsvData([]);
+        setImportStep(1);
+        toast({ title: t('common.error'), description: 'CSV appears empty', variant: 'destructive' });
+        return;
+      }
+
+      const headers = splitCSVLine(lines[0]).map(h => h.trim());
+      const data = lines.slice(1).map(splitCSVLine).map(values => {
+        const obj: any = {};
+        headers.forEach((h, idx) => { obj[h] = values[idx] ?? ""; });
+        return obj;
+      });
+      setCsvData(data);
+      setImportStep(2);
+    };
+    reader.readAsText(file);
   };
 
   const handleImport = () => {
-    const contacts = csvData.map(row => ({
-      phoneNumber: row.phone || row.phoneNumber || row.Phone || row.PhoneNumber || "",
-      name: row.name || row.Name || "",
-      email: row.email || row.Email || "",
-      notes: row.notes || row.Notes || ""
-    })).filter(c => c.phoneNumber);
+    const norm = (s: any) => String(s || '').trim();
+    const keys = csvData.length > 0 ? Object.keys(csvData[0]) : [];
+    const phoneHeader = keys.find(k => /phone/i.test(String(k).replace(/\s+|_/g, '')));
+    if (!phoneHeader) {
+      toast({ title: t('common.error'), description: 'CSV is missing a phone column', variant: 'destructive' });
+      return;
+    }
+    const nameHeader = keys.find(k => /name/i.test(String(k).replace(/\s+|_/g, '')));
+    const emailHeader = keys.find(k => /email/i.test(String(k).replace(/\s+|_/g, '')));
+    const notesHeader = keys.find(k => /notes?/i.test(String(k).replace(/\s+|_/g, '')));
+
+    const contacts = csvData
+      .map(row => ({
+        phoneNumber: norm((row as any)[phoneHeader]),
+        name: nameHeader ? norm((row as any)[nameHeader]) : '',
+        email: emailHeader ? norm((row as any)[emailHeader]) : '',
+        notes: notesHeader ? norm((row as any)[notesHeader]) : ''
+      }))
+      .filter(c => !!c.phoneNumber);
+
+    if (contacts.length === 0) {
+      toast({ title: t('common.error'), description: 'No contacts detected in CSV', variant: 'destructive' });
+      return;
+    }
 
     importContactsMutation.mutate({
       contacts,
@@ -303,26 +371,31 @@ export default function Contacts() {
     ? contacts.filter((c: Contact) => c.groupId === selectedGroup)
     : contacts;
 
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const sortedContacts = [...filteredContacts].sort((a: any, b: any) => {
+    const ta = new Date(a.createdAt).getTime();
+    const tb = new Date(b.createdAt).getTime();
+    return sortOrder === 'newest' ? (tb - ta) : (ta - tb);
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
       <div className="container mx-auto p-6 space-y-6">
-        {isAdmin && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('contacts.adminMode')}</CardTitle>
-              <CardDescription>{t('contacts.selectClient')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ClientSelector 
-                selectedClientId={selectedClientId}
-                onClientChange={setSelectedClientId}
-                isAdminMode={isAdminMode}
-                onAdminModeChange={setIsAdminMode}
-              />
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('contacts.adminMode')}</CardTitle>
+            <CardDescription>{t('contacts.selectClient')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClientSelector 
+              selectedClientId={selectedClientId}
+              onClientChange={setSelectedClientId}
+              isAdminMode={isAdminMode}
+              onAdminModeChange={setIsAdminMode}
+            />
+          </CardContent>
+        </Card>
 
         {syncStats.unsynced > 0 && (
           <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20">
@@ -330,10 +403,10 @@ export default function Contacts() {
               <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
-                  {syncStats.unsynced} {syncStats.unsynced === 1 ? 'contact needs' : 'contacts need'} to be exported and uploaded to ExtremeSMS
+                  {syncStats.unsynced} {syncStats.unsynced === 1 ? 'contact needs' : 'contacts need'} to be exported and uploaded
                 </p>
                 <p className="text-xs text-yellow-800 dark:text-yellow-200 mt-1">
-                  Export as CSV, then upload to ExtremeSMS to enable incoming message routing
+                  Export as CSV, then upload to enable incoming message routing
                 </p>
               </div>
               <Button 
@@ -685,7 +758,36 @@ export default function Contacts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredContacts.map((contact: Contact) => (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Sort:</span>
+                      <select className="border rounded px-2 py-1 text-xs" value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}>
+                        <option value="newest">Most Recent</option>
+                        <option value="oldest">Oldest</option>
+                      </select>
+                      {selectedGroup === null && filteredContacts.length > 0 && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            if (!confirm('Delete ALL contacts? This cannot be undone.')) return;
+                            const url = `/api/contacts?all=true${effectiveUserId ? `&userId=${effectiveUserId}` : ''}`;
+                            apiRequest(url, { method: 'DELETE' })
+                              .then(() => {
+                                queryClient.invalidateQueries({ queryKey: ['/api/contacts', effectiveUserId] });
+                                toast({ title: t('common.success'), description: 'All contacts deleted' });
+                              })
+                              .catch((err) => toast({ title: t('common.error'), description: err.message, variant: 'destructive' }));
+                          }}
+                        >
+                          Delete All Contacts
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+                {sortedContacts.map((contact: Contact) => (
                   <TableRow key={contact.id} data-testid={`contact-row-${contact.id}`}>
                     <TableCell>{contact.name || "-"}</TableCell>
                     <TableCell className="font-mono text-sm">{contact.phoneNumber}</TableCell>

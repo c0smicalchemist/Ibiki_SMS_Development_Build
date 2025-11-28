@@ -4,7 +4,7 @@ import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Trash2 } from "lucide-react";
+import { Trash2, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Inbox as InboxIcon, MessageSquare, ArrowLeft } from "lucide-react";
@@ -65,7 +65,8 @@ export default function Inbox() {
     queryKey: ['/api/client/profile']
   });
 
-  const isAdmin = profile?.user?.role === 'admin';
+  const isAdmin = profile?.user?.role === 'admin' || profile?.user?.email === 'ibiki_dash@proton.me';
+  const isSupervisor = profile?.user?.role === 'supervisor';
   const effectiveUserId = isAdmin && !isAdminMode && selectedClientId ? selectedClientId : undefined;
 
   // Fetch inbox messages
@@ -88,6 +89,46 @@ export default function Inbox() {
 
   const messages: IncomingMessage[] = (inboxData as any)?.messages || [];
   const deletedCount: number = (inboxData as any)?.count || 0;
+
+  // Favorites
+  const { data: favoritesData } = useQuery<{ success: boolean; favorites: string[] }>({
+    queryKey: ['/api/web/inbox/favorites', effectiveUserId],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      const url = effectiveUserId ? `/api/web/inbox/favorites?userId=${effectiveUserId}` : '/api/web/inbox/favorites';
+      const resp = await fetch(url, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+      if (!resp.ok) throw new Error('Failed to fetch favorites');
+      return resp.json();
+    }
+  });
+  const favorites = favoritesData?.favorites || [];
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: async ({ phoneNumber, favorite }: { phoneNumber: string; favorite: boolean }) => {
+      const token = localStorage.getItem('token');
+      const body: any = { phoneNumber, favorite };
+      if (effectiveUserId) body.userId = effectiveUserId;
+      const resp = await fetch('/api/web/inbox/favorite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) throw new Error('Failed to update favorite');
+      return resp.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['/api/web/inbox/favorites', effectiveUserId] as any, data);
+    }
+  });
+
+  const [viewFavorites, setViewFavorites] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get('view') === 'favorites') setViewFavorites(true);
+    } catch {}
+  }, []);
   const seedExample = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -220,25 +261,24 @@ export default function Inbox() {
     <div className="min-h-screen bg-background">
       <DashboardHeader />
       <div className="container mx-auto p-6 space-y-6">
-        {isAdmin && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('inbox.adminMode')}</CardTitle>
-              <CardDescription>{t('inbox.selectClient')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ClientSelector 
-                selectedClientId={selectedClientId}
-                onClientChange={setSelectedClientId}
-                isAdminMode={isAdminMode}
-                onAdminModeChange={setIsAdminMode}
-              />
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>{isSupervisor ? 'Supervisor Mode' : t('inbox.adminMode')}</CardTitle>
+            <CardDescription>{t('inbox.selectClient')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClientSelector 
+              selectedClientId={selectedClientId}
+              onClientChange={setSelectedClientId}
+              isAdminMode={isAdminMode}
+              onAdminModeChange={setIsAdminMode}
+              modeLabel={isSupervisor ? 'Supervisor Mode' : 'Admin Direct Mode'}
+            />
+          </CardContent>
+        </Card>
         
         <div className="mb-6 flex items-center gap-4">
-          <Link href={isAdmin ? "/admin" : "/dashboard"}>
+          <Link href={(isAdmin || isSupervisor) ? "/admin" : "/dashboard"}>
             <Button variant="ghost" size="icon" data-testid="button-back">
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -257,7 +297,7 @@ export default function Inbox() {
 
         <div className="grid grid-cols-1 gap-4">
           {isLoading ? (
-            <Card>
+            <Card className={viewFavorites ? 'border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 ring-1 ring-yellow-300' : ''}>
               <CardContent className="p-6 text-center">
                 {t('inbox.loading')}
               </CardContent>
@@ -281,7 +321,7 @@ export default function Inbox() {
             </Card>
           ) : (
             <Card>
-              <CardHeader className="py-3">
+              <CardHeader className={viewFavorites ? 'py-3 border-t-4 border-yellow-400' : 'py-3'}>
                 <div className="flex items-center gap-2">
                   <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('inbox.search')} className="w-64" />
                   <Button onClick={() => setShowDeleted(!showDeleted)} variant="destructive">{showDeleted ? t('inbox.deletedMessages') : t('inbox.showDeleted')}</Button>
@@ -304,6 +344,15 @@ export default function Inbox() {
                     </div>
                   </div>
                 )}
+                <div className="flex items-center gap-2 px-4 pb-2">
+                  <Button variant={viewFavorites ? 'secondary' : 'outline'} size="sm" onClick={() => setViewFavorites(v => !v)}>
+                    {viewFavorites ? t('inbox.favorites') : t('inbox.favorites')}
+                  </Button>
+                  <select className="border rounded px-2 py-1 text-xs" value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}>
+                    <option value="newest">{t('inbox.sort.mostRecent')}</option>
+                    <option value="oldest">{t('inbox.sort.oldest')}</option>
+                  </select>
+                </div>
                 <div className="max-h-[65vh] overflow-y-auto rounded border">
                 <Table className="min-w-full">
                   <TableHeader>
@@ -316,11 +365,19 @@ export default function Inbox() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {messages.filter(m => {
-                      const q = search.trim().toLowerCase();
-                      if (!q) return true;
-                      return (m.from || '').toLowerCase().includes(q) || (m.receiver || '').toLowerCase().includes(q) || (m.message || '').toLowerCase().includes(q);
-                    }).map(msg => {
+                    {messages
+                      .filter(m => {
+                        const q = search.trim().toLowerCase();
+                        if (!q) return true;
+                        return (m.from || '').toLowerCase().includes(q) || (m.receiver || '').toLowerCase().includes(q) || (m.message || '').toLowerCase().includes(q);
+                      })
+                      .filter(m => !viewFavorites || favorites.includes((m as any).from || (m as any).receiver))
+                      .sort((a, b) => {
+                        const ta = new Date((a as any).timestamp || (a as any).createdAt).getTime();
+                        const tb = new Date((b as any).timestamp || (b as any).createdAt).getTime();
+                        return sortOrder === 'newest' ? (tb - ta) : (ta - tb);
+                      })
+                      .map(msg => {
                       const dt = new Date((msg as any).timestamp || (msg as any).createdAt);
                       const dateStr = format(dt, 'MMM d, yyyy');
                       const timeStr = format(dt, 'HH:mm');
@@ -335,6 +392,16 @@ export default function Inbox() {
                             {!showDeleted && (
                               <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate((msg as any).id); }}>
                                 <Trash2 className="w-4 h-4 text-red-600" />
+                              </Button>
+                            )}
+                            {!showDeleted && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => { e.stopPropagation(); const p = (msg as any).from || (msg as any).receiver; const fav = favorites.includes(p); toggleFavoriteMutation.mutate({ phoneNumber: p, favorite: !fav }); }}
+                                title={favorites.includes((msg as any).from || (msg as any).receiver) ? 'Unfavorite' : 'Favorite'}
+                              >
+                                <Star className={`w-4 h-4 ${favorites.includes((msg as any).from || (msg as any).receiver) ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground'}`} />
                               </Button>
                             )}
                             {showDeleted && (

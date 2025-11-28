@@ -197,10 +197,17 @@ export default function MessageHistory() {
            msg.status.toLowerCase().includes(searchLower);
   });
 
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const sortedMessages = [...filteredMessages].sort((a, b) => {
+    const ta = new Date(a.createdAt).getTime();
+    const tb = new Date(b.createdAt).getTime();
+    return sortOrder === 'newest' ? (tb - ta) : (ta - tb);
+  });
+
   // Pagination
-  const totalPages = Math.ceil(filteredMessages.length / messagesPerPage);
+  const totalPages = Math.ceil(sortedMessages.length / messagesPerPage);
   const startIndex = (currentPage - 1) * messagesPerPage;
-  const paginatedMessages = filteredMessages.slice(startIndex, startIndex + messagesPerPage);
+  const paginatedMessages = sortedMessages.slice(startIndex, startIndex + messagesPerPage);
 
   const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase();
@@ -318,6 +325,13 @@ export default function MessageHistory() {
                   />
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Sort:</span>
+                <select className="border rounded px-2 py-1 text-xs" value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}>
+                  <option value="newest">Most Recent</option>
+                  <option value="oldest">Oldest</option>
+                </select>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -428,7 +442,7 @@ export default function MessageHistory() {
                 {/* Pagination */}
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-sm text-muted-foreground">
-                    {t('messageHistory.showing')} {filteredMessages.length} {t('messageHistory.messages')}
+                    {t('messageHistory.showing')} {sortedMessages.length} {t('messageHistory.messages')}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button

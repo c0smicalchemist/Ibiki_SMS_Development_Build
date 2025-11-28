@@ -30,27 +30,27 @@ export function WebhookRoutingDocs() {
         </p>
       </div>
 
-      {/* How ExtremeSMS Works */}
+      {/* How IbikiSMS Works */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">{t('webhookDocs.extremeSms.title')}</CardTitle>
-          <CardDescription>{t('webhookDocs.extremeSms.description')}</CardDescription>
+          <CardTitle className="text-lg">{t('webhookDocs.ibiki.title')}</CardTitle>
+          <CardDescription>{t('webhookDocs.ibiki.description')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <h4 className="font-semibold mb-2">{t('webhookDocs.extremeSms.setupTitle')}</h4>
+            <h4 className="font-semibold mb-2">{t('webhookDocs.ibiki.setupTitle')}</h4>
             <ol className="list-decimal list-inside space-y-2 text-sm">
-              <li>{t('webhookDocs.extremeSms.step1')}</li>
-              <li>{t('webhookDocs.extremeSms.step2')}</li>
-              <li>{t('webhookDocs.extremeSms.step3')}</li>
-              <li>{t('webhookDocs.extremeSms.step4')}</li>
-              <li>{t('webhookDocs.extremeSms.step5')}</li>
-              <li>{t('webhookDocs.extremeSms.step6')}</li>
+              <li>{t('webhookDocs.ibiki.step1')}</li>
+              <li>{t('webhookDocs.ibiki.step2')}</li>
+              <li>{t('webhookDocs.ibiki.step3')}</li>
+              <li>{t('webhookDocs.ibiki.step4')}</li>
+              <li>{t('webhookDocs.ibiki.step5')}</li>
+              <li>{t('webhookDocs.ibiki.step6')}</li>
             </ol>
           </div>
 
           <div>
-            <h4 className="font-semibold mb-2">{t('webhookDocs.extremeSms.payloadTitle')}</h4>
+            <h4 className="font-semibold mb-2">{t('webhookDocs.ibiki.payloadTitle')}</h4>
             <pre className="bg-muted p-3 rounded text-xs font-mono overflow-x-auto">
               {extremeSmsPayload}
             </pre>

@@ -19,6 +19,7 @@ import {
   type InsertContactGroup,
   type Contact,
   type InsertContact,
+  type ActionLog,
   users,
   apiKeys,
   clientProfiles,
@@ -28,7 +29,8 @@ import {
   incomingMessages,
   clientContacts,
   contactGroups,
-  contacts
+  contacts,
+  actionLogs
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -118,6 +120,7 @@ export interface IStorage {
   updateContact(id: string, updates: Partial<Contact>): Promise<Contact | undefined>;
   deleteContact(id: string): Promise<void>;
   deleteContactsByGroupId(groupId: string): Promise<void>;
+  deleteAllContactsByUserId(userId: string): Promise<void>;
   markContactsAsExported(contactIds: string[]): Promise<void>; // Mark contacts as synced to ExtremeSMS
   getSyncStats(userId: string): Promise<{ total: number; synced: number; unsynced: number }>; // Get sync statistics
   
@@ -149,6 +152,7 @@ export class MemStorage implements IStorage {
   private clientContacts: Map<string, ClientContact>;
   private contactGroups: Map<string, ContactGroup>;
   private contacts: Map<string, Contact>;
+  private actionLogs: Map<string, ActionLog>;
 
   constructor() {
     this.users = new Map();
@@ -161,6 +165,7 @@ export class MemStorage implements IStorage {
     this.clientContacts = new Map();
     this.contactGroups = new Map();
     this.contacts = new Map();
+    this.actionLogs = new Map();
   }
 
   async disableUser(userId: string): Promise<void> {
@@ -596,31 +601,7 @@ export class MemStorage implements IStorage {
     });
   }
 
-  async deleteExampleData(userId: string): Promise<void> {
-    await this.db.delete(incomingMessages).where(sql`${incomingMessages.userId} = ${userId} AND ${incomingMessages.isExample} = true`);
-    await this.db.delete(messageLogs).where(sql`${messageLogs.userId} = ${userId} AND ${messageLogs.isExample} = true`);
-    await this.db.delete(contacts).where(sql`${contacts.userId} = ${userId} AND ${contacts.isExample} = true`);
-  }
-
-  async hasExampleData(userId: string): Promise<boolean> {
-    const inc = await this.db.select().from(incomingMessages).where(sql`${incomingMessages.userId} = ${userId} AND ${incomingMessages.isExample} = true`).limit(1);
-    const logs = await this.db.select().from(messageLogs).where(sql`${messageLogs.userId} = ${userId} AND ${messageLogs.isExample} = true`).limit(1);
-    const cnt = await this.db.select().from(contacts).where(sql`${contacts.userId} = ${userId} AND ${contacts.isExample} = true`).limit(1);
-    return inc.length > 0 || logs.length > 0 || cnt.length > 0;
-  }
-
-  async disableUser(userId: string): Promise<void> {
-    await this.db.update(users).set({ isActive: false }).where(eq(users.id, userId));
-  }
-
-  async deleteUser(userId: string): Promise<void> {
-    // Delete non-cascade tables first
-    await this.db.delete(incomingMessages).where(eq(incomingMessages.userId, userId));
-    await this.db.delete(messageLogs).where(eq(messageLogs.userId, userId));
-    await this.db.delete(creditTransactions).where(eq(creditTransactions.userId, userId));
-    // Cascade will remove api_keys, client_profiles, client_contacts, contact_groups, contacts
-    await this.db.delete(users).where(eq(users.id, userId));
-  }
+  
 
   
 
@@ -811,6 +792,13 @@ export class MemStorage implements IStorage {
     }
   }
 
+  async deleteAllContactsByUserId(userId: string): Promise<void> {
+    const ids = Array.from(this.contacts.entries())
+      .filter(([_, c]) => c.userId === userId)
+      .map(([id]) => id);
+    for (const id of ids) this.contacts.delete(id);
+  }
+
   async markContactsAsExported(contactIds: string[]): Promise<void> {
     for (const id of contactIds) {
       const contact = this.contacts.get(id);
@@ -863,6 +851,28 @@ export class MemStorage implements IStorage {
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 100);
   }
+
+  // Action logs (audit)
+  async createActionLog(log: { actorUserId: string; actorRole: string; targetUserId?: string | null; action: string; details?: string | null; }): Promise<ActionLog> {
+    const id = randomUUID();
+    const rec: any = {
+      id,
+      actorUserId: log.actorUserId,
+      actorRole: log.actorRole,
+      targetUserId: log.targetUserId ?? null,
+      action: log.action,
+      details: log.details ?? null,
+      createdAt: new Date()
+    };
+    this.actionLogs.set(id, rec);
+    return rec as ActionLog;
+  }
+
+  async getActionLogs(limit: number = 200): Promise<ActionLog[]> {
+    const logs = Array.from(this.actionLogs.values())
+      .sort((a, b) => (b.createdAt as any as Date).getTime() - (a.createdAt as any as Date).getTime());
+    return logs.slice(0, limit);
+  }
 }
 
 // PostgreSQL-backed storage using Drizzle ORM
@@ -897,7 +907,8 @@ export class DbStorage implements IStorage {
           systemConfig,
           messageLogs,
           creditTransactions,
-          incomingMessages
+          incomingMessages,
+          actionLogs
         }
       });
       // Verify connectivity immediately
@@ -905,6 +916,9 @@ export class DbStorage implements IStorage {
         console.error('❌ Database connectivity check failed:', err?.message || err);
         throw err;
       });
+      // Ensure optional columns exist for backwards compatibility
+      poolInstance.query('ALTER TABLE IF NOT EXISTS users ADD COLUMN IF NOT EXISTS group_id text').catch(() => {});
+      poolInstance.query('CREATE INDEX IF NOT EXISTS user_group_id_idx ON users(group_id)').catch(() => {});
       
       
       // Cleanup on process exit
@@ -928,8 +942,30 @@ export class DbStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const result = await this.db.select().from(users).where(eq(users.email, email));
-    return result[0];
+    try {
+      const r = await poolInstance!.query(
+        'SELECT id, email, password, name, company, role, is_active, reset_token, reset_token_expiry, created_at FROM users WHERE email=$1 LIMIT 1',
+        [email]
+      );
+      const row = r.rows[0];
+      if (!row) return undefined;
+      return {
+        id: row.id,
+        email: row.email,
+        password: row.password,
+        name: row.name,
+        company: row.company,
+        role: row.role,
+        isActive: row.is_active,
+        resetToken: row.reset_token,
+        resetTokenExpiry: row.reset_token_expiry,
+        createdAt: row.created_at,
+        groupId: null
+      } as any as User;
+    } catch (e: any) {
+      console.error('❌ getUserByEmail fallback query failed:', e?.message || e);
+      throw e;
+    }
   }
 
   async getAllUsers(): Promise<User[]> {
@@ -968,7 +1004,12 @@ export class DbStorage implements IStorage {
   async getUserByResetToken(token: string): Promise<User | undefined> {
     const result = await this.db.select().from(users)
       .where(eq(users.resetToken, token));
-    return result[0];
+    const user = result[0];
+    if (!user) return undefined;
+    if (user.resetTokenExpiry && user.resetTokenExpiry < new Date()) {
+      return undefined;
+    }
+    return user;
   }
 
   async clearPasswordResetToken(userId: string): Promise<void> {
@@ -979,7 +1020,7 @@ export class DbStorage implements IStorage {
 
   async updateUserPassword(userId: string, newPasswordHash: string): Promise<User | undefined> {
     const result = await this.db.update(users)
-      .set({ password: newPasswordHash })
+      .set({ password: newPasswordHash, resetToken: null, resetTokenExpiry: null })
       .where(eq(users.id, userId))
       .returning();
     return result[0];
@@ -1394,6 +1435,10 @@ export class DbStorage implements IStorage {
     await this.db.delete(contacts).where(eq(contacts.groupId, groupId));
   }
 
+  async deleteAllContactsByUserId(userId: string): Promise<void> {
+    await this.db.delete(contacts).where(eq(contacts.userId, userId));
+  }
+
   async markContactsAsExported(contactIds: string[]): Promise<void> {
     if (contactIds.length === 0) return;
     await this.db.update(contacts)
@@ -1446,6 +1491,32 @@ export class DbStorage implements IStorage {
     }
 
     return logsWithUsers;
+  }
+
+  // Action logs (audit)
+  async createActionLog(log: { actorUserId: string; actorRole: string; targetUserId?: string | null; action: string; details?: string | null; }): Promise<ActionLog> {
+    const result = await this.db.insert(actionLogs).values({
+      actorUserId: log.actorUserId,
+      actorRole: log.actorRole,
+      targetUserId: log.targetUserId ?? null,
+      action: log.action,
+      details: log.details ?? null,
+    }).returning();
+    return result[0];
+  }
+
+  async getActionLogs(limit: number = 200): Promise<ActionLog[]> {
+    let query = this.db.select().from(actionLogs).orderBy(desc(actionLogs.createdAt));
+    if (limit) query = (query as any).limit(limit);
+    return query;
+  }
+
+  async getLastActionForTarget(targetUserId: string, action: string): Promise<ActionLog | undefined> {
+    const result = await this.db.select().from(actionLogs)
+      .where(sql`${actionLogs.targetUserId} = ${targetUserId} AND ${actionLogs.action} = ${action}`)
+      .orderBy(desc(actionLogs.createdAt))
+      .limit(1);
+    return result[0];
   }
 
   // Stats methods

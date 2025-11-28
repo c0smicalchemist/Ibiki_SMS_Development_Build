@@ -19,13 +19,14 @@ export default function Signup() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    confirmPassword: ""
+    confirmPassword: "",
+    groupId: ""
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
 
   const signupMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; confirmPassword: string }) => {
+    mutationFn: async (data: { email: string; password: string; confirmPassword: string; groupId?: string }) => {
       return await apiRequest('/api/auth/signup', {
         method: 'POST',
         body: JSON.stringify(data)
@@ -97,6 +98,18 @@ export default function Signup() {
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   data-testid="input-password"
                   required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="groupId">Group ID</Label>
+                <Input
+                  id="groupId"
+                  type="text"
+                  placeholder="e.g. IBS-TEAM-01"
+                  value={formData.groupId}
+                  onChange={(e) => setFormData({ ...formData, groupId: e.target.value })}
+                  data-testid="input-group-id"
                 />
               </div>
 

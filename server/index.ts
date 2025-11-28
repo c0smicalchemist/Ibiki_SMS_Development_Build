@@ -13,8 +13,7 @@ if (process.env.LOG_LEVEL === 'debug') {
 
 // Railway detection: Check for multiple Railway-specific environment variables
 const railwayVars = Object.keys(process.env).filter(key => key.startsWith('RAILWAY'));
-const isRailway = railwayVars.length > 0 || 
-  (process.env.NODE_ENV === 'production' && process.env.PORT && process.env.DATABASE_URL);
+const isRailway = railwayVars.length > 0;
 
 if (process.env.LOG_LEVEL === 'debug') {
   console.log('🔍 Railway detection:');
@@ -174,11 +173,12 @@ declare module 'http' {
   }
 }
 app.use(express.json({
+  limit: '10mb',
   verify: (req, _res, buf) => {
     req.rawBody = buf;
   }
 }));
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -221,6 +221,8 @@ app.use((req, res, next) => {
   if (!process.env.DATABASE_URL && resolvedDbUrl) {
     process.env.DATABASE_URL = resolvedDbUrl;
   }
+  // Allow disabling migrations via env
+  if (!process.env.RUN_DB_MIGRATIONS) process.env.RUN_DB_MIGRATIONS = 'false';
   // Bootstrap secrets from system_config if env vars are missing
   try {
     const desiredKeys = [
@@ -270,9 +272,9 @@ app.use((req, res, next) => {
       }
     } catch (e: any) {
       console.warn('⚠️  Startup migrations skipped or failed:', e?.message || e);
-      // Fallback: ensure essential tables exist for runtime
+      // Fallback: optionally ensure essential tables exist for runtime
       try {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.RUN_DB_BOOTSTRAP === 'true') {
           const { Pool } = await import('pg');
           const connectionString = process.env.DATABASE_URL;
           const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';

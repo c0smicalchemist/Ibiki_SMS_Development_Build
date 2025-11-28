@@ -16,9 +16,10 @@ interface AddCreditsToClientDialogProps {
   triggerMode?: "add" | "deduct";
   triggerLabel?: string;
   buttonClassName?: string;
+  buttonVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost";
 }
 
-export function AddCreditsToClientDialog({ clientId, clientName, currentCredits, triggerMode, triggerLabel, buttonClassName }: AddCreditsToClientDialogProps) {
+export function AddCreditsToClientDialog({ clientId, clientName, currentCredits, triggerMode, triggerLabel, buttonClassName, buttonVariant = "outline" }: AddCreditsToClientDialogProps) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [operation, setOperation] = useState<"add" | "deduct">("add");
@@ -33,10 +34,20 @@ export function AddCreditsToClientDialog({ clientId, clientName, currentCredits,
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
+      // Optimistically update the cache for immediate UI reflection
+      const key = ['/api/admin/clients'];
+      const existing: any = queryClient.getQueryData(key);
+      if (existing?.clients) {
+        const updated = {
+          ...existing,
+          clients: existing.clients.map((c: any) => c.id === clientId ? { ...c, credits: String(data.newBalance) } : c)
+        };
+        queryClient.setQueryData(key, updated);
+      }
       const actionWord = operation === "add" ? "Added" : "Deducted";
       toast({
         title: "Success",
-        description: `${actionWord} $${amount} ${operation === "add" ? "to" : "from"} ${clientName}'s account. New balance: $${data.newBalance}`
+        description: `${actionWord} ${amount} credits ${operation === "add" ? "to" : "from"} ${clientName}. New balance: ${data.newBalance} credits`
       });
       setAmount("");
       setOperation("add");
@@ -85,7 +96,7 @@ export function AddCreditsToClientDialog({ clientId, clientName, currentCredits,
     }}>
       <DialogTrigger asChild>
         <Button 
-          variant="outline" 
+          variant={buttonVariant} 
           size="sm" 
           className={buttonClassName}
           data-testid={`button-add-credits-${clientId}`}
@@ -98,7 +109,7 @@ export function AddCreditsToClientDialog({ clientId, clientName, currentCredits,
         <DialogHeader>
           <DialogTitle>Adjust Balance for {clientName}</DialogTitle>
           <DialogDescription>
-            Current balance: ${parseFloat(currentCredits).toFixed(2)} • You can add or deduct credits below
+            Current balance: {parseFloat(currentCredits).toFixed(2)} credits • You can add or deduct credits below
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -128,7 +139,7 @@ export function AddCreditsToClientDialog({ clientId, clientName, currentCredits,
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="amount">Amount (USD)</Label>
+              <Label htmlFor="amount">Amount (credits)</Label>
               <Input
                 id="amount"
                 type="number"
@@ -152,7 +163,7 @@ export function AddCreditsToClientDialog({ clientId, clientName, currentCredits,
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">New Balance:</span>
                   <span className="font-bold text-lg" data-testid="text-new-balance">
-                    ${operation === "add" 
+                    {operation === "add" 
                       ? (parseFloat(currentCredits) + parseFloat(amount)).toFixed(2)
                       : (parseFloat(currentCredits) - parseFloat(amount)).toFixed(2)}
                   </span>

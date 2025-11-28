@@ -2,6 +2,8 @@ import { Link, useLocation } from "wouter";
 import { LanguageToggle } from "./LanguageToggle";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { useQuery } from "@tanstack/react-query";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LogOut, RefreshCcw } from "lucide-react";
 import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.png";
@@ -15,6 +17,10 @@ export function DashboardHeader() {
   const { toast } = useToast();
   const [refreshing, setRefreshing] = useState(false);
   const [retrieving, setRetrieving] = useState(false);
+
+  const { data: profile } = useQuery<{
+    user: { id: string; email: string; name: string; company: string | null; role: string };
+  }>({ queryKey: ['/api/client/profile'] });
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -37,10 +43,24 @@ export function DashboardHeader() {
       ['/api/admin/config'],
       ['/api/web/inbox'],
     ];
+    const selectedClientId = localStorage.getItem('selectedClientId');
+    const isAdminMode = localStorage.getItem('isAdminMode') === 'true';
+    const effectiveUserId = !isAdminMode && selectedClientId ? selectedClientId : undefined;
+    const contactsKeys = [
+      ['/api/contacts', effectiveUserId],
+      ['/api/contact-groups', effectiveUserId],
+      ['/api/contacts/sync-stats', effectiveUserId],
+    ];
     for (const key of keys) {
       await queryClient.invalidateQueries({ queryKey: key as any });
       await queryClient.refetchQueries({ queryKey: key as any });
     }
+    for (const key of contactsKeys) {
+      await queryClient.invalidateQueries({ queryKey: key as any });
+      await queryClient.refetchQueries({ queryKey: key as any });
+    }
+    await queryClient.invalidateQueries({ predicate: (q: any) => String(q.queryKey?.[0] || '').startsWith('/api/') });
+    await queryClient.refetchQueries({ predicate: (q: any) => String(q.queryKey?.[0] || '').startsWith('/api/') });
     setRefreshing(false);
     toast({ title: t('common.success'), description: 'Refresh successful' });
   };
@@ -73,6 +93,9 @@ export function DashboardHeader() {
           <img src={logoUrl} alt="Yubin Dash" className="h-10 w-auto cursor-pointer" />
         </Link>
         <div className="flex items-center gap-3">
+          {profile?.user?.name && (
+            <Badge variant="secondary" data-testid="badge-username">{profile.user.name}</Badge>
+          )}
           <ThemeToggle />
           <LanguageToggle />
           {/* Retrieve Inbox action moved into Inbox page header */}

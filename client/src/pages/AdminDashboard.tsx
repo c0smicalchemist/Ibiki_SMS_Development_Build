@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, Settings, Activity, ArrowLeft, Wallet, Copy, CheckCircle, Send, Inbox as InboxIcon, Clock } from "lucide-react";
+import { Users, Settings, Activity, ArrowLeft, Wallet, Copy, CheckCircle, Send, Inbox as InboxIcon, Clock, Star } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,8 @@ import { Link } from "wouter";
 import ApiTestUtility from "@/components/ApiTestUtility";
 import ErrorLogsViewer from "@/components/ErrorLogsViewer";
 import { AddCreditsToClientDialog } from "@/components/AddCreditsToClientDialog";
+import ResetPasswordDialog from "@/components/ResetPasswordDialog";
+import WebhookEditDialog from "@/components/WebhookEditDialog";
 import { WorldClock } from "@/components/WorldClock";
 import { MessageStatusChart } from "@/components/MessageStatusChart";
 
@@ -58,6 +60,7 @@ export default function AdminDashboard() {
   ];
 
   const { data: config } = useQuery<{ success: boolean; config: Record<string, string> }>({ queryKey: ['/api/admin/config'] });
+  const { data: profile } = useQuery<{ user: { id: string; role: string } }>({ queryKey: ['/api/client/profile'] });
 
   useEffect(() => {
     if (config?.config) {
@@ -204,6 +207,13 @@ export default function AdminDashboard() {
     assignedPhoneNumbers: string[];
     rateLimitPerMinute: number;
     businessName: string | null;
+    role?: string;
+    groupId?: string | null;
+    deliveryMode?: 'poll' | 'push' | 'both';
+    webhookUrl?: string | null;
+    webhookSecret?: string | null;
+    passwordSetBy?: string | null;
+    passwordSetAt?: string | null;
   }> }>({
     queryKey: ['/api/admin/clients']
   });
@@ -419,6 +429,12 @@ export default function AdminDashboard() {
             icon={Activity}
             description={t('admin.stats.last30Days')}
           />
+          <StatCard
+            title={t('admin.stats.systemStatus')}
+            value={t('admin.stats.healthy')}
+            icon={Settings}
+            description={t('admin.stats.allRunning')}
+          />
           <Card className="md:col-span-2 lg:col-span-4">
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
@@ -427,7 +443,7 @@ export default function AdminDashboard() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">ExtremeSMS Balance</p>
+                  <p className="text-xs text-muted-foreground">IbikiSMS Balance</p>
                   <p className="text-2xl font-bold tracking-tight mt-1">
                     {balanceLoading ? 'Loading...' : balanceError ? 'Unavailable' : (
                       extremeBalance !== null ? `${extremeBalance.toLocaleString()} credits${extremeUSD ? ` (≈ $ ${extremeUSD})` : ''}` : 'N/A'
@@ -447,17 +463,11 @@ export default function AdminDashboard() {
                   <p className="text-2xl font-bold tracking-tight mt-1 text-red-600">
                     {extremeBalance !== null ? `${Math.max(extremeBalance - sumCredits, 0).toFixed(2)} credits (≈ $ ${(Math.max(extremeBalance - sumCredits, 0) * (parseFloat(extremeCost || '0') || 0)).toFixed(2)})` : 'N/A'}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">ExtremeSMS minus allocated</p>
+                  <p className="text-xs text-muted-foreground mt-1">IbikiSMS minus allocated</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <StatCard
-            title={t('admin.stats.systemStatus')}
-            value={t('admin.stats.healthy')}
-            icon={Settings}
-            description={t('admin.stats.allRunning')}
-          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -480,6 +490,16 @@ export default function AdminDashboard() {
                 <CardTitle className="flex items-center gap-2">
                   <InboxIcon className="h-5 w-5" />
                   Inbox
+                  <Link href="/inbox?view=favorites">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-2 h-6 px-2 text-xs bg-yellow-100 text-yellow-800 border border-yellow-500 hover:bg-yellow-200 flex items-center gap-1"
+                    >
+                      <Star className="h-3 w-3" />
+                      Favorites
+                    </Button>
+                  </Link>
                 </CardTitle>
                 <CardDescription>
                   View and reply to incoming messages
@@ -543,37 +563,42 @@ export default function AdminDashboard() {
               <CardDescription>View and manage all connected clients</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
+              <Table className="text-sm">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Client Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>API Key</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Messages Sent</TableHead>
-                    <TableHead>Credits</TableHead>
-                    <TableHead>{t('admin.clients.table.rateLimit')}</TableHead>
-                <TableHead>{t('admin.clients.table.businessName')}</TableHead>
-                <TableHead>Assigned Numbers</TableHead>
-                <TableHead>Last Active</TableHead>
-                <TableHead>Delivery Mode</TableHead>
-                <TableHead>Webhook</TableHead>
-                <TableHead>Actions</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Client Name</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Email</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">API Key</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Status</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Messages</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Credits</TableHead>
+                    <TableHead className="text-center">{t('admin.clients.table.rateLimit')}</TableHead>
+                    <TableHead className="text-center">{t('admin.clients.table.businessName')}</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Assigned Numbers</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Last Active</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Delivery</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Webhook</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Role</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Group ID</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {clients.map((client) => (
-                    <TableRow key={client.id} data-testid={`row-client-${client.id}`}>
-                      <TableCell className="font-medium">{client.name}</TableCell>
-                      <TableCell>{client.email}</TableCell>
-                      <TableCell className="font-mono text-sm">{client.apiKey}</TableCell>
-                      <TableCell>
+                    <TableRow key={client.id} data-testid={`row-client-${client.id}`} className="align-middle">
+                      <TableCell className="font-medium py-2">{client.name}</TableCell>
+                      <TableCell className="py-2">{client.email}</TableCell>
+                      <TableCell className="font-mono text-[11px] max-w-[12rem] truncate py-2">
+                        {client.apiKey}
+                        <Button size="sm" variant="ghost" className="ml-2 px-2 h-6" onClick={() => alert(client.apiKey)}>View</Button>
+                      </TableCell>
+                      <TableCell className="py-2">
                         <Badge variant={(client.isActive ?? client.status === "active") ? "default" : "secondary"}>
                           {(client.isActive ?? client.status === "active") ? 'active' : 'disabled'}
                         </Badge>
                       </TableCell>
-                      <TableCell>{client.messagesSent.toLocaleString()}</TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">{client.messagesSent.toLocaleString()}</TableCell>
+                      <TableCell className="py-2">
                         <div className="space-y-1">
                           <span className="font-mono font-semibold" data-testid={`text-credits-${client.id}`}>
                             {parseFloat(client.credits || '0').toFixed(2)} credits
@@ -597,11 +622,12 @@ export default function AdminDashboard() {
                               });
                             }
                           }}
-                          className="w-24"
+                          className="w-20 h-8"
                           data-testid={`input-rate-limit-${client.id}`}
                           title={t('admin.clients.rateLimit.description')}
                           min="1"
                           max="10000"
+                          disabled={profile?.user?.role === 'supervisor'}
                         />
                       </TableCell>
                       <TableCell>
@@ -619,7 +645,7 @@ export default function AdminDashboard() {
                               });
                             }
                           }}
-                          className="w-36"
+                          className="w-32 h-8"
                           data-testid={`input-business-name-${client.id}`}
                           title={t('admin.clients.businessName.description')}
                         />
@@ -641,7 +667,7 @@ export default function AdminDashboard() {
                                 });
                               }
                             }}
-                            className="w-40 font-mono text-xs"
+                            className="w-40 h-8 font-mono text-[11px]"
                             data-testid={`input-phones-${client.id}`}
                             title="Enter multiple numbers separated by commas"
                           />
@@ -657,18 +683,19 @@ export default function AdminDashboard() {
                                 return { ...p, [client.id]: updated };
                               });
                             }}
-                          >
+                            className="h-8">
                             Random
                           </Button>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{client.lastActive}</TableCell>
+                      <TableCell className="text-muted-foreground py-2">{client.lastActive}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <select
                             className="border rounded px-2 py-1 text-xs"
                             defaultValue={(client.deliveryMode || 'poll') as any}
                             onChange={(e) => setEditDeliveryMode(e.target.value as any)}
+                            disabled={profile?.user?.role === 'supervisor'}
                           >
                             <option value="poll">Poll</option>
                             <option value="push">Push</option>
@@ -677,28 +704,49 @@ export default function AdminDashboard() {
                           <Button size="sm" variant="outline" onClick={() => {
                             apiRequest(`/api/admin/clients/${client.id}/delivery-mode`, { method: 'POST', body: JSON.stringify({ mode: editDeliveryMode }) })
                               .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
-                          }}>Save</Button>
+                          }} className="h-7 px-2 text-xs">Save</Button>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="space-y-2 w-64">
-                          <Input className="text-xs font-mono" placeholder="https://..." defaultValue={client.webhookUrl || ''} onBlur={(e) => setEditWebhookUrl(e.target.value)} />
-                          <Input className="text-xs font-mono" placeholder="secret" defaultValue={client.webhookSecret || ''} onBlur={(e) => setEditWebhookSecret(e.target.value)} />
-                          <Button size="sm" variant="outline" onClick={() => {
-                            apiRequest(`/api/admin/clients/${client.id}/webhook`, { method: 'POST', body: JSON.stringify({ url: editWebhookUrl, secret: editWebhookSecret }) })
-                              .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
-                          }}>Save</Button>
+                      <TableCell className="py-2">
+                        <div className="w-40 flex items-center justify-center gap-2">
+                          <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="URL" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
+                          <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="Secret" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="grid grid-cols-1 gap-2 items-start">
+                      <TableCell className="py-2">
+                        <select defaultValue={client.role || 'client'} className="border rounded px-2 py-1 text-xs h-8" onChange={(e) => {
+                          const nextRole = e.target.value;
+                          apiRequest(`/api/admin/users/${client.id}/role`, { method: 'POST', body: JSON.stringify({ role: nextRole }) })
+                            .then(() => {
+                              queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
+                              toast({ title: 'Saved', description: 'Role updated' });
+                            })
+                            .catch((err: any) => {
+                              toast({ title: 'Error', description: err?.message || 'Failed to update role', variant: 'destructive' });
+                            });
+                        }}>
+                          <option value="admin">Admin</option>
+                          <option value="supervisor">Supervisor</option>
+                          <option value="client">User</option>
+                        </select>
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Input defaultValue={client.groupId || ''} placeholder="GROUP-ID" className="w-32 h-8 text-xs" onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          apiRequest(`/api/admin/users/${client.id}/group`, { method: 'POST', body: JSON.stringify({ groupId: v }) })
+                            .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
+                        }} />
+                      </TableCell>
+                      <TableCell className="align-top py-2">
+                        <div className="grid grid-cols-2 md:grid-cols-1 gap-2 items-start min-w-[12rem]">
                           <AddCreditsToClientDialog 
                             clientId={client.id}
                             clientName={client.name}
                             currentCredits={client.credits}
                             triggerMode="add"
                             triggerLabel="$ Add"
-                            buttonClassName="w-full justify-start bg-green-600 text-white hover:bg-green-700"
+                            buttonVariant="default"
+                            buttonClassName="w-full h-7 justify-center bg-green-600 text-white hover:bg-green-700 border border-green-700 text-xs"
                           />
                           <AddCreditsToClientDialog 
                             clientId={client.id}
@@ -706,7 +754,8 @@ export default function AdminDashboard() {
                             currentCredits={client.credits}
                             triggerMode="deduct"
                             triggerLabel="$ Deduct"
-                            buttonClassName="w-full justify-start bg-gray-100 text-gray-800 border border-red-500 hover:bg-gray-200"
+                            buttonVariant="outline"
+                            buttonClassName="w-full h-7 justify-center bg-orange-100 text-orange-800 border border-orange-500 hover:bg-orange-200 text-xs"
                           />
                           {!(client.isActive ?? client.status === 'active') ? (
                             <Button
@@ -714,7 +763,7 @@ export default function AdminDashboard() {
                               variant="outline"
                               onClick={() => enableUserMutation.mutate(client.id)}
                               data-testid={`button-enable-${client.id}`}
-                            >
+                            className="h-7 px-2 text-xs">
                               Enable
                             </Button>
                           ) : (
@@ -723,7 +772,7 @@ export default function AdminDashboard() {
                               variant="outline"
                               onClick={() => disableUserMutation.mutate(client.id)}
                               data-testid={`button-disable-${client.id}`}
-                            >
+                            className="h-7 px-2 text-xs">
                               Disable
                             </Button>
                           )}
@@ -732,7 +781,7 @@ export default function AdminDashboard() {
                             variant="ghost"
                             onClick={() => revokeUserKeysMutation.mutate(client.id)}
                             data-testid={`button-revoke-keys-${client.id}`}
-                          >
+                          className="h-7 px-2 text-xs">
                             Revoke Keys
                           </Button>
                           <Button
@@ -745,9 +794,24 @@ export default function AdminDashboard() {
                               }
                             }}
                             data-testid={`button-purge-${client.id}`}
-                          >
+                          className="h-7 px-2 text-xs">
                             Purge
                           </Button>
+                          <div className="text-[10px]">
+                            {client.passwordSetBy ? (
+                              <div>
+                                <div>Set by {client.passwordSetBy}</div>
+                                <span className="inline-block px-2 py-0.5 rounded bg-green-100 text-green-800 text-[10px]">PWD set</span>
+                              </div>
+                            ) : null}
+                          </div>
+                          {/* Reset Password */}
+                          {client.role !== 'admin' && (
+                            <div className="flex justify-center">
+                              {/* @ts-ignore */}
+                              <ResetPasswordDialog clientId={client.id} clientName={client.name} />
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -769,17 +833,17 @@ export default function AdminDashboard() {
             <CardContent>
               <form onSubmit={handleSaveConfig} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="extremeApiKey">ExtremeSMS API Key</Label>
+                  <Label htmlFor="extremeApiKey">IbikiSMS API Key</Label>
                   <Input
                     id="extremeApiKey"
                     type="password"
-                    placeholder="Enter ExtremeSMS API key"
+                    placeholder="Enter IbikiSMS API key"
                     value={extremeApiKey}
                     onChange={(e) => setExtremeApiKey(e.target.value)}
                     data-testid="input-extreme-api-key"
                   />
                   <p className="text-xs text-muted-foreground">
-                    This key is used to authenticate with ExtremeSMS on behalf of all clients
+                    This key is used to authenticate with IbikiSMS on behalf of all clients
                   </p>
                 </div>
 
@@ -802,52 +866,54 @@ export default function AdminDashboard() {
                   </p>
                 </div>
 
-                <div className="border-t pt-6 space-y-4">
-                  <h3 className="text-lg font-semibold">Pricing Configuration</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="extremeCost">ExtremeSMS Cost per SMS (USD)</Label>
-                      <Input
-                        id="extremeCost"
-                        type="number"
-                        step="0.0001"
-                        placeholder="0.01"
-                        value={extremeCost}
-                        onChange={(e) => setExtremeCost(e.target.value)}
-                        data-testid="input-extreme-cost"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        What ExtremeSMS charges you per message
-                      </p>
+                {profile?.user?.role === 'admin' && (
+                  <div className="border-t pt-6 space-y-4">
+                    <h3 className="text-lg font-semibold">Pricing Configuration</h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="extremeCost">IbikiSMS Cost per SMS (USD)</Label>
+                        <Input
+                          id="extremeCost"
+                          type="number"
+                          step="0.0001"
+                          placeholder="0.01"
+                          value={extremeCost}
+                          onChange={(e) => setExtremeCost(e.target.value)}
+                          data-testid="input-extreme-cost"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          What IbikiSMS charges you per message
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="clientRate">Client Rate per SMS (USD)</Label>
+                        <Input
+                          id="clientRate"
+                          type="number"
+                          step="0.0001"
+                          placeholder="0.02"
+                          value={clientRate}
+                          onChange={(e) => setClientRate(e.target.value)}
+                          data-testid="input-client-rate"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          What you charge your clients per message
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="clientRate">Client Rate per SMS (USD)</Label>
-                      <Input
-                        id="clientRate"
-                        type="number"
-                        step="0.0001"
-                        placeholder="0.02"
-                        value={clientRate}
-                        onChange={(e) => setClientRate(e.target.value)}
-                        data-testid="input-client-rate"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        What you charge your clients per message
-                      </p>
+                    <div className="bg-muted/50 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Profit Margin per SMS:</span>
+                        <span className="text-lg font-bold text-primary" data-testid="text-profit-margin">
+                          ${(parseFloat(clientRate || "0") - parseFloat(extremeCost || "0")).toFixed(4)} USD
+                        </span>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="bg-muted/50 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Profit Margin per SMS:</span>
-                      <span className="text-lg font-bold text-primary" data-testid="text-profit-margin">
-                        ${(parseFloat(clientRate || "0") - parseFloat(extremeCost || "0")).toFixed(4)} USD
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                )}
 
                 <div className="flex items-center gap-3">
                   <Button type="submit" data-testid="button-save-config" disabled={saveConfigMutation.isPending}>
@@ -907,7 +973,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">ExtremeSMS Key</span>
+                    <span className="text-sm">IbikiSMS Key</span>
                     {(config?.config?.extreme_api_key) ? <Badge>Configured</Badge> : <Badge variant="secondary">Not set</Badge>}
                   </div>
                   <div className="flex items-center justify-between">
@@ -919,7 +985,7 @@ export default function AdminDashboard() {
                     {(config?.config?.client_rate_per_sms) ? <Badge>Configured</Badge> : <Badge variant="secondary">Not set</Badge>}
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Extreme Cost per SMS</span>
+                    <span className="text-sm">IbikiSMS Cost per SMS</span>
                     {(config?.config?.extreme_cost_per_sms) ? <Badge>Configured</Badge> : <Badge variant="secondary">Not set</Badge>}
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -1205,6 +1271,8 @@ export default function AdminDashboard() {
           <ErrorLogsViewer />
         </TabsContent>
 
+
+
         <TabsContent value="monitoring" className="space-y-4">
           <Card>
             <CardHeader>
@@ -1245,6 +1313,46 @@ export default function AdminDashboard() {
         </TabsContent>
       </Tabs>
       </div>
+    </div>
+  );
+}
+function SupervisorLogsTable() {
+  const { data } = useQuery<{ success: boolean; logs: Array<{ id: string; actorUserId: string; actorRole: string; targetUserId: string | null; action: string; details: string | null; createdAt: string }> }>({
+    queryKey: ['/api/admin/supervisor-logs'],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      const r = await fetch('/api/admin/supervisor-logs', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+      if (!r.ok) throw new Error('Failed to fetch logs');
+      return r.json();
+    }
+  });
+  const logs = data?.logs || [];
+  return (
+    <div className="max-h-[65vh] overflow-y-auto rounded border">
+      <Table className="min-w-full">
+        <TableHeader>
+          <TableRow>
+            <TableHead>Time</TableHead>
+            <TableHead>Actor</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Action</TableHead>
+            <TableHead>Target User</TableHead>
+            <TableHead>Details</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {logs.map(l => (
+            <TableRow key={l.id}>
+              <TableCell>{new Date(l.createdAt).toLocaleString()}</TableCell>
+              <TableCell className="font-mono text-xs">{l.actorUserId}</TableCell>
+              <TableCell>{l.actorRole}</TableCell>
+              <TableCell className="font-mono text-xs">{l.action}</TableCell>
+              <TableCell className="font-mono text-xs">{l.targetUserId || '-'}</TableCell>
+              <TableCell className="font-mono text-xs break-words">{l.details || '-'}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

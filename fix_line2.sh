@@ -1,0 +1,1 @@
+sed -i "s|apiRequest(`\/api\/admin\/users\/\/role, { method: 'POST', body: JSON.stringify({ role: e.target.value }) })|apiRequest(`\/api\/admin\/users\/\${client.id}\/role`, { method: 'POST', body: JSON.stringify({ role: e.target.value }) })|g" /opt/ibiki-sms/client/src/pages/AdminDashboard.tsx

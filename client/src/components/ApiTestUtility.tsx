@@ -124,13 +124,13 @@ export default function ApiTestUtility() {
         <CardHeader>
           <CardTitle>API Endpoint Testing</CardTitle>
           <CardDescription>
-            Test your API endpoints to verify they're working correctly using your ExtremeSMS API key.
+            Test your API endpoints to verify they're working correctly using your IbikiSMS API key.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <Alert>
             <AlertDescription>
-              Tests use your ExtremeSMS API key directly (not client keys). These tests will NOT charge clients.
+              Tests use your IbikiSMS API key directly (not client keys). These tests will NOT charge clients.
             </AlertDescription>
           </Alert>
           

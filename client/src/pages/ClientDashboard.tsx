@@ -1,4 +1,4 @@
-import { MessageSquare, DollarSign, Activity, ArrowLeft, Inbox, Send, Users, Clock } from "lucide-react";
+import { MessageSquare, DollarSign, Activity, ArrowLeft, Inbox, Send, Users, Clock, Star } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -99,7 +99,7 @@ export default function ClientDashboard() {
           />
           <StatCard
             title={t('dashboard.stats.credits')}
-            value={`$${parseFloat(credits).toFixed(2)}`}
+            value={`${parseFloat(credits).toFixed(2)}`}
             icon={DollarSign}
             description={t('dashboard.stats.balance')}
           />
@@ -131,6 +131,16 @@ export default function ClientDashboard() {
                 <CardTitle className="flex items-center gap-2">
                   <Inbox className="h-5 w-5" />
                   {t('clientDashboard.inbox')}
+                  <Link href="/inbox?view=favorites">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-2 h-6 px-2 text-xs bg-yellow-100 text-yellow-800 border border-yellow-500 hover:bg-yellow-200 flex items-center gap-1"
+                    >
+                      <Star className="h-3 w-3" />
+                      Favorites
+                    </Button>
+                  </Link>
                 </CardTitle>
                 <CardDescription>
                   {t('clientDashboard.inboxDesc')}
@@ -175,40 +185,6 @@ export default function ClientDashboard() {
         {/* Inbox list removed from main dashboard to reduce clutter */}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">{t('clientDashboard.pricing')}</CardTitle>
-              <CardDescription className="text-xs">
-                {t('clientDashboard.pricingDesc')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground">{t('clientDashboard.ratePerSms')}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold" data-testid="text-rate-per-sms">
-                      ${parseFloat(ratePerSms).toFixed(4)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{t('clientDashboard.perMessage')}</p>
-                  </div>
-                </div>
-                {parseFloat(credits) > 0 && (
-                  <div className="pt-3 border-t border-border">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">{t('clientDashboard.estimatedMessages')}:</span>
-                      <span className="font-semibold" data-testid="text-messages-available">
-                        ~{Math.floor(parseFloat(credits) / parseFloat(ratePerSms)).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
           <ApiKeysManagement apiKeys={apiKeys} isCompact={true} />
         </div>
 

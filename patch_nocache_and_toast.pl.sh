@@ -1,0 +1,2 @@
+perl -0777 -i -pe "s/res\.sendFile\(indexPath\);/res.set(\"Cache-Control\", \"no-store, must-revalidate\");\n    res.sendFile(indexPath);/" /opt/ibiki-sms/server/index.ts
+perl -0777 -i -pe "s/\.then\(\(\) => queryClient\.invalidateQueries\(\{ queryKey: \[\'\/api\/admin\/clients\'\] \}\)\)\);/.then(() => { queryClient.invalidateQueries({ queryKey: ['\/api\/admin\/clients'] }); toast({ title: 'Saved', description: 'Role updated' }); });/g" /opt/ibiki-sms/client/src/pages/AdminDashboard.tsx

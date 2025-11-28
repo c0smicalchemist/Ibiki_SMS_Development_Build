@@ -1,0 +1,2 @@
+sed -i \"s|app.get(\\\"/api/admin/clients\\\", authenticateToken, requireAdmin,|app.get(\\\"/api/admin/clients\\\", authenticateToken, requireRole([\\\"admin\\\",\\\"supervisor\\\"]),|g\" /opt/ibiki-sms/server/routes.ts
+sed -i \"s|app.post('/api/admin/users/:userId/reset-password', authenticateToken, requireAdmin,|app.post('/api/admin/users/:userId/reset-password', authenticateToken, requireRole(['admin','supervisor']),|g\" /opt/ibiki-sms/server/routes.ts

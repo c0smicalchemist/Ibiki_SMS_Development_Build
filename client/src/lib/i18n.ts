@@ -99,6 +99,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.deletePermanent': 'Delete permanently',
     'inbox.binWarning': 'Bin has {count} messages. Purge bin to free space.',
     'inbox.purgeBin': 'Purge Bin',
+    'inbox.favorites': 'Favorites',
+    'inbox.sort.mostRecent': 'Most Recent',
+    'inbox.sort.oldest': 'Oldest',
 
     'docs.webhook.title': 'Webhook Configuration (2-Way SMS)',
     'docs.webhook.description': 'Configure this webhook URL in your SMS provider to receive incoming messages',
@@ -340,6 +343,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.deletePermanent': '永久删除',
     'inbox.binWarning': '回收站有 {count} 条消息。请清空释放空间。',
     'inbox.purgeBin': '清空回收站',
+    'inbox.favorites': '收藏',
+    'inbox.sort.mostRecent': '最新',
+    'inbox.sort.oldest': '最旧',
 
     'docs.webhook.title': 'Webhook配置（双向短信）',
     'docs.webhook.description': '请在短信服务商的控制台设置此Webhook URL以接收来信',

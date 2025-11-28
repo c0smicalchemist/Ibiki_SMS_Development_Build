@@ -10,7 +10,8 @@ export const users = pgTable("users", {
   password: text("password").notNull(), // bcrypt hashed
   name: text("name").notNull(),
   company: text("company"),
-  role: text("role").notNull().default("client"), // "admin" or "client"
+  role: text("role").notNull().default("client"), // "admin" | "supervisor" | "client"
+  groupId: text("group_id"),
   isActive: boolean("is_active").notNull().default(true),
   resetToken: text("reset_token"), // Password reset token
   resetTokenExpiry: timestamp("reset_token_expiry"), // Token expiration time
@@ -18,6 +19,7 @@ export const users = pgTable("users", {
 }, (table) => ({
   emailIdx: index("email_idx").on(table.email),
   resetTokenIdx: index("reset_token_idx").on(table.resetToken),
+  groupIdIdx: index("user_group_id_idx").on(table.groupId),
 }));
 
 // Client API keys
@@ -271,3 +273,18 @@ export type InsertContact = z.infer<typeof insertContactSchema>;
 export type ContactGroup = typeof contactGroups.$inferSelect;
 export type InsertContactGroup = z.infer<typeof insertContactGroupSchema>;
 
+// Supervisor action logs
+export const actionLogs = pgTable("action_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  actorUserId: varchar("actor_user_id").notNull().references(() => users.id),
+  actorRole: text("actor_role").notNull(),
+  targetUserId: varchar("target_user_id").references(() => users.id),
+  action: text("action").notNull(),
+  details: text("details"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  actorIdx: index("action_actor_idx").on(table.actorUserId),
+  createdIdx: index("action_created_idx").on(table.createdAt),
+}));
+export type ActionLog = typeof actionLogs.$inferSelect;
+export type InsertActionLog = typeof actionLogs.$inferSelect;
