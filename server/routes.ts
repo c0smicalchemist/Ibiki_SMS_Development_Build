@@ -11,6 +11,7 @@ import crypto from "crypto";
 import { sendPasswordResetEmail } from "./resend";
 
 const JWT_SECRET = process.env.SESSION_SECRET || process.env.JWT_SECRET || "your-secret-key-change-in-production";
+const PROTECTED_ADMIN_EMAIL = 'ibiki_dash@proton.me';
 const EXTREMESMS_BASE_URL = "https://extremesms.net";
 
 // Middleware to verify JWT token
@@ -247,6 +248,14 @@ async function getExtremeSMSCredentials() {
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  async function isProtectedAccount(userId: string): Promise<boolean> {
+    try {
+      const u = await storage.getUser(userId);
+      return !!u && u.email === PROTECTED_ADMIN_EMAIL;
+    } catch {
+      return false;
+    }
+  }
 
   // ============================================
   // Health Check Routes
@@ -1327,6 +1336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.params as { userId: string };
       const { role } = req.body as { role: 'admin' | 'supervisor' | 'client' };
+      if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
       if (!role || !['admin','supervisor','client'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
       const updated = await storage.updateUser(userId, { role });
       if (!updated) return res.status(404).json({ error: 'User not found' });
@@ -1344,6 +1354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.params as { userId: string };
       const { groupId } = req.body as { groupId: string };
+      if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
       const updated = await storage.updateUser(userId, { groupId });
       if (!updated) return res.status(404).json({ error: 'User not found' });
       await storage.createActionLog({ actorUserId: req.user.userId, actorRole: req.user.role, targetUserId: userId, action: 'set_group', details: groupId });
@@ -1358,6 +1369,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.params as { userId: string };
       const { password } = req.body as { password: string };
+      if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
       if (!password || password.length < 6) return res.status(400).json({ error: 'Password too short' });
       const target = await storage.getUser(userId);
       if (!target) return res.status(404).json({ error: 'User not found' });
@@ -1380,6 +1392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/users/:userId/disable", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const { userId } = req.params as { userId: string };
+      if (await isProtectedAccount(userId)) return res.status(403).json({ error: 'Immutable admin account' });
       const user = await storage.updateUser(userId, { isActive: false });
       if (!user) return res.status(404).json({ error: "User not found" });
       // Revoke all API keys as part of disable
@@ -1396,6 +1409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/users/:userId/enable", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const { userId } = req.params as { userId: string };
+      if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
       const user = await storage.updateUser(userId, { isActive: true });
       if (!user) return res.status(404).json({ error: "User not found" });
       res.json({ success: true });
@@ -1409,6 +1423,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const { userId } = req.params as { userId: string };
+      if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
       const keys = await storage.getApiKeysByUserId(userId);
       await Promise.all(keys.map(k => storage.revokeApiKey(k.id)));
       res.json({ success: true });
@@ -1422,6 +1437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/users/:userId/delete", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const { userId } = req.params as { userId: string };
+      if (await isProtectedAccount(userId)) return res.status(403).json({ error: 'Immutable admin account' });
       const user = await storage.updateUser(userId, { isActive: false });
       if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -2172,6 +2188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/add-credits", authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const { amount, userId } = req.body;
+      if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
 
       if (!userId) {
         return res.status(400).json({ error: "userId is required" });
@@ -2219,6 +2236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/adjust-credits", authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const { amount, userId, operation } = req.body;
+      if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
 
       if (!userId) {
         return res.status(400).json({ error: "userId is required" });
@@ -2292,6 +2310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/update-phone-numbers", authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const { userId, phoneNumbers } = req.body;
+      if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
 
       if (!userId) {
         return res.status(400).json({ error: "userId is required" });
@@ -2328,6 +2347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/update-rate-limit", authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const { userId, rateLimitPerMinute } = req.body;
+      if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
 
       if (!userId) {
         return res.status(400).json({ error: "userId is required" });
@@ -2360,6 +2380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/update-business-name", authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const { userId, businessName } = req.body;
+      if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
 
       if (!userId) {
         return res.status(400).json({ error: "userId is required" });
@@ -2393,6 +2414,7 @@ app.post("/api/v2/account/revoke-api-key", authenticateToken, requireAdmin, asyn
     if (keyId) {
       await storage.revokeApiKey(keyId);
     } else if (userId) {
+      if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
       const keys = await storage.getApiKeysByUserId(userId);
       await Promise.all(keys.map(k => storage.revokeApiKey(k.id)));
     }
@@ -2408,6 +2430,7 @@ app.post("/api/v2/account/revoke-api-key", authenticateToken, requireAdmin, asyn
 app.post("/api/v2/account/disable", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { userId } = req.body;
+    if (await isProtectedAccount(userId)) return res.status(403).json({ error: 'Immutable admin account' });
     if (!userId) return res.status(400).json({ error: "userId required" });
     await storage.disableUser(userId);
     res.json({ success: true });
@@ -2421,6 +2444,7 @@ app.post("/api/v2/account/disable", authenticateToken, requireAdmin, async (req,
 app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
+    if (await isProtectedAccount(userId)) return res.status(403).json({ error: 'Immutable admin account' });
     if (!userId) return res.status(400).json({ error: "userId required" });
     await storage.deleteUser(userId);
     res.json({ success: true });
@@ -3948,6 +3972,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   app.post('/api/admin/clients/:id/delivery-mode', authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
+      if (await isProtectedAccount(String(id)) && req.user.userId !== String(id)) return res.status(403).json({ error: 'Immutable admin account' });
       const { mode } = req.body || {};
       if (!['poll', 'push', 'both'].includes(String(mode))) return res.status(400).json({ error: 'Invalid mode' });
       await storage.setClientDeliveryMode(id, String(mode));
@@ -3960,6 +3985,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   app.post('/api/admin/clients/:id/webhook', authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
+      if (await isProtectedAccount(String(id)) && req.user.userId !== String(id)) return res.status(403).json({ error: 'Immutable admin account' });
       const { url, secret } = req.body || {};
       const safeUrl = typeof url === 'string' && url.startsWith('https://') ? url : null;
       await storage.setClientWebhook(id, safeUrl, secret || null);

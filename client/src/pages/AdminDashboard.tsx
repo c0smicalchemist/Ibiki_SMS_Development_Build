@@ -435,6 +435,12 @@ export default function AdminDashboard() {
             icon={Settings}
             description={t('admin.stats.allRunning')}
           />
+          <StatCard
+            title={'User'}
+            value={(profile as any)?.user?.email || profile?.user?.id || ''}
+            icon={Users}
+            description={'Logged in account'}
+          />
           <Card className="md:col-span-2 lg:col-span-4">
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
@@ -734,7 +740,25 @@ export default function AdminDashboard() {
                         <Input defaultValue={client.groupId || ''} placeholder="GROUP-ID" className="w-32 h-8 text-xs" onBlur={(e) => {
                           const v = e.target.value.trim();
                           apiRequest(`/api/admin/users/${client.id}/group`, { method: 'POST', body: JSON.stringify({ groupId: v }) })
-                            .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
+                            .then(() => {
+                              queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
+                              toast({ title: 'Saved', description: 'Group ID updated' });
+                            })
+                            .catch((err: any) => {
+                              toast({ title: 'Error', description: err?.message || 'Failed to update group', variant: 'destructive' });
+                            });
+                        }} onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const v = (e.target as HTMLInputElement).value.trim();
+                            apiRequest(`/api/admin/users/${client.id}/group`, { method: 'POST', body: JSON.stringify({ groupId: v }) })
+                              .then(() => {
+                                queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
+                                toast({ title: 'Saved', description: 'Group ID updated' });
+                              })
+                              .catch((err: any) => {
+                                toast({ title: 'Error', description: err?.message || 'Failed to update group', variant: 'destructive' });
+                              });
+                          }
                         }} />
                       </TableCell>
                       <TableCell className="align-top py-2">

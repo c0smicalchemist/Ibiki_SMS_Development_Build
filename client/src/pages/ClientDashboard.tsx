@@ -109,6 +109,12 @@ export default function ClientDashboard() {
             icon={Activity}
             description={t('dashboard.stats.operational')}
           />
+          <StatCard
+            title={'User'}
+            value={profile?.user?.email || profile?.user?.id || ''}
+            icon={Users}
+            description={'Logged in account'}
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
