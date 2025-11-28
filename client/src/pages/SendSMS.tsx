@@ -365,7 +365,7 @@ export default function SendSMS() {
                       const match = countries.find(c => v.startsWith(c.dial));
                       if (match) setSingleCountry(match.code);
                     }}
-                    placeholder="+1234567890"
+                    placeholder="1234567890"
                     data-testid="input-single-to"
                   />
                 </div>
@@ -430,7 +430,7 @@ export default function SendSMS() {
                     <Textarea
                       value={bulkRecipients}
                       onChange={(e) => setBulkRecipients(e.target.value)}
-                      placeholder="Enter phone numbers, one per line&#10;+1234567890&#10;+0987654321"
+                      placeholder="Enter phone numbers, one per line&#10;1234567890&#10;0987654321"
                       rows={6}
                       data-testid="textarea-bulk-recipients"
                     />
