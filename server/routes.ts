@@ -583,6 +583,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
 
       console.log('✅ Signup completed successfully for:', email);
+      res.set('Cache-Control', 'no-store, must-revalidate');
+      res.set('Pragma', 'no-cache');
       try { await (storage as any).createActionLog?.({ actorUserId: user.id, actorRole: user.role, targetUserId: user.id, action: 'signup', details: email }); } catch {}
       res.json({
         success: true,
@@ -648,6 +650,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
 
       console.log('✅ Login successful for:', email);
+      res.set('Cache-Control', 'no-store, must-revalidate');
+      res.set('Pragma', 'no-cache');
       try { await (storage as any).createActionLog?.({ actorUserId: user.id, actorRole: user.role, targetUserId: user.id, action: 'login_success', details: email }); } catch {}
       res.json({
         success: true,
@@ -667,6 +671,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         detail: error.detail
       });
       try { await (storage as any).createActionLog?.({ actorUserId: null, actorRole: 'system', targetUserId: null, action: 'login_error', details: error?.message || 'Login failed' }); } catch {}
+      res.set('Cache-Control', 'no-store, must-revalidate');
+      res.set('Pragma', 'no-cache');
       res.status(500).json({ error: "Login failed" });
     }
   });

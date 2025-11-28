@@ -789,6 +789,7 @@ export default function AdminDashboard() {
                         }} />
                       </TableCell>
                       <TableCell className="align-top py-2">
+                        {profile?.user?.role === 'admin' ? (
                         <div className="grid grid-cols-2 md:grid-cols-1 gap-2 items-start min-w-[12rem]">
                           <AddCreditsToClientDialog 
                             clientId={client.id}
@@ -864,6 +865,9 @@ export default function AdminDashboard() {
                             </div>
                           )}
                         </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground">—</div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
