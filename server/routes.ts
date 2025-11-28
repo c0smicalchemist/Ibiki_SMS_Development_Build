@@ -3329,7 +3329,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   // Web UI SMS Sending (calls ExtremeSMS via existing proxy logic)
   app.post("/api/web/sms/send-single", authenticateToken, async (req: any, res) => {
     try {
-      const { to, message, userId, defaultDial } = req.body;
+      const { to, message, userId, defaultDial, adminDirect } = req.body;
       
       // Check if userId parameter is being used by non-admin
       if (userId && req.user.role !== 'admin') {
@@ -3340,10 +3340,14 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         return res.status(400).json({ error: "Recipient and message are required" });
       }
 
-      // Admin can send on behalf of another user
-      const targetUserId = (req.user.role === 'admin' && userId) 
-        ? userId 
-        : req.user.userId;
+      const isAdmin = req.user.role === 'admin';
+      let targetUserId = req.user.userId;
+      if (isAdmin && adminDirect === true) {
+        targetUserId = req.user.userId;
+      } else if (isAdmin) {
+        if (!userId) return res.status(400).json({ error: "Client selection required for charging" });
+        targetUserId = userId;
+      }
 
       const extremeApiKey = await getExtremeApiKey();
 
@@ -3361,7 +3365,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       );
         
       // Admin direct mode: skip client credit check and charge zero
-      if (req.user.role === 'admin' && targetUserId === req.user.userId) {
+      if (isAdmin && adminDirect === true) {
         await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message, normalizedTo }, response.data, normalizedTo);
       } else {
         const { messageLog } = await deductCreditsAndLog(
@@ -3374,7 +3378,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
           response.data,
           normalizedTo
         );
-        if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+        if (isAdmin && req.user.userId !== targetUserId) {
           await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message, normalizedTo }, response.data, normalizedTo);
         }
       }
@@ -3407,7 +3411,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   });
   app.post("/api/web/sms/send-bulk", authenticateToken, async (req: any, res) => {
     try {
-      const { recipients, message, userId, defaultDial } = req.body;
+      const { recipients, message, userId, defaultDial, adminDirect } = req.body;
       
       // Check if userId parameter is being used by non-admin
       if (userId && req.user.role !== 'admin') {
@@ -3423,10 +3427,14 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         return res.status(400).json({ error: "Maximum 3000 recipients allowed per bulk send. Please split into multiple batches." });
       }
 
-      // Admin can send on behalf of another user
-      const targetUserId = (req.user.role === 'admin' && userId) 
-        ? userId 
-        : req.user.userId;
+      const isAdmin = req.user.role === 'admin';
+      let targetUserId = req.user.userId;
+      if (isAdmin && adminDirect === true) {
+        targetUserId = req.user.userId;
+      } else if (isAdmin) {
+        if (!userId) return res.status(400).json({ error: "Client selection required for charging" });
+        targetUserId = userId;
+      }
 
       const extremeApiKey = await getExtremeApiKey();
       const { ok: normalizedRecipients, invalid } = normalizeMany(recipients, String(defaultDial || '+1'));
@@ -3437,7 +3445,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         { headers: { Authorization: `Bearer ${extremeApiKey}`, "Content-Type": "application/json" } }
       );
 
-      if (req.user.role === 'admin' && targetUserId === req.user.userId) {
+      if (isAdmin && adminDirect === true) {
         await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, normalizedRecipients, invalid, message }, response.data, undefined, normalizedRecipients);
       } else {
         const { messageLog } = await deductCreditsAndLog(
@@ -3451,7 +3459,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
           undefined,
           normalizedRecipients
         );
-        if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+        if (isAdmin && req.user.userId !== targetUserId) {
           await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, normalizedRecipients, invalid, message }, response.data, undefined, normalizedRecipients);
         }
       }
@@ -3486,7 +3494,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
 
   app.post("/api/web/sms/send-bulk-multi", authenticateToken, async (req: any, res) => {
     try {
-      const { messages, userId, defaultDial } = req.body;
+      const { messages, userId, defaultDial, adminDirect } = req.body;
       
       // Check if userId parameter is being used by non-admin
       if (userId && req.user.role !== 'admin') {
@@ -3502,10 +3510,14 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         return res.status(400).json({ error: "Maximum 3000 messages allowed per bulk send. Please split into multiple batches." });
       }
 
-      // Admin can send on behalf of another user
-      const targetUserId = (req.user.role === 'admin' && userId) 
-        ? userId 
-        : req.user.userId;
+      const isAdmin = req.user.role === 'admin';
+      let targetUserId = req.user.userId;
+      if (isAdmin && adminDirect === true) {
+        targetUserId = req.user.userId;
+      } else if (isAdmin) {
+        if (!userId) return res.status(400).json({ error: "Client selection required for charging" });
+        targetUserId = userId;
+      }
 
       const extremeApiKey = await getExtremeApiKey();
       const transformed = messages.map((m: any) => ({ recipient: normalizePhone(String(m.to), String(defaultDial || '+1')), message: m.message, content: m.message }))
@@ -3517,7 +3529,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         { headers: { Authorization: `Bearer ${extremeApiKey}`, "Content-Type": "application/json" } }
       );
 
-      if (req.user.role === 'admin' && targetUserId === req.user.userId) {
+      if (isAdmin && adminDirect === true) {
         await createAdminAuditLog(req.user.userId, 'web-ui-bulk-multi', response.data.messageId || 'unknown', 'sent', { messages }, response.data);
       } else {
         const { messageLog } = await deductCreditsAndLog(
@@ -3529,7 +3541,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
           { messages },
           response.data
         );
-        if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
+        if (isAdmin && req.user.userId !== targetUserId) {
           await createAdminAuditLog(req.user.userId, 'web-ui-bulk-multi', response.data.messageId || 'unknown', 'sent', { messages }, response.data);
         }
       }
