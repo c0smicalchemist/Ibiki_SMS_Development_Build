@@ -42,7 +42,7 @@ function ProtectedAdmin() {
             return;
           }
         } catch {}
-        const me = await apiRequest(`/api/auth/me?token=${encodeURIComponent(token)}`);
+        const me = await apiRequest('/api/client/profile');
         if (me?.user?.role === 'admin' || me?.user?.role === 'supervisor') {
           setAllowed(true);
         } else {
@@ -50,8 +50,8 @@ function ProtectedAdmin() {
           setAllowed(false);
         }
       } catch {
-        // As a fallback, allow admin route if a token exists
-        setAllowed(true);
+        setLocation('/login');
+        setAllowed(false);
       }
     })();
   }, [setLocation]);
