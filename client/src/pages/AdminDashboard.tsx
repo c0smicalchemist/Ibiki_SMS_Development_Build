@@ -720,6 +720,7 @@ export default function AdminDashboard() {
                           </Button>
                         </div>
                       </TableCell>
+                      )}
                       <TableCell className="text-muted-foreground py-2">{client.lastActive}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
