@@ -557,6 +557,7 @@ export function translate(key: string, lang: Language): string {
     'sendSms.bulkCsv.file': 'CSV 文件',
     'sendSms.bulkCsv.recipientsFromCsv': '个收件人来自 CSV'
 */
+*/
 /*
 const __unused_cn = `
     'sendSms.subtitle': '发送单条、批量或多条消息',
