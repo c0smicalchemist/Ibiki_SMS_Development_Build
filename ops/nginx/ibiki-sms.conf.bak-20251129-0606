@@ -1,7 +1,7 @@
 server {
   listen 80;
   server_name ibiki.run.place www.ibiki.run.place 151.243.109.79;
-  return 301 https://$host$request_uri;
+  return 301 https://ibiki.run.place$request_uri;
 }
 
 server {
@@ -40,7 +40,5 @@ server {
   # SPA routing
   location / {
     try_files $uri $uri/ /index.html;
-    expires -1;
-    add_header Cache-Control "no-store, must-revalidate";
   }
 }

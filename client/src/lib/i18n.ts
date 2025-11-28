@@ -1,4 +1,4 @@
-export type Language = 'en' | 'zh';
+export type Language = 'en' | 'zh'
 
 export const translations: Record<Language, Record<string, string>> = {
   en: {
@@ -52,6 +52,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'messageHistory.selectClient': 'Select a client to view their history',
     'messageHistory.search': 'Search messages…',
     'messageHistory.loading': 'Loading history…',
+    'messageHistory.error.fetchFailed': 'Failed to fetch message history',
     'messageHistory.empty': 'No sent messages',
     'messageHistory.emptyDesc': 'Start sending SMS to see history here',
     'messageHistory.showing': 'Showing',
@@ -69,7 +70,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'messageHistory.bulkRecipients': 'Bulk recipients',
 
     'worldClock.title': 'World Clock',
-    'worldClock.disclaimer': 'SMS campaign messages in the USA between 8 a.m. and 9 p.m. in the recipient\'s local time zone',
+    'worldClock.disclaimer': "SMS campaign messages in the USA between 8 a.m. and 9 p.m. in the recipient's local time zone",
 
     'inbox.title': 'Inbox',
     'inbox.description': 'View and reply to incoming messages',
@@ -134,6 +135,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.clients.businessName.description': 'Used in webhook routing and display',
     'admin.config.title': 'System Configuration',
     'admin.config.subtitle': 'Secrets, pricing and assignment',
+    'admin.config.error.saveFailed': 'Failed to save configuration',
+    'admin.config.error.connectionFailed': 'Connection failed',
+    'admin.config.error.updatePhonesFailed': 'Failed to update assigned phones',
     'admin.envDb.title': 'Environment & Database',
     'admin.envDb.runMigrations': 'Run Migrations',
     'admin.webhook.suggestedUrl': 'Suggested Webhook URL (current environment)',
@@ -148,6 +152,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.syncCredits.success': 'Synced: adjusted {count} accounts',
     'admin.syncCredits.failed': 'Credits sync failed',
     'clientSelector.adminDirectDesc': 'No client charges. Messages are sent using your admin credits and logged as admin audit.',
+
+    'supervisor.title': 'Supervisor Dashboard',
+    'supervisor.subtitle': 'Manage group clients and actions',
 
     'nav.logout': 'Log out',
     'nav.docs': 'View Docs',
@@ -253,7 +260,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'contacts.error.fetchGroupsFailed': 'Failed to fetch groups',
     'contacts.error.fetchFailed': 'Failed to fetch contacts',
     'contacts.error.exportFailed': 'Export failed',
-    'contacts.includeBusiness': 'Include business',
+    'contacts.includeBusiness': 'Include business'
   },
   zh: {
     'common.loading': '加载中…',
@@ -306,6 +313,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'messageHistory.selectClient': '选择客户以查看历史',
     'messageHistory.search': '搜索消息…',
     'messageHistory.loading': '正在加载历史…',
+    'messageHistory.error.fetchFailed': '获取历史记录失败',
     'messageHistory.empty': '暂无已发送消息',
     'messageHistory.emptyDesc': '开始发送短信后可在此查看历史',
     'messageHistory.showing': '显示',
@@ -388,6 +396,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.clients.businessName.description': '用于Webhook路由与展示',
     'admin.config.title': '系统配置',
     'admin.config.subtitle': '密钥、价格与号码分配',
+    'admin.config.error.saveFailed': '保存配置失败',
+    'admin.config.error.connectionFailed': '连接失败',
+    'admin.config.error.updatePhonesFailed': '更新分配号码失败',
     'admin.envDb.title': '环境与数据库',
     'admin.envDb.runMigrations': '运行迁移',
     'admin.webhook.suggestedUrl': '建议的Webhook URL（当前环境）',
@@ -402,6 +413,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.syncCredits.success': '已同步：调整了 {count} 个账户',
     'admin.syncCredits.failed': '余额同步失败',
     'clientSelector.adminDirectDesc': '不扣减客户余额。消息使用管理员余额发送，并记录为管理员审计。',
+
+    'supervisor.title': '主管看板',
+    'supervisor.subtitle': '管理组内客户与操作',
 
     'nav.logout': '退出登录',
     'nav.docs': '查看文档',
@@ -507,98 +521,10 @@ export const translations: Record<Language, Record<string, string>> = {
     'contacts.error.fetchGroupsFailed': '获取分组失败',
     'contacts.error.fetchFailed': '获取联系人失败',
     'contacts.error.exportFailed': '导出失败',
-    'contacts.includeBusiness': '包含公司',
+    'contacts.includeBusiness': '包含公司'
   }
-};
+}
 
 export function translate(key: string, lang: Language): string {
-  return (translations[lang] as Record<string, string>)[key] || key;
+  return (translations[lang] as Record<string, string>)[key] || key
 }
-/*
-    'sendSms.adminMode': '管理员模式',
-    'sendSms.selectClient': '选择一个客户代为发送',
-    'sendSms.tabs.single': '单条',
-    'sendSms.tabs.bulk': '批量',
-    'sendSms.tabs.bulkMulti': '批量（多消息）',
-    'sendSms.single.description': '向一个收件人发送单条短信',
-    'sendSms.single.to': '收件人',
-    'sendSms.single.message': '内容',
-    'sendSms.single.send': '发送短信',
-    'sendSms.single.sending': '正在发送…',
-    'sendSms.success.sent': '短信已发送',
-    'sendSms.success.bulkSent': '批量消息已发送',
-    'sendSms.success.multiSent': '多条消息已发送',
-    'sendSms.error.failed': '发送失败',
-    'sendSms.error.fillFields': '请填写所有必填项',
-    'sendSms.error.provideRecipients': '请提供收件人和消息内容',
-    'sendSms.error.provideMessage': '请至少提供一个收件人和消息内容',
-    'sendSms.error.fetchContactsFailed': '获取联系人失败',
-    'sendSms.error.fetchGroupsFailed': '获取分组失败',
-    'sendSms.bulk.description': '向多个收件人发送相同短信',
-    'sendSms.bulk.countryHint': '无+前缀的号码将自动应用国家区号',
-    'sendSms.bulk.recipients': '收件人',
-    'sendSms.bulk.manualEntry': '手动输入',
-    'sendSms.bulk.fromGroup': '来自分组',
-    'sendSms.bulk.send': '发送批量',
-    'sendSms.bulk.sending': '正在发送…',
-    'sendSms.bulkMulti.title': '批量多消息',
-    'sendSms.bulkMulti.description': '向多个收件人发送不同消息',
-    'sendSms.bulkMulti.countryHint': '对无+前缀的收件人自动应用区号',
-    'sendSms.bulkMulti.messageNumber': '消息 ',
-    'sendSms.bulkMulti.remove': '移除',
-    'sendSms.bulkMulti.recipientPlaceholder': '收件人号码…',
-    'sendSms.bulkMulti.messagePlaceholder': '消息内容…',
-    'sendSms.bulkMulti.addAnother': '添加一条',
-    'sendSms.bulkMulti.send': '发送',
-    'sendSms.bulkMulti.messages': '条消息',
-    'sendSms.bulkMulti.sending': '正在发送…',
-    'sendSms.bulkCsv.title': '批量 CSV',
-    'sendSms.bulkCsv.description': '上传收件人 CSV 并发送同一条消息',
-    'sendSms.bulkCsv.file': 'CSV 文件',
-    'sendSms.bulkCsv.recipientsFromCsv': '个收件人来自 CSV'
-*/
-*/
-/*
-const __unused_cn = `
-    'sendSms.subtitle': '发送单条、批量或多条消息',
-    'sendSms.adminMode': '管理员模式',
-    'sendSms.selectClient': '选择一个客户代为发送',
-    'sendSms.tabs.single': '单条',
-    'sendSms.tabs.bulk': '批量',
-    'sendSms.tabs.bulkMulti': '批量（多消息）',
-    'sendSms.single.description': '向一个收件人发送单条短信',
-    'sendSms.single.to': '收件人',
-    'sendSms.single.message': '内容',
-    'sendSms.single.send': '发送短信',
-    'sendSms.single.sending': '正在发送…',
-    'sendSms.success.sent': '短信已发送',
-    'sendSms.success.bulkSent': '批量消息已发送',
-    'sendSms.success.multiSent': '多条消息已发送',
-    'sendSms.error.failed': '发送失败',
-    'sendSms.error.fillFields': '请填写所有必填项',
-    'sendSms.error.provideRecipients': '请提供收件人和消息内容',
-    'sendSms.error.provideMessage': '请至少提供一个收件人和消息内容',
-    'sendSms.error.fetchContactsFailed': '获取联系人失败',
-    'sendSms.error.fetchGroupsFailed': '获取分组失败',
-    'sendSms.bulk.description': '向多个收件人发送相同短信',
-    'sendSms.bulk.countryHint': '无+前缀的号码将自动应用国家区号',
-    'sendSms.bulk.recipients': '收件人',
-    'sendSms.bulk.manualEntry': '手动输入',
-    'sendSms.bulk.fromGroup': '来自分组',
-    'sendSms.bulk.send': '发送批量',
-    'sendSms.bulk.sending': '正在发送…',
-    'sendSms.bulkMulti.title': '批量多消息',
-    'sendSms.bulkMulti.description': '向多个收件人发送不同消息',
-    'sendSms.bulkMulti.countryHint': '对无+前缀的收件人自动应用区号',
-    'sendSms.bulkMulti.messageNumber': '消息 ',
-    'sendSms.bulkMulti.remove': '移除',
-    'sendSms.bulkMulti.recipientPlaceholder': '收件人号码…',
-    'sendSms.bulkMulti.messagePlaceholder': '消息内容…',
-    'sendSms.bulkMulti.addAnother': '添加一条',
-    'sendSms.bulkMulti.send': '发送',
-    'sendSms.bulkMulti.messages': '条消息',
-    'sendSms.bulkMulti.sending': '正在发送…',
-    'sendSms.bulkCsv.title': '批量 CSV',
-    'sendSms.bulkCsv.description': '上传收件人 CSV 并发送同一条消息',
-    'sendSms.bulkCsv.file': 'CSV 文件',
-    'sendSms.bulkCsv.recipientsFromCsv': '个收件人来自 CSV',
