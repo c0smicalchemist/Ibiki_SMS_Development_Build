@@ -389,6 +389,20 @@ export default function AdminDashboard() {
   const creditsValueUSD = (sumCredits * clientRateNumber).toFixed(2);
   const extremeUSD = (extremeBalance !== null) ? (extremeBalance * (parseFloat(extremeCost || '0') || 0)).toFixed(2) : null;
 
+  const syncCreditsMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/admin/credits/sync', { method: 'POST' });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/extremesms-balance'] });
+      toast({ title: t('common.success'), description: `Synced: adjusted ${data.adjustedCount} accounts` });
+    },
+    onError: (error: any) => {
+      toast({ title: t('common.error'), description: error?.message || 'Credits sync failed', variant: 'destructive' });
+    }
+  });
+
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
     saveConfigMutation.mutate({
@@ -445,7 +459,12 @@ export default function AdminDashboard() {
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
                 <p className="text-sm font-medium text-muted-foreground">Credits Overview</p>
-                <div className="p-3 rounded-lg bg-primary/10"><Wallet className="w-5 h-5 text-primary" /></div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="default" onClick={() => syncCreditsMutation.mutate()} data-testid="button-sync-credits">
+                    Sync Credits
+                  </Button>
+                  <div className="p-3 rounded-lg bg-primary/10"><Wallet className="w-5 h-5 text-primary" /></div>
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-4">
                 <div>

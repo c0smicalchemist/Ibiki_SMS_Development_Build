@@ -83,7 +83,7 @@ export function ClientSelector({ onClientChange, selectedClientId, onAdminModeCh
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
             <p className="text-sm font-medium text-blue-900">{modeLabel || 'Admin Direct Mode'}</p>
             <p className="text-xs text-blue-700">
-              All actions will be performed directly using your own credits
+              No client charges. Messages are sent using your admin credits and logged as admin audit.
             </p>
           </div>
         </div>

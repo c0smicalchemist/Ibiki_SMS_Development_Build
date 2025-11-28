@@ -1321,6 +1321,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sync client credits to match provider balance (admin-only)
+  app.post('/api/admin/credits/sync', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const extremeApiKey = await storage.getSystemConfig('extreme_api_key');
+      if (!extremeApiKey?.value) return res.status(400).json({ error: 'ExtremeSMS API key not configured' });
+      const balResp = await axios.get(`${EXTREMESMS_BASE_URL}/api/v2/account/balance`, { headers: { Authorization: `Bearer ${extremeApiKey.value}` } });
+      const providerBalance: number = parseFloat(String(balResp?.data?.balance || '0')) || 0;
+
+      const users = await storage.getAllUsers();
+      const clientUsers = users.filter((u: any) => u.role !== 'admin');
+      const profiles = await Promise.all(clientUsers.map(u => storage.getClientProfileByUserId(u.id)));
+      const validProfiles = profiles.filter(Boolean) as any[];
+      const currentSum = validProfiles.reduce((sum, p: any) => sum + (parseFloat(p.credits || '0') || 0), 0);
+
+      if (providerBalance <= 0) return res.status(400).json({ error: 'Provider balance unavailable or zero' });
+      if (currentSum === 0) return res.json({ success: true, message: 'No allocated client credits to sync', providerBalance, currentSum, adjustedCount: 0 });
+
+      if (Math.abs(currentSum - providerBalance) < 0.01) {
+        return res.json({ success: true, message: 'Already in sync', providerBalance, currentSum, adjustedCount: 0 });
+      }
+
+      const scale = providerBalance / currentSum;
+      let adjustedCount = 0;
+      let totalDelta = 0;
+      for (let idx = 0; idx < validProfiles.length; idx++) {
+        const p: any = validProfiles[idx];
+        const old = parseFloat(p.credits || '0') || 0;
+        const nextRaw = old * scale;
+        const next = parseFloat(nextRaw.toFixed(2));
+        if (Math.abs(next - old) < 0.01) continue;
+        adjustedCount++;
+        const delta = next - old; // negative means deduction
+        totalDelta += delta;
+        await storage.updateClientCredits(p.userId, next.toFixed(2));
+        await storage.createCreditTransaction({
+          userId: p.userId,
+          amount: delta.toFixed(2),
+          type: delta >= 0 ? 'credit' : 'debit',
+          description: 'Admin credits sync to provider balance',
+          balanceBefore: old.toFixed(2),
+          balanceAfter: next.toFixed(2),
+          messageLogId: null
+        });
+      }
+
+      const newSum = (await Promise.all(validProfiles.map(async (p: any) => {
+        const refreshed = await storage.getClientProfileByUserId(p.userId);
+        return parseFloat(refreshed?.credits || '0') || 0;
+      }))).reduce((s, v) => s + v, 0);
+
+      res.json({ success: true, providerBalance, before: currentSum, after: parseFloat(newSum.toFixed(2)), adjustedCount, totalDelta: parseFloat(totalDelta.toFixed(2)) });
+    } catch (e: any) {
+      console.error('Credits sync error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to sync credits' });
+    }
+  });
+
   // Supervisor logs
   app.get('/api/admin/supervisor-logs', authenticateToken, requireAdmin, async (req, res) => {
     try {
