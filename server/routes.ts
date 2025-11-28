@@ -1321,6 +1321,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Supervisor logs (group-scoped)
+  app.get('/api/supervisor/logs', authenticateToken, requireRole(['supervisor']), async (req: any, res) => {
+    try {
+      const limit = Math.min(parseInt(String(req.query.limit || '200')), 1000);
+      const me = await storage.getUser(req.user.userId);
+      const groupId = (me as any)?.groupId || null;
+      const all = await storage.getActionLogs(limit);
+      const scoped = all.filter((l: any) => {
+        if (l.actorRole === 'supervisor') {
+          const actor = l.actorUserId ? l.actorUserId : null;
+          return actor ? true : false;
+        }
+        if (l.targetUserId) {
+          return true;
+        }
+        return false;
+      });
+      res.json({ success: true, logs: scoped });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to fetch logs' });
+    }
+  });
+
+  // Admin action logs (all groups)
+  app.get('/api/admin/action-logs', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const limit = Math.min(parseInt(String(req.query.limit || '500')), 5000);
+      const type = String(req.query.type || 'all');
+      const all = await storage.getActionLogs(limit);
+      const filtered = all.filter((l: any) => type === 'all' ? true : (type === 'supervisor' ? l.actorRole === 'supervisor' : l.actorRole === 'user'));
+      res.json({ success: true, logs: filtered });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to fetch logs' });
+    }
+  });
+
+  // Admin export action logs as text
+  app.get('/api/admin/action-logs/export', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const limit = Math.min(parseInt(String(req.query.limit || '2000')), 20000);
+      const type = String(req.query.type || 'all');
+      const all = await storage.getActionLogs(limit);
+      const filtered = all.filter((l: any) => type === 'all' ? true : (type === 'supervisor' ? l.actorRole === 'supervisor' : l.actorRole === 'user'));
+      const lines = filtered.map((l: any) => {
+        const err = l.error ? ` | error=${l.error}` : '';
+        return `${l.createdAt} | actor=${l.actorUserId}(${l.actorRole}) | target=${l.targetUserId || ''} | action=${l.action} | details=${JSON.stringify(l.details || {})}${err}`;
+      });
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', 'attachment; filename=action-logs.txt');
+      res.send(lines.join('\n'));
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to export logs' });
+    }
+  });
+
   // Sync client credits to match provider balance (admin-only)
   app.post('/api/admin/credits/sync', authenticateToken, requireAdmin, async (req: any, res) => {
     try {
@@ -3386,11 +3441,11 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   // Web UI SMS Sending (calls ExtremeSMS via existing proxy logic)
   app.post("/api/web/sms/send-single", authenticateToken, async (req: any, res) => {
     try {
-      const { to, message, userId, defaultDial, adminDirect } = req.body;
+      const { to, message, userId, defaultDial, adminDirect, supervisorDirect } = req.body;
       
       // Check if userId parameter is being used by non-admin
-      if (userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      if (userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized" });
       }
       
       if (!to || !message) {
@@ -3398,11 +3453,22 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       }
 
       const isAdmin = req.user.role === 'admin';
+      const isSupervisor = req.user.role === 'supervisor';
       let targetUserId = req.user.userId;
       if (isAdmin && adminDirect === true) {
         targetUserId = req.user.userId;
       } else if (isAdmin) {
         if (!userId) return res.status(400).json({ error: "Client selection required for charging" });
+        targetUserId = userId;
+      } else if (isSupervisor && supervisorDirect === true) {
+        targetUserId = req.user.userId;
+      } else if (isSupervisor) {
+        if (!userId) return res.status(400).json({ error: "Client selection required for charging" });
+        const me = await storage.getUser(req.user.userId);
+        const target = await storage.getUser(userId);
+        if (((me as any)?.groupId || null) !== ((target as any)?.groupId || null)) {
+          return res.status(403).json({ error: 'Unauthorized: client not in your group' });
+        }
         targetUserId = userId;
       }
 
@@ -3422,7 +3488,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       );
         
       // Admin direct mode: skip client credit check and charge zero
-      if (isAdmin && adminDirect === true) {
+      if ((isAdmin && adminDirect === true) || (isSupervisor && supervisorDirect === true)) {
         await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message, normalizedTo }, response.data, normalizedTo);
       } else {
         const { messageLog } = await deductCreditsAndLog(
@@ -3435,7 +3501,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
           response.data,
           normalizedTo
         );
-        if (isAdmin && req.user.userId !== targetUserId) {
+        if ((isAdmin || isSupervisor) && req.user.userId !== targetUserId) {
           await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message, normalizedTo }, response.data, normalizedTo);
         }
       }
@@ -3468,11 +3534,11 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   });
   app.post("/api/web/sms/send-bulk", authenticateToken, async (req: any, res) => {
     try {
-      const { recipients, message, userId, defaultDial, adminDirect } = req.body;
+      const { recipients, message, userId, defaultDial, adminDirect, supervisorDirect } = req.body;
       
-      // Check if userId parameter is being used by non-admin
-      if (userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      // Check acting on behalf
+      if (userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized" });
       }
       
       if (!recipients || !Array.isArray(recipients) || recipients.length === 0 || !message) {
@@ -3485,11 +3551,22 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       }
 
       const isAdmin = req.user.role === 'admin';
+      const isSupervisor = req.user.role === 'supervisor';
       let targetUserId = req.user.userId;
       if (isAdmin && adminDirect === true) {
         targetUserId = req.user.userId;
       } else if (isAdmin) {
         if (!userId) return res.status(400).json({ error: "Client selection required for charging" });
+        targetUserId = userId;
+      } else if (isSupervisor && supervisorDirect === true) {
+        targetUserId = req.user.userId;
+      } else if (isSupervisor) {
+        if (!userId) return res.status(400).json({ error: "Client selection required for charging" });
+        const me = await storage.getUser(req.user.userId);
+        const target = await storage.getUser(userId);
+        if (((me as any)?.groupId || null) !== ((target as any)?.groupId || null)) {
+          return res.status(403).json({ error: 'Unauthorized: client not in your group' });
+        }
         targetUserId = userId;
       }
 
@@ -3502,7 +3579,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         { headers: { Authorization: `Bearer ${extremeApiKey}`, "Content-Type": "application/json" } }
       );
 
-      if (isAdmin && adminDirect === true) {
+      if ((isAdmin && adminDirect === true) || (isSupervisor && supervisorDirect === true)) {
         await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, normalizedRecipients, invalid, message }, response.data, undefined, normalizedRecipients);
       } else {
         const { messageLog } = await deductCreditsAndLog(
@@ -3516,7 +3593,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
           undefined,
           normalizedRecipients
         );
-        if (isAdmin && req.user.userId !== targetUserId) {
+        if ((isAdmin || isSupervisor) && req.user.userId !== targetUserId) {
           await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, normalizedRecipients, invalid, message }, response.data, undefined, normalizedRecipients);
         }
       }
@@ -3551,11 +3628,10 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
 
   app.post("/api/web/sms/send-bulk-multi", authenticateToken, async (req: any, res) => {
     try {
-      const { messages, userId, defaultDial, adminDirect } = req.body;
+      const { messages, userId, defaultDial, adminDirect, supervisorDirect } = req.body;
       
-      // Check if userId parameter is being used by non-admin
-      if (userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      if (userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized" });
       }
       
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -3568,11 +3644,22 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
       }
 
       const isAdmin = req.user.role === 'admin';
+      const isSupervisor = req.user.role === 'supervisor';
       let targetUserId = req.user.userId;
       if (isAdmin && adminDirect === true) {
         targetUserId = req.user.userId;
       } else if (isAdmin) {
         if (!userId) return res.status(400).json({ error: "Client selection required for charging" });
+        targetUserId = userId;
+      } else if (isSupervisor && supervisorDirect === true) {
+        targetUserId = req.user.userId;
+      } else if (isSupervisor) {
+        if (!userId) return res.status(400).json({ error: "Client selection required for charging" });
+        const me = await storage.getUser(req.user.userId);
+        const target = await storage.getUser(userId);
+        if (((me as any)?.groupId || null) !== ((target as any)?.groupId || null)) {
+          return res.status(403).json({ error: 'Unauthorized: client not in your group' });
+        }
         targetUserId = userId;
       }
 
@@ -3586,7 +3673,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         { headers: { Authorization: `Bearer ${extremeApiKey}`, "Content-Type": "application/json" } }
       );
 
-      if (isAdmin && adminDirect === true) {
+      if ((isAdmin && adminDirect === true) || (isSupervisor && supervisorDirect === true)) {
         await createAdminAuditLog(req.user.userId, 'web-ui-bulk-multi', response.data.messageId || 'unknown', 'sent', { messages }, response.data);
       } else {
         const { messageLog } = await deductCreditsAndLog(
@@ -3598,7 +3685,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
           { messages },
           response.data
         );
-        if (isAdmin && req.user.userId !== targetUserId) {
+        if ((isAdmin || isSupervisor) && req.user.userId !== targetUserId) {
           await createAdminAuditLog(req.user.userId, 'web-ui-bulk-multi', response.data.messageId || 'unknown', 'sent', { messages }, response.data);
         }
       }

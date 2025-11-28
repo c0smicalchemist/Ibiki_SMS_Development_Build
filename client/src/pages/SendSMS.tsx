@@ -88,6 +88,7 @@ export default function SendSMS() {
   });
 
   const isAdmin = profile?.user?.role === 'admin' || profile?.user?.email === 'ibiki_dash@proton.me';
+  const isSupervisor = profile?.user?.role === 'supervisor';
   const effectiveUserId = isAdmin && !isAdminMode && selectedClientId ? selectedClientId : undefined;
 
   // Fetch contacts and groups
@@ -189,11 +190,12 @@ export default function SendSMS() {
     const dial = countries.find(c => c.code === singleCountry)?.dial || '';
     const normalizedTo = singleTo.startsWith('+') ? singleTo : `${dial}${singleTo.replace(/^\+/, '')}`;
     const defaultDial = countries.find(c => c.code === singleCountry)?.dial || '+1';
-    const payload: { to: string; message: string; userId?: string; defaultDial?: string; adminDirect?: boolean } = {
+    const payload: { to: string; message: string; userId?: string; defaultDial?: string; adminDirect?: boolean; supervisorDirect?: boolean } = {
       to: normalizedTo,
       message: singleMessage,
       defaultDial,
-      adminDirect: isAdminMode
+      adminDirect: isAdminMode,
+      supervisorDirect: isSupervisor && isAdminMode
     };
     if (selectedClientId) {
       payload.userId = selectedClientId;
@@ -233,11 +235,12 @@ export default function SendSMS() {
       toast({ title: t('common.error'), description: 'Maximum 3000 recipients allowed per bulk send', variant: 'destructive' });
       return;
     }
-    const payload: { recipients: string[]; message: string; userId?: string; defaultDial?: string; adminDirect?: boolean } = {
+    const payload: { recipients: string[]; message: string; userId?: string; defaultDial?: string; adminDirect?: boolean; supervisorDirect?: boolean } = {
       recipients: uniqueNormalizedRecipients,
       message: bulkMessage,
       defaultDial,
-      adminDirect: isAdminMode
+      adminDirect: isAdminMode,
+      supervisorDirect: isSupervisor && isAdminMode
     };
     if (selectedClientId) {
       payload.userId = selectedClientId;
@@ -262,10 +265,11 @@ export default function SendSMS() {
       toast({ title: t('common.error'), description: 'Maximum 3000 messages allowed per bulk send', variant: 'destructive' });
       return;
     }
-    const payload: { messages: Array<{ to: string; message: string }>; userId?: string; defaultDial?: string; adminDirect?: boolean } = {
+    const payload: { messages: Array<{ to: string; message: string }>; userId?: string; defaultDial?: string; adminDirect?: boolean; supervisorDirect?: boolean } = {
       messages: normalizedMulti,
       defaultDial: defaultDialMulti,
-      adminDirect: isAdminMode
+      adminDirect: isAdminMode,
+      supervisorDirect: isSupervisor && isAdminMode
     };
     if (selectedClientId) {
       payload.userId = selectedClientId;
@@ -293,10 +297,10 @@ export default function SendSMS() {
     <div className="min-h-screen bg-background">
       <DashboardHeader />
       <div className="container mx-auto p-6 space-y-6">
-        {isAdmin && (
+        {(isAdmin || isSupervisor) && (
           <Card>
             <CardHeader>
-              <CardTitle>{t('sendSms.adminMode')}</CardTitle>
+              <CardTitle>{isSupervisor ? t('sendSms.supervisorDirectMode') : t('sendSms.adminMode')}</CardTitle>
               <CardDescription>{t('sendSms.selectClient')}</CardDescription>
             </CardHeader>
             <CardContent>

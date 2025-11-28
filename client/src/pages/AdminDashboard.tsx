@@ -568,11 +568,17 @@ export default function AdminDashboard() {
         <Tabs defaultValue="clients" data-testid="tabs-admin">
           <TabsList>
             <TabsTrigger value="clients" data-testid="tab-clients">{t('admin.tabs.clients')}</TabsTrigger>
-            <TabsTrigger value="configuration" data-testid="tab-configuration">{t('admin.tabs.configuration')}</TabsTrigger>
-            <TabsTrigger value="webhook" data-testid="tab-webhook">{t('admin.tabs.webhook')}</TabsTrigger>
-            <TabsTrigger value="testing" data-testid="tab-testing">{t('admin.tabs.testing')}</TabsTrigger>
-            <TabsTrigger value="logs" data-testid="tab-logs">{t('admin.tabs.logs')}</TabsTrigger>
-            <TabsTrigger value="monitoring" data-testid="tab-monitoring">{t('admin.tabs.monitoring')}</TabsTrigger>
+            {profile?.user?.role === 'admin' ? (
+              <>
+                <TabsTrigger value="configuration" data-testid="tab-configuration">{t('admin.tabs.configuration')}</TabsTrigger>
+                <TabsTrigger value="webhook" data-testid="tab-webhook">{t('admin.tabs.webhook')}</TabsTrigger>
+                <TabsTrigger value="testing" data-testid="tab-testing">{t('admin.tabs.testing')}</TabsTrigger>
+                <TabsTrigger value="monitoring" data-testid="tab-monitoring">{t('admin.tabs.monitoring')}</TabsTrigger>
+                <TabsTrigger value="actionlogs" data-testid="tab-actionlogs">{t('admin.actionLogs')}</TabsTrigger>
+              </>
+            ) : (
+              <TabsTrigger value="logs" data-testid="tab-logs">{t('admin.tabs.logs')}</TabsTrigger>
+            )}
           </TabsList>
 
         <TabsContent value="clients" className="space-y-4">
@@ -597,12 +603,18 @@ export default function AdminDashboard() {
                     <TableHead className="whitespace-nowrap text-center">Status</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Messages</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Credits</TableHead>
-                    <TableHead className="text-center">{t('admin.clients.table.rateLimit')}</TableHead>
+                    {profile?.user?.role === 'admin' && (
+                      <TableHead className="text-center">{t('admin.clients.table.rateLimit')}</TableHead>
+                    )}
                     <TableHead className="text-center">{t('admin.clients.table.businessName')}</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Assigned Numbers</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Last Active</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Delivery</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Webhook</TableHead>
+                    {profile?.user?.role === 'admin' && (
+                      <TableHead className="whitespace-nowrap text-center">Delivery</TableHead>
+                    )}
+                    {profile?.user?.role === 'admin' && (
+                      <TableHead className="whitespace-nowrap text-center">Webhook</TableHead>
+                    )}
                     <TableHead className="whitespace-nowrap text-center">Role</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Group ID</TableHead>
                     <TableHead className="whitespace-nowrap text-center">Actions</TableHead>
@@ -633,6 +645,7 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </TableCell>
+                      {profile?.user?.role === 'admin' && (
                       <TableCell>
                         <Input
                           type="number"
@@ -655,6 +668,7 @@ export default function AdminDashboard() {
                           disabled={profile?.user?.role === 'supervisor'}
                         />
                       </TableCell>
+                      )}
                       <TableCell>
                         <Input
                           type="text"
@@ -675,6 +689,7 @@ export default function AdminDashboard() {
                           title={t('admin.clients.businessName.description')}
                         />
                       </TableCell>
+                      {profile?.user?.role === 'admin' && (
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Input
@@ -732,12 +747,15 @@ export default function AdminDashboard() {
                           }} className="h-7 px-2 text-xs">Save</Button>
                         </div>
                       </TableCell>
+                      )}
+                      {profile?.user?.role === 'admin' && (
                       <TableCell className="py-2">
                         <div className="w-40 flex items-center justify-center gap-2">
                           <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="URL" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
                           <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="Secret" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
                         </div>
                       </TableCell>
+                      )}
                       <TableCell className="py-2">
                         <select defaultValue={client.role || 'client'} className="border rounded px-2 py-1 text-xs h-8" onChange={(e) => {
                           const nextRole = e.target.value;
@@ -1311,7 +1329,7 @@ export default function AdminDashboard() {
         </TabsContent>
 
         <TabsContent value="logs" className="space-y-4">
-          <ErrorLogsViewer />
+          {profile?.user?.role === 'admin' ? <ErrorLogsViewer /> : <SupervisorLogsTable />}
         </TabsContent>
 
 
@@ -1370,9 +1388,19 @@ function SupervisorLogsTable() {
     }
   });
   const logs = data?.logs || [];
+  const exportTxt = () => {
+    const lines = logs.map(l => `${l.createdAt} | actor=${l.actorUserId}(${l.actorRole}) | action=${l.action} | target=${l.targetUserId || ''} | details=${l.details || ''}`).join('\n');
+    const blob = new Blob([lines], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'group-logs.txt'; a.click(); URL.revokeObjectURL(url);
+  };
   return (
-    <div className="max-h-[65vh] overflow-y-auto rounded border">
-      <Table className="min-w-full">
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={exportTxt}>{t('logs.export') || 'Export'}</Button>
+      </div>
+      <div className="max-h-[65vh] overflow-y-auto rounded border">
+        <Table className="min-w-full">
         <TableHeader>
           <TableRow>
             <TableHead>Time</TableHead>
@@ -1396,6 +1424,7 @@ function SupervisorLogsTable() {
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }
