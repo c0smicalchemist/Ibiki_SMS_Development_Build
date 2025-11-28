@@ -17,6 +17,8 @@ import { DashboardHeader } from "@/components/DashboardHeader";
 import { Link } from "wouter";
 import ApiTestUtility from "@/components/ApiTestUtility";
 import ErrorLogsViewer from "@/components/ErrorLogsViewer";
+import ActionLogsViewer from "@/components/ActionLogsViewer";
+import MessageActivityViewer from "@/components/MessageActivityViewer";
 import { AddCreditsToClientDialog } from "@/components/AddCreditsToClientDialog";
 import ResetPasswordDialog from "@/components/ResetPasswordDialog";
 import WebhookEditDialog from "@/components/WebhookEditDialog";
@@ -424,14 +426,14 @@ export default function AdminDashboard() {
       <DashboardHeader />
       <div className="p-6 space-y-8">
         <div className="flex items-center gap-4">
-          <Link href="/">
+          <Link href={isSupervisor ? "/adminsup" : (profile?.user?.role === 'admin' ? "/admin" : "/dashboard")}>
             <Button variant="ghost" size="icon" data-testid="button-back">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-4xl font-bold tracking-tight">{t('admin.title')}</h1>
-            <p className="text-muted-foreground mt-2">{t('admin.subtitle')}</p>
+            <h1 className="text-4xl font-bold tracking-tight">{isSupervisor ? t('supervisor.title') : t('admin.title')}</h1>
+            <p className="text-muted-foreground mt-2">{isSupervisor ? t('supervisor.subtitle') : t('admin.subtitle')}</p>
           </div>
         </div>
 
@@ -586,6 +588,7 @@ export default function AdminDashboard() {
                 <TabsTrigger value="testing" data-testid="tab-testing">{t('admin.tabs.testing')}</TabsTrigger>
                 <TabsTrigger value="monitoring" data-testid="tab-monitoring">{t('admin.tabs.monitoring')}</TabsTrigger>
                 <TabsTrigger value="actionlogs" data-testid="tab-actionlogs">{t('admin.actionLogs')}</TabsTrigger>
+                <TabsTrigger value="messages" data-testid="tab-messages">Message Activity</TabsTrigger>
               </>
             ) : (
               <TabsTrigger value="logs" data-testid="tab-logs">{t('admin.tabs.logs')}</TabsTrigger>
@@ -1333,6 +1336,14 @@ export default function AdminDashboard() {
 
         <TabsContent value="logs" className="space-y-4">
           {profile?.user?.role === 'admin' ? <ErrorLogsViewer /> : <SupervisorLogsTable />}
+        </TabsContent>
+
+        <TabsContent value="actionlogs" className="space-y-4">
+          <ActionLogsViewer />
+        </TabsContent>
+
+        <TabsContent value="messages" className="space-y-4">
+          <MessageActivityViewer />
         </TabsContent>
 
 

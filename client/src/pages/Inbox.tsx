@@ -315,7 +315,7 @@ export default function Inbox() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {isLoading ? (
             <Card className={viewFavorites ? 'border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 ring-1 ring-yellow-300' : ''}>
               <CardContent className="p-6 text-center">
@@ -340,111 +340,67 @@ export default function Inbox() {
               </CardContent>
             </Card>
           ) : (
-            <Card>
-              <CardHeader className={viewFavorites ? 'py-3 border-t-4 border-yellow-400' : 'py-3'}>
-                <div className="flex items-center gap-2">
-                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('inbox.search')} className="w-64" />
-                  <Button onClick={() => setShowDeleted(!showDeleted)} variant="destructive">{showDeleted ? t('inbox.deletedMessages') : t('inbox.showDeleted')}</Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {showDeleted && deletedCount >= 2000 && (
-                  <div className="px-4 pt-3">
-                    <div className="flex items-center justify-between rounded border border-red-500 bg-red-50 p-2">
-                      <span className="text-xs text-red-700">{t('inbox.binWarning').replace('{count}', String(deletedCount))}</span>
-                      <Button variant="destructive" size="sm" onClick={async () => {
-                        const token = localStorage.getItem('token');
-                        await fetch('/api/web/inbox/purge-deleted', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-                          body: JSON.stringify({ userId: effectiveUserId })
-                        });
-                        await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox/deleted", effectiveUserId] });
-                      }}>{t('inbox.purgeBin')}</Button>
-                    </div>
+            <>
+              <Card className="lg:col-span-1">
+                <CardHeader className={viewFavorites ? 'py-3 border-t-4 border-yellow-400' : 'py-3'}>
+                  <div className="flex items-center gap-2">
+                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('inbox.search')} className="w-64" />
+                    <Button onClick={() => setShowDeleted(!showDeleted)} variant="destructive">{showDeleted ? t('inbox.deletedMessages') : t('inbox.showDeleted')}</Button>
                   </div>
-                )}
-                <div className="flex items-center gap-2 px-4 pb-2">
-                  <Button variant={viewFavorites ? 'secondary' : 'outline'} size="sm" onClick={() => setViewFavorites(v => !v)}>
-                    {viewFavorites ? t('inbox.favorites') : t('inbox.favorites')}
-                  </Button>
-                  <select className="border rounded px-2 py-1 text-xs" value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}>
-                    <option value="newest">{t('inbox.sort.mostRecent')}</option>
-                    <option value="oldest">{t('inbox.sort.oldest')}</option>
-                  </select>
-                </div>
-                <div className="max-h-[65vh] overflow-y-auto rounded border">
-                <Table className="min-w-full">
-                  <TableHeader>
-                    <TableRow className="sticky top-0 bg-background z-10">
-                      <TableHead>Recipient</TableHead>
-                      <TableHead>Message</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {messages
-                      .filter(m => {
-                        const q = search.trim().toLowerCase();
-                        if (!q) return true;
-                        return (m.from || '').toLowerCase().includes(q) || (m.receiver || '').toLowerCase().includes(q) || (m.message || '').toLowerCase().includes(q);
-                      })
-                      .filter(m => !viewFavorites || favorites.includes((m as any).from || (m as any).receiver))
-                      .sort((a, b) => {
-                        const ta = new Date((a as any).timestamp || (a as any).createdAt).getTime();
-                        const tb = new Date((b as any).timestamp || (b as any).createdAt).getTime();
-                        return sortOrder === 'newest' ? (tb - ta) : (ta - tb);
-                      })
-                      .map(msg => {
-                      const dt = new Date((msg as any).timestamp || (msg as any).createdAt);
-                      const dateStr = format(dt, 'MMM d, yyyy');
-                      const timeStr = format(dt, 'HH:mm');
-                      const phone = (msg as any).from || (msg as any).receiver;
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="flex items-center gap-2 px-4 pb-2">
+                    <Button variant={viewFavorites ? 'secondary' : 'outline'} size="sm" onClick={() => setViewFavorites(v => !v)}>
+                      {t('inbox.favorites')}
+                    </Button>
+                    <select className="border rounded px-2 py-1 text-xs" value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}>
+                      <option value="newest">{t('inbox.sort.mostRecent')}</option>
+                      <option value="oldest">{t('inbox.sort.oldest')}</option>
+                    </select>
+                  </div>
+                  <div className="max-h-[65vh] overflow-y-auto">
+                    {Object.entries(groupedMessages).map(([phone, msgs]: any[]) => {
+                      const latest = (msgs as any[]).slice().sort((a: any, b: any) => new Date((b.timestamp||b.createdAt)).getTime() - new Date((a.timestamp||a.createdAt)).getTime())[0];
+                      const dt = new Date((latest as any).timestamp || (latest as any).createdAt);
                       return (
-                        <TableRow key={msg.id} onClick={() => !showDeleted && handleOpenConversation(phone)} className="cursor-pointer">
-                          <TableCell className="font-mono text-sm whitespace-nowrap">{(msg as any).from || (msg as any).receiver}</TableCell>
-                          <TableCell className="text-sm truncate max-w-[380px]">{(msg as any).message}</TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">{dateStr}</TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">{timeStr}</TableCell>
-                          <TableCell className="text-right">
-                            {!showDeleted && (
-                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate((msg as any).id); }}>
-                                <Trash2 className="w-4 h-4 text-red-600" />
-                              </Button>
-                            )}
-                            {!showDeleted && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => { e.stopPropagation(); const p = (msg as any).from || (msg as any).receiver; const fav = favorites.includes(p); toggleFavoriteMutation.mutate({ phoneNumber: p, favorite: !fav }); }}
-                                title={favorites.includes((msg as any).from || (msg as any).receiver) ? 'Unfavorite' : 'Favorite'}
-                              >
-                                <Star className={`w-4 h-4 ${favorites.includes((msg as any).from || (msg as any).receiver) ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground'}`} />
-                              </Button>
-                            )}
-                            {showDeleted && (
-                              <div className="flex justify-end gap-2">
-                                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); fetch('/api/web/inbox/restore', {
-                                  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: (msg as any).id, userId: effectiveUserId })
-                                }).then(() => queryClient.invalidateQueries({ queryKey: ["/api/web/inbox/deleted", effectiveUserId] })); }}>
-                                  {t('inbox.restore')}
-                                </Button>
-                                <Button variant="destructive" size="sm" onClick={(e) => { e.stopPropagation(); deletePermanentMutation.mutate((msg as any).id); }}>
-                                  <Trash2 className="w-4 h-4" /> {t('inbox.deletePermanent')}
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
+                        <div key={phone} className={`p-3 border-b cursor-pointer ${selectedPhoneNumber === phone ? 'bg-muted' : ''}`} onClick={() => setSelectedPhoneNumber(phone)}>
+                          <div className="text-sm font-semibold">{t('inbox.to')}: {(latest as any).receiver}</div>
+                          <div className="text-xs text-muted-foreground">{t('inbox.from')}: {(latest as any).from}</div>
+                          <div className="text-xs truncate mt-1">{(latest as any).message}</div>
+                          <div className="text-xs mt-1">{format(dt, 'yyyy-MM-dd HH:mm')}</div>
+                        </div>
                       );
                     })}
-                  </TableBody>
-                </Table>
-                </div>
-              </CardContent>
-            </Card>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm">
+                      <div>{t('inbox.to')}: <span className="font-mono">{selectedPhoneNumber || '-'}</span></div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button onClick={() => handleRetrieveInbox}>{t('inbox.retrieveInbox')}</Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {selectedPhoneNumber ? (
+                    <ConversationDialog
+                      open={true}
+                      onClose={() => {}}
+                      phoneNumber={selectedPhoneNumber}
+                      userId={effectiveUserId}
+                      isAdmin={isAdmin}
+                    />
+                  ) : (
+                    <div className="text-center py-12 text-muted-foreground">Select a conversation on the left</div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
       </div>

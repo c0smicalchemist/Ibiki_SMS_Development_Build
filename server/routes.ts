@@ -1067,6 +1067,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/admin/message-logs", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const limit = await resolveFetchLimit(undefined, 'admin', req.query.limit as string | undefined);
+      const logs = await storage.getAllMessageLogs(limit);
+      res.json({ success: true, messages: logs, count: logs.length, limit });
+    } catch (error) {
+      console.error("Admin all message logs fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch all message logs" });
+    }
+  });
+
   // Get incoming messages for dashboard (JWT auth)
   app.get("/api/client/inbox", authenticateToken, async (req: any, res) => {
     try {
