@@ -380,11 +380,15 @@ export default function AdminDashboard() {
   });
 
   const clients = clientsData?.clients || [];
+  const isSupervisor = profile?.user?.role === 'supervisor';
   const totalMessages = statsData?.totalMessages || 0;
   const totalClients = statsData?.totalClients || clients.length;
   const extremeBalance = balanceData?.balance ?? null;
   const balanceCurrency = balanceData?.currency || 'USD';
   const sumCredits = clients.reduce((sum, c) => sum + (parseFloat(c.credits || '0') || 0), 0);
+  const sumSupervisorCredits = clients
+    .filter((c) => c.role === 'supervisor')
+    .reduce((sum, c) => sum + (parseFloat(c.credits || '0') || 0), 0);
   const clientRateNumber = parseFloat(clientRate || config?.config?.client_rate_per_sms || '0') || 0;
   const creditsValueUSD = (sumCredits * clientRateNumber).toFixed(2);
   const extremeUSD = (extremeBalance !== null) ? (extremeBalance * (parseFloat(extremeCost || '0') || 0)).toFixed(2) : null;
@@ -470,11 +474,15 @@ export default function AdminDashboard() {
                 <div>
                   <p className="text-xs text-muted-foreground">IbikiSMS Balance</p>
                   <p className="text-2xl font-bold tracking-tight mt-1">
-                    {balanceLoading ? 'Loading...' : balanceError ? 'Unavailable' : (
-                      extremeBalance !== null ? `${extremeBalance.toLocaleString()} credits${extremeUSD ? ` (≈ $ ${extremeUSD})` : ''}` : 'N/A'
-                    )}
+                    {isSupervisor
+                      ? `${sumSupervisorCredits.toFixed(2)} credits (≈ $ ${(sumSupervisorCredits * clientRateNumber).toFixed(2)})`
+                      : (balanceLoading ? 'Loading...' : balanceError ? 'Unavailable' : (
+                          extremeBalance !== null ? `${extremeBalance.toLocaleString()} credits${extremeUSD ? ` (≈ $ ${extremeUSD})` : ''}` : 'N/A'
+                        ))}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">Current account balance</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isSupervisor ? 'Pooled balance for supervisors in your group' : 'Current account balance'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Allocated Credits</p>
@@ -486,9 +494,11 @@ export default function AdminDashboard() {
                 <div>
                   <p className="text-xs text-muted-foreground">Remaining Credits</p>
                   <p className="text-2xl font-bold tracking-tight mt-1 text-red-600">
-                    {extremeBalance !== null ? `${Math.max(extremeBalance - sumCredits, 0).toFixed(2)} credits (≈ $ ${(Math.max(extremeBalance - sumCredits, 0) * (parseFloat(extremeCost || '0') || 0)).toFixed(2)})` : 'N/A'}
+                    {isSupervisor
+                      ? 'N/A'
+                      : (extremeBalance !== null ? `${Math.max(extremeBalance - sumCredits, 0).toFixed(2)} credits (≈ $ ${(Math.max(extremeBalance - sumCredits, 0) * (parseFloat(extremeCost || '0') || 0)).toFixed(2)})` : 'N/A')}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">IbikiSMS minus allocated</p>
+                  <p className="text-xs text-muted-foreground mt-1">{isSupervisor ? '—' : 'IbikiSMS minus allocated'}</p>
                 </div>
               </div>
             </CardContent>
@@ -679,6 +689,7 @@ export default function AdminDashboard() {
                           className="w-32 h-8"
                           data-testid={`input-business-name-${client.id}`}
                           title={t('admin.clients.businessName.description')}
+                          disabled={profile?.user?.role === 'supervisor'}
                         />
                       </TableCell>
                       {profile?.user?.role === 'admin' && (
@@ -722,61 +733,59 @@ export default function AdminDashboard() {
                       </TableCell>
                       )}
                       <TableCell className="text-muted-foreground py-2">{client.lastActive}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <select
-                              className="border rounded px-2 py-1 text-xs"
-                              defaultValue={(client.deliveryMode || 'poll') as any}
-                              onChange={(e) => setEditDeliveryMode(e.target.value as any)}
-                              disabled={profile?.user?.role === 'supervisor'}
-                            >
-                              <option value="poll">Poll</option>
-                              <option value="push">Push</option>
-                              <option value="both">Both</option>
-                            </select>
-                            <Button size="sm" variant="outline" onClick={() => {
-                              apiRequest(`/api/admin/clients/${client.id}/delivery-mode`, { method: 'POST', body: JSON.stringify({ mode: editDeliveryMode }) })
-                                .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
-                            }} className="h-7 px-2 text-xs">Save</Button>
-                          </div>
-                        </TableCell>
-                      <TableCell className="py-2">
-                        <div className="w-40 flex items-center justify-center gap-2">
-                          <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="URL" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
-                          <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="Secret" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <select
+                            className="border rounded px-2 py-1 text-xs"
+                            defaultValue={(client.deliveryMode || 'poll') as any}
+                            onChange={(e) => setEditDeliveryMode(e.target.value as any)}
+                            disabled={profile?.user?.role === 'supervisor'}
+                          >
+                            <option value="poll">Poll</option>
+                            <option value="push">Push</option>
+                            <option value="both">Both</option>
+                          </select>
+                          <Button size="sm" variant="outline" disabled={profile?.user?.role === 'supervisor'} onClick={() => {
+                            apiRequest(`/api/admin/clients/${client.id}/delivery-mode`, { method: 'POST', body: JSON.stringify({ mode: editDeliveryMode }) })
+                              .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
+                          }} className="h-7 px-2 text-xs">Save</Button>
                         </div>
                       </TableCell>
                       <TableCell className="py-2">
-                        <select defaultValue={client.role || 'client'} className="border rounded px-2 py-1 text-xs h-8" onChange={(e) => {
-                          const nextRole = e.target.value;
-                          apiRequest(`/api/admin/users/${client.id}/role`, { method: 'POST', body: JSON.stringify({ role: nextRole }) })
-                            .then(() => {
-                              queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
-                              toast({ title: 'Saved', description: 'Role updated' });
-                            })
-                            .catch((err: any) => {
-                              toast({ title: 'Error', description: err?.message || 'Failed to update role', variant: 'destructive' });
-                            });
-                        }}>
-                          <option value="admin">Admin</option>
-                          <option value="supervisor">Supervisor</option>
-                          <option value="client">User</option>
-                        </select>
+                        <div className="w-40 flex items-center justify-center gap-2">
+                          {profile?.user?.role === 'admin' && (
+                            <>
+                              <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="URL" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
+                              <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="Secret" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="py-2">
-                        <Input defaultValue={client.groupId || ''} placeholder="GROUP-ID" className="w-32 h-8 text-xs" onBlur={(e) => {
-                          const v = e.target.value.trim();
-                          apiRequest(`/api/admin/users/${client.id}/group`, { method: 'POST', body: JSON.stringify({ groupId: v }) })
-                            .then(() => {
-                              queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
-                              toast({ title: 'Saved', description: 'Group ID updated' });
-                            })
-                            .catch((err: any) => {
-                              toast({ title: 'Error', description: err?.message || 'Failed to update group', variant: 'destructive' });
-                            });
-                        }} onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            const v = (e.target as HTMLInputElement).value.trim();
+                        {profile?.user?.role === 'admin' ? (
+                          <select defaultValue={client.role || 'client'} className="border rounded px-2 py-1 text-xs h-8" onChange={(e) => {
+                            const nextRole = e.target.value;
+                            apiRequest(`/api/admin/users/${client.id}/role`, { method: 'POST', body: JSON.stringify({ role: nextRole }) })
+                              .then(() => {
+                                queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
+                                toast({ title: 'Saved', description: 'Role updated' });
+                              })
+                              .catch((err: any) => {
+                                toast({ title: 'Error', description: err?.message || 'Failed to update role', variant: 'destructive' });
+                              });
+                          }}>
+                            <option value="admin">Admin</option>
+                            <option value="supervisor">Supervisor</option>
+                            <option value="client">User</option>
+                          </select>
+                        ) : (
+                          <div className="text-xs text-muted-foreground">{client.role}</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-2">
+                        {profile?.user?.role === 'admin' ? (
+                          <Input defaultValue={client.groupId || ''} placeholder="GROUP-ID" className="w-32 h-8 text-xs" onBlur={(e) => {
+                            const v = e.target.value.trim();
                             apiRequest(`/api/admin/users/${client.id}/group`, { method: 'POST', body: JSON.stringify({ groupId: v }) })
                               .then(() => {
                                 queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
@@ -785,8 +794,22 @@ export default function AdminDashboard() {
                               .catch((err: any) => {
                                 toast({ title: 'Error', description: err?.message || 'Failed to update group', variant: 'destructive' });
                               });
-                          }
-                        }} />
+                          }} onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const v = (e.target as HTMLInputElement).value.trim();
+                              apiRequest(`/api/admin/users/${client.id}/group`, { method: 'POST', body: JSON.stringify({ groupId: v }) })
+                                .then(() => {
+                                  queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
+                                  toast({ title: 'Saved', description: 'Group ID updated' });
+                                })
+                                .catch((err: any) => {
+                                  toast({ title: 'Error', description: err?.message || 'Failed to update group', variant: 'destructive' });
+                                });
+                            }
+                          }} />
+                        ) : (
+                          <div className="text-xs text-muted-foreground">{client.groupId || '-'}</div>
+                        )}
                       </TableCell>
                       <TableCell className="align-top py-2">
                         {profile?.user?.role === 'admin' ? (
