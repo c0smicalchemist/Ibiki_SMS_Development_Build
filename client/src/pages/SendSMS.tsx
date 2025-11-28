@@ -194,7 +194,9 @@ export default function SendSMS() {
       message: singleMessage,
       defaultDial
     };
-    if (effectiveUserId) {
+    if (selectedClientId) {
+      payload.userId = selectedClientId;
+    } else if (effectiveUserId) {
       payload.userId = effectiveUserId;
     }
     sendSingleMutation.mutate(payload);
@@ -235,7 +237,9 @@ export default function SendSMS() {
       message: bulkMessage,
       defaultDial
     };
-    if (effectiveUserId) {
+    if (selectedClientId) {
+      payload.userId = selectedClientId;
+    } else if (effectiveUserId) {
       payload.userId = effectiveUserId;
     }
     sendBulkMutation.mutate(payload);
@@ -260,7 +264,9 @@ export default function SendSMS() {
       messages: normalizedMulti,
       defaultDial: defaultDialMulti
     };
-    if (effectiveUserId) {
+    if (selectedClientId) {
+      payload.userId = selectedClientId;
+    } else if (effectiveUserId) {
       payload.userId = effectiveUserId;
     }
     sendBulkMultiMutation.mutate(payload);
