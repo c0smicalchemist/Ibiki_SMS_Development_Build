@@ -92,12 +92,6 @@ export default function ClientDashboard() {
             description={t('dashboard.stats.allTime')}
           />
           <StatCard
-            title={t('dashboard.stats.inbox')}
-            value={inboxCount.toLocaleString()}
-            icon={Inbox}
-            description={t('dashboard.stats.inboxMessages')}
-          />
-          <StatCard
             title={t('dashboard.stats.credits')}
             value={`${parseFloat(credits).toFixed(2)}`}
             icon={DollarSign}
@@ -187,6 +181,69 @@ export default function ClientDashboard() {
           <WorldClock />
           <MessageStatusChart />
         </div>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <CardTitle>{t('inbox.title')}</CardTitle>
+              <div className="p-3 rounded-lg bg-primary/10 min-w-[3rem] text-right">
+                <p className="text-sm font-bold">{inboxCount.toLocaleString()}</p>
+              </div>
+            </div>
+            <CardDescription>
+              {t('inbox.description')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {incomingMessages?.messages && incomingMessages.messages.length > 0 ? (
+                incomingMessages.messages.map((msg) => (
+                  <div 
+                    key={msg.id} 
+                    className="flex items-start justify-between p-4 rounded-lg border border-border hover-elevate"
+                    data-testid={`incoming-message-${msg.id}`}
+                  >
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">
+                          {t('inbox.from')}: {msg.from}
+                          {msg.firstname || msg.lastname ? (
+                            <span className="text-muted-foreground ml-2">
+                              ({[msg.firstname, msg.lastname].filter(Boolean).join(' ')})
+                            </span>
+                          ) : null}
+                          {msg.business ? (
+                            <span className="text-muted-foreground ml-2">- {msg.business}</span>
+                          ) : null}
+                        </p>
+                      </div>
+                      <p className="text-sm text-foreground">{msg.message}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t('inbox.to')}: {msg.receiver} • {new Date(msg.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                    <Badge 
+                      className={
+                        msg.status === 'received'
+                          ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                          : "bg-red-500/10 text-red-600 dark:text-red-400"
+                      }
+                      data-testid={`badge-status-${msg.id}`}
+                    >
+                      {msg.status}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Inbox className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-sm">{t('inbox.empty')}</p>
+                  <p className="text-xs mt-1">{t('inbox.emptyDesc')}</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Inbox list removed from main dashboard to reduce clutter */}
 
