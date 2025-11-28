@@ -290,7 +290,15 @@ export default function Inbox() {
             </h1>
             <p className="text-muted-foreground">{t('clientDashboard.inboxDesc')}</p>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
+            <div className="p-3 rounded-lg bg-primary/10 min-w-[3rem] text-right">
+              <p className="text-sm font-bold">{messages.length.toLocaleString()}</p>
+              <p className="text-[10px] text-muted-foreground">All</p>
+            </div>
+            <div className="p-3 rounded-lg bg-yellow-100 border border-yellow-500 min-w-[3rem] text-right">
+              <p className="text-sm font-bold text-yellow-800">{messages.filter(m => !m.isRead).length.toLocaleString()}</p>
+              <p className="text-[10px] text-yellow-700">Unread</p>
+            </div>
             <Button onClick={handleRetrieveInbox}>Retrieve Inbox</Button>
           </div>
         </div>
