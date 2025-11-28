@@ -384,7 +384,7 @@ export default function Contacts() {
       <div className="container mx-auto p-6 space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>{t('contacts.adminMode')}</CardTitle>
+            <CardTitle>{profile?.user?.role === 'supervisor' ? t('sendSms.supervisorDirectMode') : t('contacts.adminMode')}</CardTitle>
             <CardDescription>{t('contacts.selectClient')}</CardDescription>
           </CardHeader>
           <CardContent>
@@ -393,6 +393,7 @@ export default function Contacts() {
               onClientChange={setSelectedClientId}
               isAdminMode={isAdminMode}
               onAdminModeChange={setIsAdminMode}
+              modeLabel={profile?.user?.role === 'supervisor' ? t('sendSms.supervisorDirectMode') : 'Admin Direct Mode'}
             />
           </CardContent>
         </Card>
@@ -425,7 +426,7 @@ export default function Contacts() {
         
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href={isAdmin ? "/admin" : "/dashboard"}>
+            <Link href={(isAdmin || profile?.user?.role === 'supervisor') ? "/admin" : "/dashboard"}>
               <Button variant="ghost" size="icon" data-testid="button-back">
                 <ArrowLeft className="h-5 w-5" />
               </Button>

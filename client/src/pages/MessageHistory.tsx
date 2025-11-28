@@ -276,7 +276,7 @@ export default function MessageHistory() {
       <DashboardHeader />
       <div className="p-6 space-y-6">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard">
+          <Link href={(profile?.user?.role === 'admin' || profile?.user?.role === 'supervisor') ? '/admin' : '/dashboard'}>
             <Button variant="ghost" size="icon" data-testid="button-back">
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -290,10 +290,10 @@ export default function MessageHistory() {
           </div>
         </div>
 
-        {isAdmin && (
+        {(profile?.user?.role === 'admin' || profile?.user?.role === 'supervisor') && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">{t('messageHistory.adminMode')}</CardTitle>
+              <CardTitle className="text-base">{profile?.user?.role === 'supervisor' ? t('sendSms.supervisorDirectMode') : t('messageHistory.adminMode')}</CardTitle>
               <CardDescription>{t('messageHistory.selectClient')}</CardDescription>
             </CardHeader>
             <CardContent>
@@ -302,6 +302,7 @@ export default function MessageHistory() {
                 onClientChange={setSelectedClientId}
                 isAdminMode={isAdminMode}
                 onAdminModeChange={setIsAdminMode}
+                modeLabel={profile?.user?.role === 'supervisor' ? t('sendSms.supervisorDirectMode') : 'Admin Direct Mode'}
               />
             </CardContent>
           </Card>
