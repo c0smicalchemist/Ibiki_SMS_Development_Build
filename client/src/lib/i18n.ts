@@ -102,6 +102,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.favorites': 'Favorites',
     'inbox.sort.mostRecent': 'Most Recent',
     'inbox.sort.oldest': 'Oldest',
+    'inbox.indicator.all': 'All',
 
     'docs.webhook.title': 'Webhook Configuration (2-Way SMS)',
     'docs.webhook.description': 'Configure this webhook URL in your SMS provider to receive incoming messages',
@@ -138,6 +139,10 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.webhook.suggestedUrl': 'Suggested Webhook URL (current environment)',
     'admin.webhook.configuredUrl': 'Configured Webhook URL',
     'admin.webhook.setToSuggested': 'Set to suggested',
+    'admin.syncCredits': 'Sync Credits',
+    'admin.syncCredits.success': 'Synced: adjusted {count} accounts',
+    'admin.syncCredits.failed': 'Credits sync failed',
+    'clientSelector.adminDirectDesc': 'No client charges. Messages are sent using your admin credits and logged as admin audit.',
 
     'nav.logout': 'Log out',
     'nav.docs': 'View Docs',
@@ -346,6 +351,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.favorites': '收藏',
     'inbox.sort.mostRecent': '最新',
     'inbox.sort.oldest': '最旧',
+    'inbox.indicator.all': '全部',
 
     'docs.webhook.title': 'Webhook配置（双向短信）',
     'docs.webhook.description': '请在短信服务商的控制台设置此Webhook URL以接收来信',
@@ -382,6 +388,10 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.webhook.suggestedUrl': '建议的Webhook URL（当前环境）',
     'admin.webhook.configuredUrl': '已配置的Webhook URL',
     'admin.webhook.setToSuggested': '设置为建议值',
+    'admin.syncCredits': '同步余额',
+    'admin.syncCredits.success': '已同步：调整了 {count} 个账户',
+    'admin.syncCredits.failed': '余额同步失败',
+    'clientSelector.adminDirectDesc': '不扣减客户余额。消息使用管理员余额发送，并记录为管理员审计。',
 
     'nav.logout': '退出登录',
     'nav.docs': '查看文档',

@@ -299,7 +299,7 @@ export default function Inbox() {
               disabled
             >
               <span className="text-sm font-bold leading-none">{messages.length.toLocaleString()}</span>
-              <span className="text-[11px] opacity-80 leading-none mt-0.5">All</span>
+              <span className="text-[11px] opacity-80 leading-none mt-0.5">{t('inbox.indicator.all')}</span>
             </Button>
             <Button
               variant="default"
@@ -309,7 +309,7 @@ export default function Inbox() {
               disabled
             >
               <span className="text-sm font-bold leading-none">{messages.filter(m => !m.isRead).length.toLocaleString()}</span>
-              <span className="text-[11px] opacity-80 leading-none mt-0.5">Unread</span>
+              <span className="text-[11px] opacity-80 leading-none mt-0.5">{t('inbox.unreadIndicator')}</span>
             </Button>
             <Button onClick={handleRetrieveInbox}>Retrieve Inbox</Button>
           </div>

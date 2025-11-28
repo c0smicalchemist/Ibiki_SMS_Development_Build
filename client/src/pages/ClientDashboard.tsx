@@ -129,10 +129,10 @@ export default function ClientDashboard() {
                   </Link>
                   <div className="ml-auto flex items-center gap-2">
                     <div className="p-2 rounded bg-primary/10 text-xs text-primary font-bold min-w-[3rem] text-center">
-                      {inboxCount.toLocaleString()}<span className="ml-1">All</span>
+                      {inboxCount.toLocaleString()}<span className="ml-1">{t('inbox.indicator.all')}</span>
                     </div>
                     <div className="p-2 rounded bg-yellow-100 text-xs text-yellow-800 font-bold min-w-[3rem] text-center border border-yellow-500">
-                      {unreadCount.toLocaleString()}<span className="ml-1">Unread</span>
+                      {unreadCount.toLocaleString()}<span className="ml-1">{t('inbox.unreadIndicator')}</span>
                     </div>
                   </div>
                 </CardTitle>

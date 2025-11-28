@@ -396,10 +396,10 @@ export default function AdminDashboard() {
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/extremesms-balance'] });
-      toast({ title: t('common.success'), description: `Synced: adjusted ${data.adjustedCount} accounts` });
+      toast({ title: t('common.success'), description: t('admin.syncCredits.success').replace('{count}', String(data.adjustedCount || 0)) });
     },
     onError: (error: any) => {
-      toast({ title: t('common.error'), description: error?.message || 'Credits sync failed', variant: 'destructive' });
+      toast({ title: t('common.error'), description: error?.message || t('admin.syncCredits.failed'), variant: 'destructive' });
     }
   });
 
@@ -461,7 +461,7 @@ export default function AdminDashboard() {
                 <p className="text-sm font-medium text-muted-foreground">Credits Overview</p>
                 <div className="flex items-center gap-2">
                   <Button size="sm" variant="default" onClick={() => syncCreditsMutation.mutate()} data-testid="button-sync-credits">
-                    Sync Credits
+                    {t('admin.syncCredits')}
                   </Button>
                   <div className="p-3 rounded-lg bg-primary/10"><Wallet className="w-5 h-5 text-primary" /></div>
                 </div>
