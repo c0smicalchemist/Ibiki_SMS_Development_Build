@@ -96,6 +96,11 @@ export function DashboardHeader() {
           {profile?.user?.name && (
             <Badge variant="secondary" data-testid="badge-username">{profile.user.name}</Badge>
           )}
+          {profile?.user?.role && (
+            <Badge variant="outline" data-testid="badge-role">
+              {profile.user.role === 'admin' ? 'Admin' : profile.user.role === 'supervisor' ? 'Supervisor' : 'User'}
+            </Badge>
+          )}
           <ThemeToggle />
           <LanguageToggle />
           {/* Retrieve Inbox action moved into Inbox page header */}
