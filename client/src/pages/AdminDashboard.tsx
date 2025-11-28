@@ -729,24 +729,25 @@ export default function AdminDashboard() {
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground py-2">{client.lastActive}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <select
-                            className="border rounded px-2 py-1 text-xs"
-                            defaultValue={(client.deliveryMode || 'poll') as any}
-                            onChange={(e) => setEditDeliveryMode(e.target.value as any)}
-                            disabled={profile?.user?.role === 'supervisor'}
-                          >
-                            <option value="poll">Poll</option>
-                            <option value="push">Push</option>
-                            <option value="both">Both</option>
-                          </select>
-                          <Button size="sm" variant="outline" onClick={() => {
-                            apiRequest(`/api/admin/clients/${client.id}/delivery-mode`, { method: 'POST', body: JSON.stringify({ mode: editDeliveryMode }) })
-                              .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
-                          }} className="h-7 px-2 text-xs">Save</Button>
-                        </div>
-                      </TableCell>
+                      {profile?.user?.role === 'admin' && (
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <select
+                              className="border rounded px-2 py-1 text-xs"
+                              defaultValue={(client.deliveryMode || 'poll') as any}
+                              onChange={(e) => setEditDeliveryMode(e.target.value as any)}
+                              disabled={profile?.user?.role === 'supervisor'}
+                            >
+                              <option value="poll">Poll</option>
+                              <option value="push">Push</option>
+                              <option value="both">Both</option>
+                            </select>
+                            <Button size="sm" variant="outline" onClick={() => {
+                              apiRequest(`/api/admin/clients/${client.id}/delivery-mode`, { method: 'POST', body: JSON.stringify({ mode: editDeliveryMode }) })
+                                .then(() => queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] }));
+                            }} className="h-7 px-2 text-xs">Save</Button>
+                          </div>
+                        </TableCell>
                       )}
                       {profile?.user?.role === 'admin' && (
                       <TableCell className="py-2">
