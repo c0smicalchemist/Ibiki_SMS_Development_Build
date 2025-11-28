@@ -304,7 +304,7 @@ export default function Inbox() {
             <Button
               variant="default"
               size="sm"
-              className="h-9 px-3 min-w-[3.5rem] flex flex-col items-center justify-center"
+              className="h-9 px-3 min-w-[3.5rem] flex flex-col items-center justify-center bg-primary text-primary-foreground disabled:opacity-100"
               title="Unread"
               disabled
             >
