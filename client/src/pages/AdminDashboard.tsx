@@ -1369,11 +1369,14 @@ export default function AdminDashboard() {
 }
 function SupervisorLogsTable() {
   const { data } = useQuery<{ success: boolean; logs: Array<{ id: string; actorUserId: string; actorRole: string; targetUserId: string | null; action: string; details: string | null; createdAt: string }> }>({
-    queryKey: ['/api/admin/supervisor-logs'],
+    queryKey: ['/api/supervisor/logs'],
     queryFn: async () => {
       const token = localStorage.getItem('token');
-      const r = await fetch('/api/admin/supervisor-logs', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
-      if (!r.ok) throw new Error('Failed to fetch logs');
+      const r = await fetch('/api/supervisor/logs', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+      if (!r.ok) {
+        const text = await r.text();
+        throw new Error(text || 'Failed to fetch logs');
+      }
       return r.json();
     }
   });
