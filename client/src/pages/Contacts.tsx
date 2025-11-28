@@ -426,7 +426,7 @@ export default function Contacts() {
         
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href={(isAdmin || profile?.user?.role === 'supervisor') ? "/admin" : "/dashboard"}>
+            <Link href={isAdmin ? "/admin" : (profile?.user?.role === 'supervisor' ? "/adminsup" : "/dashboard")}>
               <Button variant="ghost" size="icon" data-testid="button-back">
                 <ArrowLeft className="h-5 w-5" />
               </Button>

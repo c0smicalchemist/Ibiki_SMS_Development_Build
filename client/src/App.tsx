@@ -37,13 +37,13 @@ function ProtectedAdmin() {
         // Prefer local token decode to avoid proxy/header issues
         try {
           const payload = JSON.parse(atob(token.split('.')[1] || ''));
-          if (payload?.role === 'admin' || payload?.role === 'supervisor') {
+          if (payload?.role === 'admin') {
             setAllowed(true);
             return;
           }
         } catch {}
         const me = await apiRequest('/api/client/profile');
-        if (me?.user?.role === 'admin' || me?.user?.role === 'supervisor') {
+        if (me?.user?.role === 'admin') {
           setAllowed(true);
         } else {
           setLocation('/login');
@@ -52,6 +52,36 @@ function ProtectedAdmin() {
       } catch {
         setLocation('/login');
         setAllowed(false);
+      }
+    })();
+  }, [setLocation]);
+
+  if (allowed === null) return null;
+  return <AdminDashboard />;
+}
+
+function ProtectedSupervisor() {
+  const [location, setLocation] = useLocation();
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLocation('/login');
+      setAllowed(false);
+      return;
+    }
+    (async () => {
+      try {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1] || ''));
+          if (payload?.role === 'supervisor') { setAllowed(true); return; }
+        } catch {}
+        const me = await apiRequest('/api/client/profile');
+        if (me?.user?.role === 'supervisor') { setAllowed(true); }
+        else { setLocation('/login'); setAllowed(false); }
+      } catch {
+        setLocation('/login'); setAllowed(false);
       }
     })();
   }, [setLocation]);
@@ -71,6 +101,7 @@ function Router() {
       <Route path="/dashboard" component={ClientDashboard} />
       <Route path="/docs" component={ApiDocs} />
       <Route path="/admin" component={ProtectedAdmin} />
+      <Route path="/adminsup" component={ProtectedSupervisor} />
       <Route path="/contacts" component={Contacts} />
       <Route path="/send-sms" component={SendSMS} />
       <Route path="/inbox" component={Inbox} />
