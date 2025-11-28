@@ -188,9 +188,11 @@ export default function SendSMS() {
     }
     const dial = countries.find(c => c.code === singleCountry)?.dial || '';
     const normalizedTo = singleTo.startsWith('+') ? singleTo : `${dial}${singleTo.replace(/^\+/, '')}`;
-    const payload: { to: string; message: string; userId?: string } = {
+    const defaultDial = countries.find(c => c.code === singleCountry)?.dial || '+1';
+    const payload: { to: string; message: string; userId?: string; defaultDial?: string } = {
       to: normalizedTo,
-      message: singleMessage
+      message: singleMessage,
+      defaultDial
     };
     if (effectiveUserId) {
       payload.userId = effectiveUserId;
@@ -228,9 +230,10 @@ export default function SendSMS() {
       toast({ title: t('common.error'), description: 'Maximum 3000 recipients allowed per bulk send', variant: 'destructive' });
       return;
     }
-    const payload: { recipients: string[]; message: string; userId?: string } = {
+    const payload: { recipients: string[]; message: string; userId?: string; defaultDial?: string } = {
       recipients: uniqueNormalizedRecipients,
-      message: bulkMessage
+      message: bulkMessage,
+      defaultDial
     };
     if (effectiveUserId) {
       payload.userId = effectiveUserId;
@@ -253,8 +256,9 @@ export default function SendSMS() {
       toast({ title: t('common.error'), description: 'Maximum 3000 messages allowed per bulk send', variant: 'destructive' });
       return;
     }
-    const payload: { messages: Array<{ to: string; message: string }>; userId?: string } = {
-      messages: normalizedMulti
+    const payload: { messages: Array<{ to: string; message: string }>; userId?: string; defaultDial?: string } = {
+      messages: normalizedMulti,
+      defaultDial: defaultDialMulti
     };
     if (effectiveUserId) {
       payload.userId = effectiveUserId;

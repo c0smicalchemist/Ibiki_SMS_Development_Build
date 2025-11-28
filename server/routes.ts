@@ -7,6 +7,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import axios from "axios";
+import { normalizePhone, normalizeMany } from "../shared/phone";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "./resend";
 
@@ -3328,7 +3329,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   // Web UI SMS Sending (calls ExtremeSMS via existing proxy logic)
   app.post("/api/web/sms/send-single", authenticateToken, async (req: any, res) => {
     try {
-      const { to, message, userId } = req.body;
+      const { to, message, userId, defaultDial } = req.body;
       
       // Check if userId parameter is being used by non-admin
       if (userId && req.user.role !== 'admin') {
@@ -3346,9 +3347,11 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
 
       const extremeApiKey = await getExtremeApiKey();
 
+      const normalizedTo = normalizePhone(String(to), String(defaultDial || '+1'));
+      if (!normalizedTo) return res.status(400).json({ error: "Invalid recipient number" });
       const response = await axios.post(
         `${EXTREMESMS_BASE_URL}/api/v2/sms/sendsingle`,
-        { recipient: to, message },
+        { recipient: normalizedTo, message },
         {
           headers: {
             "Authorization": `Bearer ${extremeApiKey}`,
@@ -3359,7 +3362,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         
       // Admin direct mode: skip client credit check and charge zero
       if (req.user.role === 'admin' && targetUserId === req.user.userId) {
-        await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message }, response.data, to);
+        await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message, normalizedTo }, response.data, normalizedTo);
       } else {
         const { messageLog } = await deductCreditsAndLog(
           targetUserId,
@@ -3367,12 +3370,12 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
           'web-ui-single',
           response.data.messageId || 'unknown',
           'sent',
-          { to, message },
+          { to, message, normalizedTo },
           response.data,
-          to
+          normalizedTo
         );
         if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
-          await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message }, response.data, to);
+          await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message, normalizedTo }, response.data, normalizedTo);
         }
       }
 
@@ -3404,7 +3407,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
   });
   app.post("/api/web/sms/send-bulk", authenticateToken, async (req: any, res) => {
     try {
-      const { recipients, message, userId } = req.body;
+      const { recipients, message, userId, defaultDial } = req.body;
       
       // Check if userId parameter is being used by non-admin
       if (userId && req.user.role !== 'admin') {
@@ -3426,28 +3429,30 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         : req.user.userId;
 
       const extremeApiKey = await getExtremeApiKey();
+      const { ok: normalizedRecipients, invalid } = normalizeMany(recipients, String(defaultDial || '+1'));
+      if (normalizedRecipients.length === 0) return res.status(400).json({ error: "No valid recipients after normalization", invalid });
       const response = await axios.post(
         `${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulk`,
-        { recipients, message, content: message },
+        { recipients: normalizedRecipients, message, content: message },
         { headers: { Authorization: `Bearer ${extremeApiKey}`, "Content-Type": "application/json" } }
       );
 
       if (req.user.role === 'admin' && targetUserId === req.user.userId) {
-        await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, message }, response.data, undefined, recipients);
+        await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, normalizedRecipients, invalid, message }, response.data, undefined, normalizedRecipients);
       } else {
         const { messageLog } = await deductCreditsAndLog(
           targetUserId,
-          recipients.length,
+          normalizedRecipients.length,
           'web-ui-bulk',
           response.data.messageId || 'unknown',
           'sent',
-          { recipients, message },
+          { recipients, normalizedRecipients, invalid, message },
           response.data,
           undefined,
-          recipients
+          normalizedRecipients
         );
         if (req.user.role === 'admin' && req.user.userId !== targetUserId) {
-          await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, message }, response.data, undefined, recipients);
+          await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, normalizedRecipients, invalid, message }, response.data, undefined, normalizedRecipients);
         }
       }
       res.json({ success: true, messageId: response.data.messageId, data: response.data });
@@ -3481,7 +3486,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
 
   app.post("/api/web/sms/send-bulk-multi", authenticateToken, async (req: any, res) => {
     try {
-      const { messages, userId } = req.body;
+      const { messages, userId, defaultDial } = req.body;
       
       // Check if userId parameter is being used by non-admin
       if (userId && req.user.role !== 'admin') {
@@ -3503,7 +3508,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (re
         : req.user.userId;
 
       const extremeApiKey = await getExtremeApiKey();
-      const transformed = messages.map((m: any) => ({ recipient: m.to, message: m.message, content: m.message }));
+      const transformed = messages.map((m: any) => ({ recipient: normalizePhone(String(m.to), String(defaultDial || '+1')), message: m.message, content: m.message }))
+        .filter((m: any) => !!m.recipient);
+      if (transformed.length === 0) return res.status(400).json({ error: "No valid messages after normalization" });
       const response = await axios.post(
         `${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulkmulti`,
         transformed,
