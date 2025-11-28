@@ -1454,7 +1454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Set user role (admin-only)
-  app.post('/api/admin/users/:userId/role', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/admin/users/:userId/role', authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
     try {
       const { userId } = req.params as { userId: string };
       const { role } = req.body as { role: 'admin' | 'supervisor' | 'client' };
@@ -1472,7 +1472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Set user groupId (admin-only)
-  app.post('/api/admin/users/:userId/group', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/admin/users/:userId/group', authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
     try {
       const { userId } = req.params as { userId: string };
       const { groupId } = req.body as { groupId: string };
@@ -1511,7 +1511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Disable user (soft)
-  app.post("/api/admin/users/:userId/disable", authenticateToken, requireAdmin, async (req, res) => {
+app.post("/api/admin/users/:userId/disable", authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
     try {
       const { userId } = req.params as { userId: string };
       if (await isProtectedAccount(userId)) return res.status(403).json({ error: 'Immutable admin account' });
@@ -1528,7 +1528,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Enable user
-  app.post("/api/admin/users/:userId/enable", authenticateToken, requireAdmin, async (req, res) => {
+app.post("/api/admin/users/:userId/enable", authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
     try {
       const { userId } = req.params as { userId: string };
       if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
@@ -1542,7 +1542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Revoke all API keys for a user
-  app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireAdmin, async (req, res) => {
+app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
     try {
       const { userId } = req.params as { userId: string };
       if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
@@ -2355,7 +2355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Adjust credits (add or deduct) for client account (ADMIN ONLY)
-  app.post("/api/admin/adjust-credits", authenticateToken, requireAdmin, async (req: any, res) => {
+app.post("/api/admin/adjust-credits", authenticateToken, requireRole(['admin','supervisor']), async (req: any, res) => {
     try {
       const { amount, userId, operation } = req.body;
       if (await isProtectedAccount(userId) && req.user.userId !== userId) return res.status(403).json({ error: 'Immutable admin account' });
@@ -2572,7 +2572,7 @@ app.post("/api/v2/account/revoke-api-key", authenticateToken, requireAdmin, asyn
 });
 
 // --- Admin: Disable a user account ---
-app.post("/api/v2/account/disable", authenticateToken, requireAdmin, async (req, res) => {
+app.post("/api/v2/account/disable", authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
   try {
     const { userId } = req.body;
     if (await isProtectedAccount(userId)) return res.status(403).json({ error: 'Immutable admin account' });
@@ -2586,7 +2586,7 @@ app.post("/api/v2/account/disable", authenticateToken, requireAdmin, async (req,
 });
 
 // --- Admin: Delete a user account ---
-app.delete("/api/v2/account/:userId", authenticateToken, requireAdmin, async (req, res) => {
+app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
   try {
     const { userId } = req.params;
     if (await isProtectedAccount(userId)) return res.status(403).json({ error: 'Immutable admin account' });

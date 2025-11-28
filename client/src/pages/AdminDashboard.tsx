@@ -607,35 +607,23 @@ export default function AdminDashboard() {
             <CardContent>
               <Table className="text-sm">
                 <TableHeader>
-                  {profile?.user?.role === 'supervisor' ? (
-                    <TableRow>
-                      <TableHead className="whitespace-nowrap text-center">Client Name</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Email</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Messages</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Credits</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Last Active</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Role</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Group ID</TableHead>
-                    </TableRow>
-                  ) : (
-                    <TableRow>
-                      <TableHead className="whitespace-nowrap text-center">Client Name</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Email</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">API Key</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Status</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Messages</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Credits</TableHead>
-                      <TableHead className="text-center">{t('admin.clients.table.rateLimit')}</TableHead>
-                      <TableHead className="text-center">{t('admin.clients.table.businessName')}</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Assigned Numbers</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Last Active</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Delivery</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Webhook</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Role</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Group ID</TableHead>
-                      <TableHead className="whitespace-nowrap text-center">Actions</TableHead>
-                    </TableRow>
-                  )}
+                  <TableRow>
+                    <TableHead className="whitespace-nowrap text-center">Client Name</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Email</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">API Key</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Status</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Messages</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Credits</TableHead>
+                    <TableHead className="text-center">{t('admin.clients.table.rateLimit')}</TableHead>
+                    <TableHead className="text-center">{t('admin.clients.table.businessName')}</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Assigned Numbers</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Last Active</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Delivery</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Webhook</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Role</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Group ID</TableHead>
+                    <TableHead className="whitespace-nowrap text-center">Actions</TableHead>
+                  </TableRow>
                 </TableHeader>
                 <TableBody>
                   {clients.map((client) => (
@@ -705,7 +693,6 @@ export default function AdminDashboard() {
                           disabled={profile?.user?.role === 'supervisor'}
                         />
                       </TableCell>
-                      {profile?.user?.role === 'admin' && (
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Input
@@ -726,6 +713,7 @@ export default function AdminDashboard() {
                             className="w-40 h-8 font-mono text-[11px]"
                             data-testid={`input-phones-${client.id}`}
                             title="Enter multiple numbers separated by commas"
+                            disabled={profile?.user?.role === 'supervisor'}
                           />
                           <Button
                             size="sm"
@@ -739,12 +727,13 @@ export default function AdminDashboard() {
                                 return { ...p, [client.id]: updated };
                               });
                             }}
-                            className="h-8">
+                            className="h-8"
+                            disabled={profile?.user?.role === 'supervisor'}
+                          >
                             Random
                           </Button>
                         </div>
                       </TableCell>
-                      )}
                       <TableCell className="text-muted-foreground py-2">{client.lastActive}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -766,16 +755,11 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell className="py-2">
                         <div className="w-40 flex items-center justify-center gap-2">
-                          {profile?.user?.role === 'admin' && (
-                            <>
-                              <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="URL" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
-                              <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="Secret" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
-                            </>
-                          )}
+                          <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="URL" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
+                          <WebhookEditDialog clientId={client.id} currentUrl={client.webhookUrl} currentSecret={client.webhookSecret} triggerLabel="Secret" buttonVariant="outline" buttonClassName="h-8 px-3 text-xs rounded" />
                         </div>
                       </TableCell>
                       <TableCell className="py-2">
-                        {profile?.user?.role === 'admin' ? (
                           <select defaultValue={client.role || 'client'} className="border rounded px-2 py-1 text-xs h-8" onChange={(e) => {
                             const nextRole = e.target.value;
                             apiRequest(`/api/admin/users/${client.id}/role`, { method: 'POST', body: JSON.stringify({ role: nextRole }) })
@@ -791,12 +775,8 @@ export default function AdminDashboard() {
                             <option value="supervisor">Supervisor</option>
                             <option value="client">User</option>
                           </select>
-                        ) : (
-                          <div className="text-xs text-muted-foreground">{client.role}</div>
-                        )}
                       </TableCell>
                       <TableCell className="py-2">
-                        {profile?.user?.role === 'admin' ? (
                           <Input defaultValue={client.groupId || ''} placeholder="GROUP-ID" className="w-32 h-8 text-xs" onBlur={(e) => {
                             const v = e.target.value.trim();
                             apiRequest(`/api/admin/users/${client.id}/group`, { method: 'POST', body: JSON.stringify({ groupId: v }) })
@@ -820,12 +800,8 @@ export default function AdminDashboard() {
                                 });
                             }
                           }} />
-                        ) : (
-                          <div className="text-xs text-muted-foreground">{client.groupId || '-'}</div>
-                        )}
                       </TableCell>
                       <TableCell className="align-top py-2">
-                        {profile?.user?.role === 'admin' ? (
                         <div className="grid grid-cols-2 md:grid-cols-1 gap-2 items-start min-w-[12rem]">
                           <AddCreditsToClientDialog 
                             clientId={client.id}
@@ -901,9 +877,6 @@ export default function AdminDashboard() {
                             </div>
                           )}
                         </div>
-                        ) : (
-                          <div className="text-xs text-muted-foreground">—</div>
-                        )}
                       </TableCell>
                     </TableRow>
                   ))}

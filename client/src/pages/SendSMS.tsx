@@ -309,6 +309,7 @@ export default function SendSMS() {
                 onClientChange={setSelectedClientId}
                 isAdminMode={isAdminMode}
                 onAdminModeChange={setIsAdminMode}
+                modeLabel={isSupervisor ? t('sendSms.supervisorDirectMode') : 'Admin Direct Mode'}
               />
             </CardContent>
           </Card>
