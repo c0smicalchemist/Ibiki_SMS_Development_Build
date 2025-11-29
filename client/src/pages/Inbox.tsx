@@ -261,7 +261,7 @@ export default function Inbox() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
-      <div className="mx-auto max-w-[2000px] p-6 space-y-6">
+      <div className="mx-[2cm] p-6 space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>{isSupervisor ? 'Supervisor Mode' : t('inbox.adminMode')}</CardTitle>
@@ -354,10 +354,11 @@ export default function Inbox() {
                     <Button
                       size="sm"
                       onClick={() => setViewFavorites(v => !v)}
-                      className={`${viewFavorites ? 'h-7 px-3 bg-yellow-100 text-yellow-800 border border-yellow-500 hover:bg-yellow-200' : 'h-7 px-3'} `}
+                      className={`${viewFavorites ? 'h-7 px-3 bg-yellow-100 text-yellow-800 border border-yellow-500 hover:bg-yellow-200 flex items-center gap-2' : 'h-7 px-3 flex items-center gap-2'} `}
                       variant={viewFavorites ? 'outline' : 'outline'}
                     >
-                      {t('inbox.favorites')}
+                      <Star className={`h-4 w-4 ${viewFavorites ? 'text-yellow-600' : ''}`} />
+                      <span>{t('inbox.favorites')}</span>
                     </Button>
                     <select className="border rounded px-2 py-1 text-xs" value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}>
                       <option value="newest">{t('inbox.sort.mostRecent')}</option>
@@ -365,7 +366,26 @@ export default function Inbox() {
                     </select>
                   </div>
                   <div className="h-[70vh] overflow-y-scroll">
-                    {Object.entries(groupedMessages).map(([phone, msgs]: any[]) => {
+                    {Object.entries(groupedMessages)
+                      .filter(([phone, msgs]: any[]) => {
+                        const q = search.trim().toLowerCase();
+                        const latest = (msgs as any[])[(msgs as any[]).length - 1] || {};
+                        const text = `${String(phone)} ${(latest.message||'')}`.toLowerCase();
+                        const isFav = favorites.includes(String(phone));
+                        if (viewFavorites && !isFav) return false;
+                        return !q || text.includes(q);
+                      })
+                      .sort((a: any[], b: any[]) => {
+                        const favA = favorites.includes(String(a[0])) ? 1 : 0;
+                        const favB = favorites.includes(String(b[0])) ? 1 : 0;
+                        if (favA !== favB) return favB - favA; // pin favourites on top
+                        const msgsA = a[1] as any[];
+                        const msgsB = b[1] as any[];
+                        const ta = new Date(((msgsA.slice().sort((x:any,y:any)=>new Date((y.timestamp||y.createdAt)).getTime()-new Date((x.timestamp||x.createdAt)).getTime()))[0]||{}).timestamp || ((msgsA[0]||{}).createdAt||0)).getTime();
+                        const tb = new Date(((msgsB.slice().sort((x:any,y:any)=>new Date((y.timestamp||y.createdAt)).getTime()-new Date((x.timestamp||x.createdAt)).getTime()))[0]||{}).timestamp || ((msgsB[0]||{}).createdAt||0)).getTime();
+                        return sortOrder === 'newest' ? (tb - ta) : (ta - tb);
+                      })
+                      .map(([phone, msgs]: any[]) => {
                       const latest = (msgs as any[]).slice().sort((a: any, b: any) => new Date((b.timestamp||b.createdAt)).getTime() - new Date((a.timestamp||a.createdAt)).getTime())[0];
                       const dt = new Date((latest as any).timestamp || (latest as any).createdAt);
                       const hasUnread = (msgs as any[]).some((m: any) => !m.isRead);
@@ -392,25 +412,7 @@ export default function Inbox() {
                       <div>{t('inbox.from')}: <span className="font-mono">{selectedPhoneNumber || '-'}</span></div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {/* Favourites filter toggle (left list only) */}
-                      <Button
-                        onClick={() => {
-                          setViewFavorites(v => {
-                            const next = !v;
-                            if (next && selectedPhoneNumber && !favorites.includes(selectedPhoneNumber)) {
-                              setSelectedPhoneNumber(null);
-                            }
-                            return next;
-                          });
-                        }}
-                        title={t('inbox.favorites')}
-                        className={`${viewFavorites ? 'h-9 px-3 bg-yellow-100 text-yellow-800 border border-yellow-500 hover:bg-yellow-200 flex items-center gap-2' : 'h-9 px-3 flex items-center gap-2'}`}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Star className={`h-4 w-4 ${viewFavorites ? 'text-yellow-600' : ''}`} />
-                        <span className="text-xs">{t('inbox.favorites')}</span>
-                      </Button>
+                      {/* header favourites tile removed */}
                       <Button onClick={() => handleRetrieveInbox}>{t('inbox.retrieveInbox')}</Button>
                       {/* Save selected conversation to favourites (header star) */}
                       <Button
@@ -453,7 +455,6 @@ export default function Inbox() {
                       phoneNumber={selectedPhoneNumber}
                       userId={effectiveUserId}
                       isAdmin={isAdmin}
-                      onClear={() => setSelectedPhoneNumber(null)}
                     />
                   ) : (
                     <div className="text-center py-12 text-muted-foreground">Select a conversation on the left</div>

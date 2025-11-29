@@ -18,7 +18,7 @@ interface Message {
   createdAt?: string;
 }
 
-export default function ConversationInline({ phoneNumber, userId, isAdmin, onClear }: { phoneNumber: string; userId?: string; isAdmin?: boolean; onClear: () => void }) {
+export default function ConversationInline({ phoneNumber, userId, isAdmin }: { phoneNumber: string; userId?: string; isAdmin?: boolean }) {
   const { toast } = useToast();
   const { t } = useLanguage();
   const [replyText, setReplyText] = useState("");
@@ -141,9 +141,7 @@ export default function ConversationInline({ phoneNumber, userId, isAdmin, onCle
             {lastInbound?.port && <Badge variant="secondary" className="text-xs">{t('inbox.label.port')}: {String(lastInbound.port)}</Badge>}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onClear}>Clear</Button>
-        </div>
+        <div className="flex items-center gap-2"></div>
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-2 space-y-3">
