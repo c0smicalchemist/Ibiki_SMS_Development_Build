@@ -12,7 +12,7 @@ import { Link } from "wouter";
 import { format } from "date-fns";
 import { ClientSelector } from "@/components/ClientSelector";
 import { DashboardHeader } from "@/components/DashboardHeader";
-import { ConversationDialog } from "@/components/ConversationDialog";
+import ConversationInline from "@/components/ConversationInline";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -261,7 +261,7 @@ export default function Inbox() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
-      <div className="mx-auto max-w-[1600px] p-6 space-y-6">
+      <div className="mx-auto max-w-[1800px] p-6 space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>{isSupervisor ? 'Supervisor Mode' : t('inbox.adminMode')}</CardTitle>
@@ -389,12 +389,11 @@ export default function Inbox() {
                 </CardHeader>
                 <CardContent>
                   {selectedPhoneNumber ? (
-                    <ConversationDialog
-                      open={true}
-                      onClose={() => {}}
+                    <ConversationInline
                       phoneNumber={selectedPhoneNumber}
                       userId={effectiveUserId}
                       isAdmin={isAdmin}
+                      onClear={() => setSelectedPhoneNumber(null)}
                     />
                   ) : (
                     <div className="text-center py-12 text-muted-foreground">Select a conversation on the left</div>
@@ -406,16 +405,7 @@ export default function Inbox() {
         </div>
       </div>
 
-      {/* Conversation Dialog */}
-      {selectedPhoneNumber && (
-        <ConversationDialog
-          open={showConversationDialog}
-          onClose={handleCloseConversation}
-          phoneNumber={selectedPhoneNumber}
-          userId={effectiveUserId}
-          isAdmin={isAdmin}
-        />
-      )}
+      {/* Inline conversation replaces dialog */}
     </div>
   );
 }
