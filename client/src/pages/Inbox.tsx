@@ -351,7 +351,12 @@ export default function Inbox() {
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="flex items-center gap-2 px-4 pb-2">
-                    <Button variant={viewFavorites ? 'secondary' : 'outline'} size="sm" onClick={() => setViewFavorites(v => !v)}>
+                    <Button
+                      size="sm"
+                      onClick={() => setViewFavorites(v => !v)}
+                      className={`${viewFavorites ? 'h-7 px-3 bg-yellow-100 text-yellow-800 border border-yellow-500 hover:bg-yellow-200' : 'h-7 px-3'} `}
+                      variant={viewFavorites ? 'outline' : 'outline'}
+                    >
                       {t('inbox.favorites')}
                     </Button>
                     <select className="border rounded px-2 py-1 text-xs" value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}>
@@ -387,8 +392,23 @@ export default function Inbox() {
                       <div>{t('inbox.from')}: <span className="font-mono">{selectedPhoneNumber || '-'}</span></div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button onClick={() => setViewFavorites(v => !v)} variant={viewFavorites ? 'secondary' : 'outline'} size="icon" title={t('inbox.favorites')}>
-                        <Star className={`h-4 w-4 ${viewFavorites ? 'text-yellow-500' : ''}`} />
+                      <Button
+                        onClick={() => {
+                          setViewFavorites(v => {
+                            const next = !v;
+                            if (next && selectedPhoneNumber && !favorites.includes(selectedPhoneNumber)) {
+                              setSelectedPhoneNumber(null);
+                            }
+                            return next;
+                          });
+                        }}
+                        title={t('inbox.favorites')}
+                        className={`${viewFavorites ? 'h-9 px-3 bg-yellow-100 text-yellow-800 border border-yellow-500 hover:bg-yellow-200 flex items-center gap-2' : 'h-9 px-3 flex items-center gap-2'}`}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Star className={`h-4 w-4 ${viewFavorites ? 'text-yellow-600' : ''}`} />
+                        <span className="text-xs">{t('inbox.favorites')}</span>
                       </Button>
                       <Button onClick={() => handleRetrieveInbox}>{t('inbox.retrieveInbox')}</Button>
                       <Button
