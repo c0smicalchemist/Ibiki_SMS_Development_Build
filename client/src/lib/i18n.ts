@@ -100,7 +100,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.deletePermanent': 'Delete permanently',
     'inbox.binWarning': 'Bin has {count} messages. Purge bin to free space.',
     'inbox.purgeBin': 'Purge Bin',
-    'inbox.favorites': 'Favorites',
+    'inbox.favorites': 'Favourites',
     'inbox.sort.mostRecent': 'Most Recent',
     'inbox.sort.oldest': 'Oldest',
     'inbox.indicator.all': 'All',

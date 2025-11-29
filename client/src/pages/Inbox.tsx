@@ -392,6 +392,7 @@ export default function Inbox() {
                       <div>{t('inbox.from')}: <span className="font-mono">{selectedPhoneNumber || '-'}</span></div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* Favourites filter toggle (left list only) */}
                       <Button
                         onClick={() => {
                           setViewFavorites(v => {
@@ -411,6 +412,20 @@ export default function Inbox() {
                         <span className="text-xs">{t('inbox.favorites')}</span>
                       </Button>
                       <Button onClick={() => handleRetrieveInbox}>{t('inbox.retrieveInbox')}</Button>
+                      {/* Save selected conversation to favourites (header star) */}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        title="Save to favourites"
+                        disabled={!selectedPhoneNumber}
+                        onClick={() => {
+                          if (!selectedPhoneNumber) return;
+                          const fav = favorites.includes(selectedPhoneNumber);
+                          toggleFavoriteMutation.mutate({ phoneNumber: selectedPhoneNumber, favorite: !fav });
+                        }}
+                      >
+                        <Star className={`h-4 w-4 ${selectedPhoneNumber && favorites.includes(selectedPhoneNumber) ? 'text-yellow-600 fill-yellow-500' : ''}`} />
+                      </Button>
                       <Button
                         variant="outline"
                         size="icon"
