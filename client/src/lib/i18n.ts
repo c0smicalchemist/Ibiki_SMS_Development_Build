@@ -104,6 +104,10 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.sort.mostRecent': 'Most Recent',
     'inbox.sort.oldest': 'Oldest',
     'inbox.indicator.all': 'All',
+    'inbox.label.business': 'Business',
+    'inbox.label.sender': 'Sender',
+    'inbox.label.modem': 'Modem',
+    'inbox.label.port': 'Port',
 
     'docs.webhook.title': 'Webhook Configuration (2-Way SMS)',
     'docs.webhook.description': 'Configure this webhook URL in your SMS provider to receive incoming messages',
@@ -365,6 +369,10 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.sort.mostRecent': '最新',
     'inbox.sort.oldest': '最旧',
     'inbox.indicator.all': '全部',
+    'inbox.label.business': '公司',
+    'inbox.label.sender': '发送人',
+    'inbox.label.modem': '调制解调器',
+    'inbox.label.port': '端口',
 
     'docs.webhook.title': 'Webhook配置（双向短信）',
     'docs.webhook.description': '请在短信服务商的控制台设置此Webhook URL以接收来信',

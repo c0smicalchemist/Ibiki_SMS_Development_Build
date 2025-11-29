@@ -248,19 +248,20 @@ export default function Inbox() {
     setSelectedPhoneNumber(null);
   };
 
-  // Group messages by sender
+  // Group messages by contact phone (sender or receiver)
   const groupedMessages = messages.reduce((acc: any, msg) => {
-    if (!acc[msg.from]) {
-      acc[msg.from] = [];
+    const key = (msg.from || msg.receiver);
+    if (!acc[key]) {
+      acc[key] = [];
     }
-    acc[msg.from].push(msg);
+    acc[key].push(msg);
     return acc;
   }, {});
 
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
-      <div className="container mx-auto p-6 space-y-6">
+      <div className="mx-auto max-w-[1600px] p-6 space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>{isSupervisor ? 'Supervisor Mode' : t('inbox.adminMode')}</CardTitle>
@@ -364,8 +365,8 @@ export default function Inbox() {
                       const dt = new Date((latest as any).timestamp || (latest as any).createdAt);
                       return (
                         <div key={phone} className={`p-3 border-b cursor-pointer ${selectedPhoneNumber === phone ? 'bg-muted' : ''}`} onClick={() => setSelectedPhoneNumber(phone)}>
-                          <div className="text-sm font-semibold">{t('inbox.to')}: {(latest as any).receiver}</div>
-                          <div className="text-xs text-muted-foreground">{t('inbox.from')}: {(latest as any).from}</div>
+                          <div className="text-sm font-semibold">{t('inbox.from')}: <span className="font-mono">{String(phone)}</span></div>
+                          <div className="text-xs text-muted-foreground">{t('inbox.to')}: {(latest as any).receiver}</div>
                           <div className="text-xs truncate mt-1">{(latest as any).message}</div>
                           <div className="text-xs mt-1">{format(dt, 'yyyy-MM-dd HH:mm')}</div>
                         </div>
@@ -379,7 +380,7 @@ export default function Inbox() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="text-sm">
-                      <div>{t('inbox.to')}: <span className="font-mono">{selectedPhoneNumber || '-'}</span></div>
+                      <div>{t('inbox.from')}: <span className="font-mono">{selectedPhoneNumber || '-'}</span></div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button onClick={() => handleRetrieveInbox}>{t('inbox.retrieveInbox')}</Button>

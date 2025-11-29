@@ -55,6 +55,24 @@ export function ConversationDialog({ open, onClose, phoneNumber, userId, isAdmin
     return inc.length ? inc[inc.length - 1] : null;
   })();
 
+  const business = (() => {
+    const inc = conversationData?.conversation?.incoming || [];
+    for (let i = inc.length - 1; i >= 0; i--) {
+      const b = inc[i]?.business;
+      if (b) return String(b);
+    }
+    return null;
+  })();
+
+  const senderAssigned = (() => {
+    const out = conversationData?.conversation?.outgoing || [];
+    for (let i = out.length - 1; i >= 0; i--) {
+      const s = out[i]?.senderPhoneNumber;
+      if (s) return String(s);
+    }
+    return lastInbound?.receiver ? String(lastInbound.receiver) : null;
+  })();
+
   // Mark conversation as read when opening
   const markReadMutation = useMutation({
     mutationFn: async () => {
@@ -174,23 +192,24 @@ export function ConversationDialog({ open, onClose, phoneNumber, userId, isAdmin
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl h-[600px] flex flex-col p-0">
+      <DialogContent className="max-w-none w-full h-[70vh] flex flex-col p-0">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <div>
+          <div className="flex flex-col">
             <h2 className="text-lg font-semibold" data-testid="text-conversation-title">
-              {t('inbox.conversation')}
+              {String(phoneNumber)}
             </h2>
-            <p className="text-sm text-muted-foreground" data-testid="text-conversation-phone">
-              {phoneNumber}
-            </p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-conversation-meta">
+              {business && <Badge variant="secondary" className="text-xs">{t('inbox.label.business')}: {business}</Badge>}
+              {senderAssigned && <Badge variant="secondary" className="text-xs">{t('inbox.label.sender')}: {senderAssigned}</Badge>}
+            </div>
             {lastInbound?.usedmodem || lastInbound?.port ? (
               <div className="mt-1 flex items-center gap-2">
                 {lastInbound?.usedmodem && (
-                  <Badge variant="secondary" className="text-xs" data-testid="badge-modem">modem: {String(lastInbound.usedmodem)}</Badge>
+                  <Badge variant="secondary" className="text-xs" data-testid="badge-modem">{t('inbox.label.modem')}: {String(lastInbound.usedmodem)}</Badge>
                 )}
                 {lastInbound?.port && (
-                  <Badge variant="secondary" className="text-xs" data-testid="badge-port">port: {String(lastInbound.port)}</Badge>
+                  <Badge variant="secondary" className="text-xs" data-testid="badge-port">{t('inbox.label.port')}: {String(lastInbound.port)}</Badge>
                 )}
               </div>
             ) : null}
