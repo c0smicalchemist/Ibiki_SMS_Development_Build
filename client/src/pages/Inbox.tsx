@@ -295,7 +295,7 @@ export default function Inbox() {
             <Button
               variant="default"
               size="sm"
-              className="h-9 px-3 min-w-[3.5rem] flex flex-col items-center justify-center"
+              className="h-9 px-3 min-w-[4rem] flex flex-col items-center justify-center"
               title="All"
               disabled
             >
@@ -305,7 +305,7 @@ export default function Inbox() {
             <Button
               variant="default"
               size="sm"
-              className="h-9 px-3 min-w-[3.5rem] flex flex-col items-center justify-center bg-primary text-primary-foreground disabled:opacity-100"
+              className="h-9 px-3 min-w-[4rem] flex flex-col items-center justify-center bg-primary text-primary-foreground disabled:opacity-100"
               title="Unread"
               disabled
             >
@@ -488,12 +488,12 @@ function PendingReplyIndicator({ userId, isAdmin }: { userId?: string; isAdmin?:
     <Button
       variant="default"
       size="sm"
-      className="h-9 px-3 min-w-[3.5rem] flex flex-col items-center justify-center bg-blue-600 text-white disabled:opacity-100"
-      title="Pending Reply"
+      className="h-9 px-3 min-w-[4rem] flex flex-col items-center justify-center bg-blue-600 text-white disabled:opacity-100"
+      title={t('inbox.pendingReply')}
       disabled
     >
       <span className="text-sm font-bold leading-none">{count.toLocaleString()}</span>
-      <span className="text-[11px] opacity-80 leading-none mt-0.5">Pending Reply</span>
+      <span className="text-[11px] opacity-80 leading-none mt-0.5">{t('inbox.pendingReply')}</span>
     </Button>
   );
 }
