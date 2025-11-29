@@ -19,6 +19,7 @@ import ApiTestUtility from "@/components/ApiTestUtility";
 import ErrorLogsViewer from "@/components/ErrorLogsViewer";
 import ActionLogsViewer from "@/components/ActionLogsViewer";
 import MessageActivityViewer from "@/components/MessageActivityViewer";
+import AdminCreateUser from "@/components/AdminCreateUser";
 import { AddCreditsToClientDialog } from "@/components/AddCreditsToClientDialog";
 import ResetPasswordDialog from "@/components/ResetPasswordDialog";
 import WebhookEditDialog from "@/components/WebhookEditDialog";
@@ -589,6 +590,7 @@ export default function AdminDashboard() {
                 <TabsTrigger value="monitoring" data-testid="tab-monitoring">{t('admin.tabs.monitoring')}</TabsTrigger>
                 <TabsTrigger value="actionlogs" data-testid="tab-actionlogs">{t('admin.actionLogs')}</TabsTrigger>
                 <TabsTrigger value="messages" data-testid="tab-messages">Message Activity</TabsTrigger>
+                <TabsTrigger value="createuser" data-testid="tab-createuser">Admin</TabsTrigger>
               </>
             ) : (
               <TabsTrigger value="logs" data-testid="tab-logs">{t('admin.tabs.logs')}</TabsTrigger>
@@ -1344,6 +1346,10 @@ export default function AdminDashboard() {
 
         <TabsContent value="messages" className="space-y-4">
           <MessageActivityViewer />
+        </TabsContent>
+
+        <TabsContent value="createuser" className="space-y-4">
+          <AdminCreateUser />
         </TabsContent>
 
 

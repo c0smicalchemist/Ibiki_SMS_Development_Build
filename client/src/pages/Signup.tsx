@@ -11,6 +11,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.png";
+import SlidingCaptcha from "@/components/SlidingCaptcha";
 
 export default function Signup() {
   const [, setLocation] = useLocation();
@@ -20,13 +21,14 @@ export default function Signup() {
     email: "",
     password: "",
     confirmPassword: "",
-    groupId: ""
+    groupId: "",
+    captchaToken: ""
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
 
   const signupMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; confirmPassword: string; groupId?: string }) => {
+    mutationFn: async (data: { email: string; password: string; confirmPassword: string; groupId?: string; captchaToken?: string }) => {
       return await apiRequest('/api/auth/signup', {
         method: 'POST',
         body: JSON.stringify(data)
@@ -125,7 +127,10 @@ export default function Signup() {
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={signupMutation.isPending} data-testid="button-signup">
+              <div className="pt-2">
+                <SlidingCaptcha onSolved={(token) => setFormData({ ...formData, captchaToken: token })} />
+              </div>
+              <Button type="submit" className="w-full mt-4" disabled={signupMutation.isPending || !formData.captchaToken} data-testid="button-signup">
                 {signupMutation.isPending ? t('common.loading') : t('auth.signup.submit')}
               </Button>
             </form>

@@ -312,6 +312,7 @@ export default function Inbox() {
               <span className="text-sm font-bold leading-none">{messages.filter(m => !m.isRead).length.toLocaleString()}</span>
               <span className="text-[11px] opacity-80 leading-none mt-0.5">{t('inbox.unreadIndicator')}</span>
             </Button>
+            <PendingReplyIndicator userId={effectiveUserId} isAdmin={isAdmin} />
             <Button onClick={handleRetrieveInbox}>Retrieve Inbox</Button>
           </div>
         </div>
@@ -468,5 +469,31 @@ export default function Inbox() {
 
       {/* Inline conversation replaces dialog */}
     </div>
+  );
+}
+
+function PendingReplyIndicator({ userId, isAdmin }: { userId?: string; isAdmin?: boolean }) {
+  const params = new URLSearchParams(isAdmin && userId ? { userId } : {});
+  const { data } = useQuery<{ success: boolean; pending: number }>({
+    queryKey: ['/api/web/inbox/pending-count', userId || 'me'],
+    queryFn: async () => {
+      const r = await fetch(`/api/web/inbox/pending-count${params.toString() ? `?${params.toString()}` : ''}`);
+      if (!r.ok) throw new Error('Failed');
+      return r.json();
+    },
+    refetchInterval: 10000,
+  });
+  const count = data?.pending ?? 0;
+  return (
+    <Button
+      variant="default"
+      size="sm"
+      className="h-9 px-3 min-w-[3.5rem] flex flex-col items-center justify-center bg-blue-600 text-white disabled:opacity-100"
+      title="Pending Reply"
+      disabled
+    >
+      <span className="text-sm font-bold leading-none">{count.toLocaleString()}</span>
+      <span className="text-[11px] opacity-80 leading-none mt-0.5">Pending Reply</span>
+    </Button>
   );
 }

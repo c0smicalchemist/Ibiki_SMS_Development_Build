@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import logoUrl from "@assets/Yubin_Dash_NOBG_1763476645991.png";
+import SlidingCaptcha from "@/components/SlidingCaptcha";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -17,7 +18,8 @@ export default function Login() {
   const { t } = useLanguage();
   const [formData, setFormData] = useState({
     email: "",
-    password: ""
+    password: "",
+    captchaToken: ""
   });
 
   const loginMutation = useMutation({
@@ -104,7 +106,10 @@ export default function Login() {
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={loginMutation.isPending} data-testid="button-login">
+              <div className="pt-2">
+                <SlidingCaptcha onSolved={(token) => setFormData({ ...formData, captchaToken: token })} />
+              </div>
+              <Button type="submit" className="w-full mt-4" disabled={loginMutation.isPending || !formData.captchaToken} data-testid="button-login">
                 {loginMutation.isPending ? t('common.loading') : t('auth.login.submit')}
               </Button>
             </form>

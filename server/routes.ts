@@ -306,7 +306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Secrets status
   app.get('/api/admin/secrets/status', authenticateToken, requireAdmin, async (req, res) => {
     try {
-      const keys = ['jwt_secret','session_secret','webhook_secret','resend_api_key'];
+      const keys = ['jwt_secret','session_secret','webhook_secret','resend_api_key','captcha_secret','turnstile_site_key','turnstile_secret'];
       const out: Record<string, boolean> = {};
       for (const k of keys) {
         const rec = await storage.getSystemConfig(k);
@@ -317,6 +317,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         SESSION_SECRET: !!process.env.SESSION_SECRET,
         WEBHOOK_SECRET: !!process.env.WEBHOOK_SECRET,
         RESEND_API_KEY: !!process.env.RESEND_API_KEY,
+        CAPTCHA_SECRET: !!process.env.CAPTCHA_SECRET,
+        TURNSTILE_SITE_KEY: !!process.env.TURNSTILE_SITE_KEY,
+        TURNSTILE_SECRET: !!process.env.TURNSTILE_SECRET,
       };
       const proto = (req.headers['x-forwarded-proto'] as string) || 'http';
       const host = (req.headers['x-forwarded-host'] as string) || req.headers.host || 'localhost:8080';
@@ -334,7 +337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/secrets/set', authenticateToken, requireAdmin, async (req, res) => {
     try {
       const payload = req.body || {};
-      const allowed = ['jwt_secret','session_secret','webhook_secret','resend_api_key'];
+      const allowed = ['jwt_secret','session_secret','webhook_secret','resend_api_key','captcha_secret','turnstile_site_key','turnstile_secret'];
       for (const key of allowed) {
         if (payload[key]) {
           await storage.setSystemConfig(key, String(payload[key]));
@@ -503,7 +506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/signup", async (req, res) => {
     try {
       console.log('🔐 Signup attempt started');
-      const { email, password, confirmPassword, groupId } = req.body;
+      const { email, password, confirmPassword, groupId, captchaToken } = req.body;
 
       if (!email || !password) {
         console.log('❌ Signup failed: Missing email or password');
@@ -518,6 +521,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (password !== confirmPassword) {
         console.log('❌ Signup failed: Passwords do not match');
         return res.status(400).json({ error: "Passwords do not match" });
+      }
+
+      if (!(await verifyCaptchaToken(captchaToken))) {
+        console.log('❌ Signup failed: captcha');
+        return res.status(400).json({ error: "captcha_failed" });
+      }
+
+      if (!groupId) {
+        console.log('❌ Signup failed: missing groupId');
+        return res.status(400).json({ error: "groupId_required" });
+      }
+      const groupRec = await storage.getContactGroup(groupId);
+      if (!groupRec) {
+        console.log('❌ Signup failed: invalid groupId');
+        return res.status(400).json({ error: "groupId_invalid" });
       }
 
       console.log('🔍 Checking if user exists:', email);
@@ -613,7 +631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/login", async (req, res) => {
     try {
       console.log('🔐 Login attempt started');
-      const { email, password } = req.body;
+      const { email, password, captchaToken } = req.body;
 
       if (!email || !password) {
         console.log('❌ Login failed: Missing email or password');
@@ -632,6 +650,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!passwordMatch) {
         console.log('❌ Login failed: Invalid password');
         return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      if (!(await verifyCaptchaToken(captchaToken))) {
+        console.log('❌ Login failed: captcha');
+        return res.status(400).json({ error: "captcha_failed" });
       }
 
       // Emergency: ensure admin access for primary operator account
@@ -674,6 +697,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.set('Cache-Control', 'no-store, must-revalidate');
       res.set('Pragma', 'no-cache');
       res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Admin create user
+  app.post("/api/admin/users/create", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { email, password, role = 'client', groupId } = req.body as { email: string; password: string; role?: 'client'|'supervisor'|'admin'; groupId?: string };
+      if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
+      const existing = await storage.getUserByEmail(email);
+      if (existing) return res.status(400).json({ error: 'Email already exists' });
+      let grpId: string | null = null;
+      if (groupId) {
+        const grp = await storage.getContactGroup(groupId);
+        if (!grp) return res.status(400).json({ error: 'groupId_invalid' });
+        grpId = grp.id;
+      }
+      const hashed = await bcrypt.hash(password, 10);
+      const user = await storage.createUser({ email, password: hashed, name: email.split('@')[0], role, isActive: true, company: null, groupId: grpId });
+      await storage.createClientProfile({ userId: user.id, credits: '0.00', currency: 'USD', customMarkup: null });
+      res.json({ success: true, user });
+    } catch (error) {
+      console.error('Admin create user error:', error);
+      res.status(500).json({ error: 'Failed to create user' });
+    }
+  });
+
+  // Pending reply count
+  app.get("/api/web/inbox/pending-count", authenticateToken, async (req: any, res) => {
+    try {
+      const targetUserId = (req.user?.role === 'admin' && req.query.userId) ? String(req.query.userId) : req.user.userId;
+      const inbox = await storage.getInboxMessages(targetUserId, 2000);
+      const byPhone = new Map<string, number>();
+      for (const m of inbox) {
+        const key = String((m as any).from || (m as any).receiver);
+        const ts = new Date(((m as any).timestamp || (m as any).createdAt)).getTime();
+        const cur = byPhone.get(key) || 0;
+        if (ts > cur) byPhone.set(key, ts);
+      }
+      const logs = await storage.getMessageLogsByUserId(targetUserId, 5000);
+      const lastOutByPhone = new Map<string, number>();
+      for (const l of logs) {
+        const recips = Array.isArray((l as any).recipients) ? (l as any).recipients : ((l as any).recipient ? [(l as any).recipient] : []);
+        const ts = new Date((l as any).createdAt).getTime();
+        for (const r of recips) {
+          const cur = lastOutByPhone.get(String(r)) || 0;
+          if (ts > cur) lastOutByPhone.set(String(r), ts);
+        }
+      }
+      let pending = 0;
+      for (const [phone, lastInboundTs] of byPhone.entries()) {
+        const lastOutTs = lastOutByPhone.get(phone) || 0;
+        if (lastInboundTs > lastOutTs) pending++;
+      }
+      res.json({ success: true, pending });
+    } catch (error) {
+      console.error('Pending count error', error);
+      res.status(500).json({ error: 'Failed to compute pending count' });
     }
   });
 
@@ -2891,7 +2971,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   });
 
   // Get all sent messages with status (NEW ENDPOINT)
-  app.get("/api/v2/sms/messages", authenticateApiKey, async (req: any, res) => {
+  app.get("/api/v2/sms/messages", authenticateToken, async (req: any, res) => {
     try {
       const limit = await resolveFetchLimit(req.user.userId, req.user.role, req.query.limit as string | undefined);
       const messages = await storage.getMessageLogsByUserId(req.user.userId, limit);
@@ -4204,3 +4284,24 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   const httpServer = createServer(app);
   return httpServer;
 }
+  // Captcha verifier (Turnstile preferred)
+  async function verifyCaptchaToken(token?: string) {
+    try {
+      if (process.env.TURNSTILE_SECRET) {
+        const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ secret: String(process.env.TURNSTILE_SECRET), response: String(token || '') }),
+        });
+        const data = await resp.json();
+        return !!data.success;
+      }
+      if (process.env.CAPTCHA_SECRET) {
+        return token === 'slider_ok';
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+      

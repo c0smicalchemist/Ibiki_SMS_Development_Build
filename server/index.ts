@@ -225,12 +225,15 @@ app.use((req, res, next) => {
   if (!process.env.RUN_DB_MIGRATIONS) process.env.RUN_DB_MIGRATIONS = 'false';
   // Bootstrap secrets from system_config if env vars are missing
   try {
-    const desiredKeys = [
-      { env: 'JWT_SECRET', cfg: 'jwt_secret' },
-      { env: 'SESSION_SECRET', cfg: 'session_secret' },
-      { env: 'WEBHOOK_SECRET', cfg: 'webhook_secret' },
-      { env: 'RESEND_API_KEY', cfg: 'resend_api_key' },
-    ];
+  const desiredKeys = [
+    { env: 'JWT_SECRET', cfg: 'jwt_secret' },
+    { env: 'SESSION_SECRET', cfg: 'session_secret' },
+    { env: 'WEBHOOK_SECRET', cfg: 'webhook_secret' },
+    { env: 'RESEND_API_KEY', cfg: 'resend_api_key' },
+    { env: 'CAPTCHA_SECRET', cfg: 'captcha_secret' },
+    { env: 'TURNSTILE_SITE_KEY', cfg: 'turnstile_site_key' },
+    { env: 'TURNSTILE_SECRET', cfg: 'turnstile_secret' },
+  ];
     for (const k of desiredKeys) {
       if (!process.env[k.env]) {
         const rec = await storage.getSystemConfig(k.cfg);
