@@ -261,7 +261,7 @@ export default function Inbox() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
-      <div className="mx-auto max-w-[1800px] p-6 space-y-6">
+      <div className="mx-auto max-w-[2000px] p-6 space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>{isSupervisor ? 'Supervisor Mode' : t('inbox.adminMode')}</CardTitle>
@@ -359,13 +359,17 @@ export default function Inbox() {
                       <option value="oldest">{t('inbox.sort.oldest')}</option>
                     </select>
                   </div>
-                  <div className="max-h-[65vh] overflow-y-auto">
+                  <div className="h-[70vh] overflow-y-scroll">
                     {Object.entries(groupedMessages).map(([phone, msgs]: any[]) => {
                       const latest = (msgs as any[]).slice().sort((a: any, b: any) => new Date((b.timestamp||b.createdAt)).getTime() - new Date((a.timestamp||a.createdAt)).getTime())[0];
                       const dt = new Date((latest as any).timestamp || (latest as any).createdAt);
+                      const hasUnread = (msgs as any[]).some((m: any) => !m.isRead);
                       return (
                         <div key={phone} className={`p-3 border-b cursor-pointer ${selectedPhoneNumber === phone ? 'bg-muted' : ''}`} onClick={() => setSelectedPhoneNumber(phone)}>
-                          <div className="text-sm font-semibold">{t('inbox.from')}: <span className="font-mono">{String(phone)}</span></div>
+                          <div className="text-sm font-semibold flex items-center gap-2">
+                            {t('inbox.from')}: <span className="font-mono">{String(phone)}</span>
+                            {hasUnread && <span className="inline-block w-2 h-2 rounded-full bg-blue-600" title="Unread" />}
+                          </div>
                           <div className="text-xs text-muted-foreground">{t('inbox.to')}: {(latest as any).receiver}</div>
                           <div className="text-xs truncate mt-1">{(latest as any).message}</div>
                           <div className="text-xs mt-1">{format(dt, 'yyyy-MM-dd HH:mm')}</div>
@@ -383,7 +387,28 @@ export default function Inbox() {
                       <div>{t('inbox.from')}: <span className="font-mono">{selectedPhoneNumber || '-'}</span></div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button onClick={() => setViewFavorites(v => !v)} variant={viewFavorites ? 'secondary' : 'outline'} size="icon" title={t('inbox.favorites')}>
+                        <Star className={`h-4 w-4 ${viewFavorites ? 'text-yellow-500' : ''}`} />
+                      </Button>
                       <Button onClick={() => handleRetrieveInbox}>{t('inbox.retrieveInbox')}</Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        title="Delete conversation"
+                        disabled={!selectedPhoneNumber}
+                        onClick={async () => {
+                          if (!selectedPhoneNumber) return;
+                          const msgs = (groupedMessages as any)[selectedPhoneNumber] || [];
+                          for (const m of msgs) {
+                            try { await deleteMutation.mutateAsync((m as any).id); } catch {}
+                          }
+                          await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
+                          await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox/deleted", effectiveUserId] });
+                          setSelectedPhoneNumber(null);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>
