@@ -317,7 +317,7 @@ export default function Inbox() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
           {isLoading ? (
             <Card className={viewFavorites ? 'border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 ring-1 ring-yellow-300' : ''}>
               <CardContent className="p-6 text-center">
@@ -343,7 +343,7 @@ export default function Inbox() {
             </Card>
           ) : (
             <>
-              <Card className="lg:col-span-1">
+              <Card>
                 <CardHeader className={viewFavorites ? 'py-3 border-t-4 border-yellow-400' : 'py-3'}>
                   <div className="flex items-center gap-2">
                     <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('inbox.search')} className="w-64" />
@@ -406,7 +406,7 @@ export default function Inbox() {
                 </CardContent>
               </Card>
 
-              <Card className="lg:col-span-2">
+              <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="text-sm">

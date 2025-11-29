@@ -371,7 +371,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.sort.oldest': '最旧',
     'inbox.indicator.all': '全部',
     'inbox.pendingReply': '待回复',
-    'inbox.retrieveInbox': '获取收件箱',
+    
     'inbox.label.business': '公司',
     'inbox.label.sender': '发送人',
     'inbox.label.modem': '调制解调器',
