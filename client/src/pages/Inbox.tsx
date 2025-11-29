@@ -473,6 +473,7 @@ export default function Inbox() {
 }
 
 function PendingReplyIndicator({ userId, isAdmin }: { userId?: string; isAdmin?: boolean }) {
+  const { t } = useLanguage();
   const params = new URLSearchParams(isAdmin && userId ? { userId } : {});
   const { data } = useQuery<{ success: boolean; pending: number }>({
     queryKey: ['/api/web/inbox/pending-count', userId || 'me'],
