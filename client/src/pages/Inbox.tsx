@@ -315,8 +315,13 @@ export default function Inbox() {
               <span className="text-[11px] opacity-80 leading-none mt-0.5">{t('inbox.unreadIndicator')}</span>
             </Button>
             <PendingReplyIndicator userId={effectiveUserId} isAdmin={isAdmin} />
-            <Button onClick={handleRetrieveInbox} size="sm" className="h-9">
-              {t('inbox.retrieveInbox')}
+            <Button
+              onClick={() => setShowDeleted(!showDeleted)}
+              size="sm"
+              className="h-9"
+              variant={showDeleted ? 'destructive' : 'default'}
+            >
+              {showDeleted ? t('inbox.deletedMessages') : t('inbox.showDeleted')}
             </Button>
           </div>
         </div>
@@ -417,8 +422,12 @@ export default function Inbox() {
                       <div>{t('inbox.from')}: <span className="font-mono">{selectedPhoneNumber || '-'}</span></div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end">
-                      {/* header favourites tile removed */}
-                      <Button onClick={() => handleRetrieveInbox}>{t('inbox.retrieveInbox')}</Button>
+                      <Button
+                        onClick={() => setShowDeleted(!showDeleted)}
+                        variant={showDeleted ? 'destructive' : 'outline'}
+                      >
+                        {showDeleted ? t('inbox.deletedMessages') : t('inbox.showDeleted')}
+                      </Button>
                       {/* Save selected conversation to favourites (header star) */}
                       <Button
                         variant="outline"
