@@ -356,7 +356,6 @@ export default function Inbox() {
                 <CardHeader className={viewFavorites ? 'py-3 border-t-4 border-yellow-400' : 'py-3'}>
                   <div className="flex items-center gap-2">
                     <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('inbox.search')} className="w-64" />
-                    <Button onClick={() => setShowDeleted(!showDeleted)} variant="destructive">{showDeleted ? t('inbox.deletedMessages') : t('inbox.showDeleted')}</Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
