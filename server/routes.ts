@@ -1426,21 +1426,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const limit = Math.min(parseInt(String(req.query.limit || '200')), 1000);
       const me = await storage.getUser(req.user.userId);
-      const groupId = (me as any)?.groupId || null;
+      const myGroupId = (me as any)?.groupId || null;
       const all = await storage.getActionLogs(limit);
-      const scoped = all.filter((l: any) => {
-        if (l.actorRole === 'supervisor') {
-          const actor = l.actorUserId ? l.actorUserId : null;
-          return actor ? true : false;
-        }
-        if (l.targetUserId) {
-          return true;
-        }
-        return false;
-      });
-      res.json({ success: true, logs: scoped });
+      const scoped = await Promise.all(all.map(async (l: any) => {
+        const actor = l.actorUserId ? await storage.getUser(l.actorUserId) : undefined;
+        const target = l.targetUserId ? await storage.getUser(l.targetUserId) : undefined;
+        const actorGroup = (actor as any)?.groupId || null;
+        const targetGroup = (target as any)?.groupId || null;
+        const ok = (actorGroup && actorGroup === myGroupId) || (targetGroup && targetGroup === myGroupId);
+        return ok ? l : null;
+      }));
+      res.json({ success: true, logs: scoped.filter(Boolean) });
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'Failed to fetch logs' });
+    }
+  });
+
+  app.get('/api/supervisor/message-logs', authenticateToken, requireRole(['supervisor']), async (req: any, res) => {
+    try {
+      const limit = Math.min(parseInt(String(req.query.limit || '500')), 2000);
+      const me = await storage.getUser(req.user.userId);
+      const myGroupId = (me as any)?.groupId || null;
+      const logs = await storage.getAllMessageLogs(limit);
+      const scoped = await Promise.all(logs.map(async (log: any) => {
+        const u = await storage.getUser(log.userId);
+        const g = (u as any)?.groupId || null;
+        return (g && g === myGroupId) ? log : null;
+      }));
+      res.json({ success: true, messages: scoped.filter(Boolean) });
+    } catch (error: any) {
+      console.error('Supervisor message logs fetch error:', error);
+      res.status(500).json({ error: 'Failed to fetch message logs for group' });
     }
   });
 

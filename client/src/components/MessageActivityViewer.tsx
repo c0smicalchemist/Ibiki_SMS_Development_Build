@@ -22,13 +22,14 @@ interface MessageLog {
   createdAt: string;
 }
 
-export default function MessageActivityViewer() {
+export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admin' | 'supervisor' }) {
   const [q, setQ] = useState("");
   const { data } = useQuery<{ success: boolean; messages: MessageLog[] }>({
-    queryKey: ["/api/admin/message-logs"],
+    queryKey: [mode === 'admin' ? "/api/admin/message-logs" : "/api/supervisor/message-logs", mode],
     queryFn: async () => {
       const token = localStorage.getItem("token");
-      const resp = await fetch("/api/admin/message-logs?limit=500", {
+      const url = mode === 'admin' ? "/api/admin/message-logs?limit=500" : "/api/supervisor/message-logs?limit=500";
+      const resp = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!resp.ok) throw new Error("Failed to fetch message logs");

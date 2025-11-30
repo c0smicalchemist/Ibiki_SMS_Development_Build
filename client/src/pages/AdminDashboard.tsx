@@ -469,9 +469,11 @@ export default function AdminDashboard() {
               <div className="flex items-start justify-between">
                 <p className="text-sm font-medium text-muted-foreground">Credits Overview</p>
                 <div className="flex items-center gap-2">
-                  <Button size="sm" variant="default" onClick={() => syncCreditsMutation.mutate()} data-testid="button-sync-credits">
-                    {t('admin.syncCredits')}
-                  </Button>
+                  {profile?.user?.role === 'admin' && (
+                    <Button size="sm" variant="default" onClick={() => syncCreditsMutation.mutate()} data-testid="button-sync-credits">
+                      {t('admin.syncCredits')}
+                    </Button>
+                  )}
                   <div className="p-3 rounded-lg bg-primary/10"><Wallet className="w-5 h-5 text-primary" /></div>
                 </div>
               </div>
@@ -598,7 +600,10 @@ export default function AdminDashboard() {
                 <TabsTrigger value="createuser" data-testid="tab-createuser">User Create</TabsTrigger>
               </>
             ) : (
-              <TabsTrigger value="logs" data-testid="tab-logs">{t('admin.tabs.logs')}</TabsTrigger>
+              <>
+                <TabsTrigger value="actionlogs" data-testid="tab-actionlogs">{t('admin.actionLogs')}</TabsTrigger>
+                <TabsTrigger value="messages" data-testid="tab-messages">Message Activity</TabsTrigger>
+              </>
             )}
           </TabsList>
 
@@ -1166,16 +1171,18 @@ export default function AdminDashboard() {
           <ApiTestUtility />
         </TabsContent>
 
-        <TabsContent value="logs" className="space-y-4">
-          {profile?.user?.role === 'admin' ? <ErrorLogsViewer /> : <SupervisorLogsTable />}
-        </TabsContent>
+        {profile?.user?.role !== 'admin' ? (
+          <TabsContent value="actionlogs" className="space-y-4">
+            <SupervisorLogsTable />
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="actionlogs" className="space-y-4">
           <ActionLogsViewer />
         </TabsContent>
 
         <TabsContent value="messages" className="space-y-4">
-          <MessageActivityViewer />
+          {profile?.user?.role === 'admin' ? <MessageActivityViewer /> : <MessageActivityViewer mode="supervisor" />}
         </TabsContent>
 
         <TabsContent value="createuser" className="space-y-4">
