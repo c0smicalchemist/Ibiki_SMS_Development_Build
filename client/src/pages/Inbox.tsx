@@ -278,20 +278,22 @@ export default function Inbox() {
           </CardContent>
         </Card>
         
-        <div className="mb-6 flex flex-col lg:flex-row items-center gap-4">
-          <Link href={isAdmin ? "/admin" : (isSupervisor ? "/adminsup" : "/dashboard")}>
-            <Button variant="ghost" size="icon" data-testid="button-back">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div className="w-full lg:w-auto">
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <InboxIcon className="h-8 w-8" />
-              {t('clientDashboard.inbox')}
-            </h1>
-            <p className="text-muted-foreground">{t('clientDashboard.inboxDesc')}</p>
+        <div className="mb-6">
+          <div className="flex items-center gap-4">
+            <Link href={isAdmin ? "/admin" : (isSupervisor ? "/adminsup" : "/dashboard")}>
+              <Button variant="ghost" size="icon" data-testid="button-back">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-3xl font-bold flex items-center gap-2">
+                <InboxIcon className="h-8 w-8" />
+                {t('clientDashboard.inbox')}
+              </h1>
+              <p className="text-muted-foreground">{t('clientDashboard.inboxDesc')}</p>
+            </div>
           </div>
-          <div className="w-full lg:w-auto lg:ml-auto flex items-center gap-3 flex-wrap justify-between lg:justify-end">
+          <div className="mt-3 flex flex-wrap items-center gap-3 justify-end">
             <Button
               variant="default"
               size="sm"
