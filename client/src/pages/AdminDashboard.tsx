@@ -466,17 +466,31 @@ export default function AdminDashboard() {
           />
           <Card className="md:col-span-2 lg:col-span-4">
             <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <p className="text-sm font-medium text-muted-foreground">Credits Overview</p>
-                <div className="flex items-center gap-2">
-                  {profile?.user?.role === 'admin' && (
-                    <Button size="sm" variant="default" onClick={() => syncCreditsMutation.mutate()} data-testid="button-sync-credits">
-                      {t('admin.syncCredits')}
-                    </Button>
-                  )}
-                  <div className="p-3 rounded-lg bg-primary/10"><Wallet className="w-5 h-5 text-primary" /></div>
+                <div className="flex items-start justify-between">
+                  <p className="text-sm font-medium text-muted-foreground">Credits Overview</p>
+                  <div className="flex items-center gap-2">
+                    {profile?.user?.role === 'admin' && (
+                      <>
+                        <select
+                          className="border rounded px-2 py-1 text-xs"
+                          title={t('admin.autoSyncInterval') || 'Auto Sync Interval'}
+                          value={autoSyncInterval}
+                          onChange={(e) => setAutoSyncInterval(Number(e.target.value))}
+                        >
+                          <option value={120000}>2 min</option>
+                          <option value={300000}>5 min</option>
+                          <option value={600000}>10 min</option>
+                          <option value={1800000}>30 min</option>
+                          <option value={3600000}>1 hour</option>
+                        </select>
+                        <Button size="sm" variant="default" onClick={() => syncCreditsMutation.mutate()} data-testid="button-sync-credits">
+                          {t('admin.syncCredits')}
+                        </Button>
+                      </>
+                    )}
+                    <div className="p-3 rounded-lg bg-primary/10"><Wallet className="w-5 h-5 text-primary" /></div>
+                  </div>
                 </div>
-              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-4">
                 <div>
                   <p className="text-xs text-muted-foreground">IbikiSMS Balance</p>
@@ -493,19 +507,19 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Allocated Credits</p>
-                  <p className="text-2xl font-bold tracking-tight mt-1 text-red-600">
+                  <p className={`text-2xl font-bold tracking-tight mt-1 ${extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-600' : 'text-red-600'}`}>
                     {sumCredits.toFixed(2)} credits (≈ $ {(sumCredits * clientRateNumber).toFixed(2)})
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">Sum of all client credits</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Remaining Credits</p>
-                  <p className="text-2xl font-bold tracking-tight mt-1 text-red-600">
+                  <p className={`text-2xl font-bold tracking-tight mt-1 ${extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-600' : 'text-red-600'}`}>
                     {isSupervisor
                       ? 'N/A'
                       : (extremeBalance !== null ? `${Math.max(extremeBalance - sumCredits, 0).toFixed(2)} credits (≈ $ ${(Math.max(extremeBalance - sumCredits, 0) * (parseFloat(extremeCost || '0') || 0)).toFixed(2)})` : 'N/A')}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">{isSupervisor ? '—' : 'IbikiSMS minus allocated'}</p>
+                  <p className={`text-xs mt-1 ${extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-700' : 'text-red-700'}`}>{isSupervisor ? '—' : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? (t('admin.syncStatus.inSync') || 'In Sync') : (t('admin.syncStatus.needsSync') || 'Needs Sync'))}</p>
                 </div>
               </div>
             </CardContent>
@@ -1235,6 +1249,7 @@ export default function AdminDashboard() {
   );
 }
 function SupervisorLogsTable() {
+  const { t } = useLanguage();
   const { data } = useQuery<{ success: boolean; logs: Array<{ id: string; actorUserId: string; actorRole: string; targetUserId: string | null; action: string; details: string | null; createdAt: string }> }>({
     queryKey: ['/api/supervisor/logs'],
     queryFn: async () => {
@@ -1288,3 +1303,13 @@ function SupervisorLogsTable() {
     </div>
   );
 }
+  const [autoSyncInterval, setAutoSyncInterval] = useState<number>(() => {
+    const saved = Number(localStorage.getItem('autoSyncInterval'));
+    return (saved && saved >= 120000 && saved <= 3600000) ? saved : 300000;
+  });
+  useEffect(() => { localStorage.setItem('autoSyncInterval', String(autoSyncInterval)); }, [autoSyncInterval]);
+  useEffect(() => {
+    if (profile?.user?.role !== 'admin') return;
+    const id = setInterval(() => { try { syncCreditsMutation.mutate(); } catch {} }, autoSyncInterval);
+    return () => clearInterval(id);
+  }, [autoSyncInterval, profile?.user?.role]);
