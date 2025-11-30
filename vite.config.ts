@@ -24,9 +24,7 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "client", "src", "assets"),
-      "react": path.resolve(import.meta.dirname, "node_modules", "react", "index.js"),
-      "react-dom": path.resolve(import.meta.dirname, "node_modules", "react-dom", "index.js"),
-      "react/jsx-runtime": path.resolve(import.meta.dirname, "node_modules", "react", "jsx-runtime.js"),
+      
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime"],
   },
