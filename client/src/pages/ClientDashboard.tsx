@@ -9,6 +9,7 @@ import { AddCreditsDialog } from "@/components/AddCreditsDialog";
 import { ApiKeysManagement } from "@/components/ApiKeysManagement";
 import { WorldClock } from "@/components/WorldClock";
 import { MessageStatusChart } from "@/components/MessageStatusChart";
+import MessageStatusTiles from "@/components/MessageStatusTiles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -175,6 +176,7 @@ export default function ClientDashboard() {
           <WorldClock />
           <MessageStatusChart />
         </div>
+        <MessageStatusTiles />
 
         {/* Inbox list removed from main dashboard to reduce clutter */}
 

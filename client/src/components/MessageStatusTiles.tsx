@@ -55,7 +55,7 @@ export default function MessageStatusTiles({ userId }: { userId?: string }) {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>{t('messageStatus.allTime') || 'All Time'}</CardTitle>
+          <CardTitle className="text-base font-medium">{t('messageStatus.allTime') || 'All Time'}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 text-sm">
@@ -81,7 +81,7 @@ export default function MessageStatusTiles({ userId }: { userId?: string }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t('messageStatus.today') || 'Today'}</CardTitle>
+          <CardTitle className="text-base font-medium">{t('messageStatus.today') || 'Today'}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 text-sm">

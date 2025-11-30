@@ -110,6 +110,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.label.modem': 'Modem',
     'inbox.label.port': 'Port',
 
+    'messageStatus.allTime': 'All Time',
+    'messageStatus.today': 'Today',
+
     'docs.webhook.title': 'Webhook Configuration (2-Way SMS)',
     'docs.webhook.description': 'Configure this webhook URL in your SMS provider to receive incoming messages',
     'docs.title': 'API Documentation',
@@ -371,6 +374,8 @@ export const translations: Record<Language, Record<string, string>> = {
     'inbox.sort.oldest': '最旧',
     'inbox.indicator.all': '全部',
     'inbox.pendingReply': '待回复',
+    'messageStatus.allTime': '总览',
+    'messageStatus.today': '今日',
     
     'inbox.label.business': '公司',
     'inbox.label.sender': '发送人',
