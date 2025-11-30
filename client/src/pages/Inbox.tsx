@@ -278,20 +278,20 @@ export default function Inbox() {
           </CardContent>
         </Card>
         
-        <div className="mb-6 flex items-center gap-4">
+        <div className="mb-6 flex flex-col lg:flex-row items-center gap-4">
           <Link href={isAdmin ? "/admin" : (isSupervisor ? "/adminsup" : "/dashboard")}>
             <Button variant="ghost" size="icon" data-testid="button-back">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <div>
+          <div className="w-full lg:w-auto">
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <InboxIcon className="h-8 w-8" />
               {t('clientDashboard.inbox')}
             </h1>
             <p className="text-muted-foreground">{t('clientDashboard.inboxDesc')}</p>
           </div>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="w-full lg:w-auto lg:ml-auto flex items-center gap-3 flex-wrap justify-between lg:justify-end">
             <Button
               variant="default"
               size="sm"
@@ -313,7 +313,9 @@ export default function Inbox() {
               <span className="text-[11px] opacity-80 leading-none mt-0.5">{t('inbox.unreadIndicator')}</span>
             </Button>
             <PendingReplyIndicator userId={effectiveUserId} isAdmin={isAdmin} />
-            <Button onClick={handleRetrieveInbox}>Retrieve Inbox</Button>
+            <Button onClick={handleRetrieveInbox} size="sm" className="h-9">
+              {t('inbox.retrieveInbox')}
+            </Button>
           </div>
         </div>
 
@@ -408,11 +410,11 @@ export default function Inbox() {
 
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="text-sm">
                       <div>{t('inbox.from')}: <span className="font-mono">{selectedPhoneNumber || '-'}</span></div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
                       {/* header favourites tile removed */}
                       <Button onClick={() => handleRetrieveInbox}>{t('inbox.retrieveInbox')}</Button>
                       {/* Save selected conversation to favourites (header star) */}

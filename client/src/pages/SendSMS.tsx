@@ -296,7 +296,7 @@ export default function SendSMS() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
-      <div className="container mx-auto p-6 space-y-6">
+      <div className="mx-[2cm] p-6 space-y-6">
         {(isAdmin || isSupervisor) && (
           <Card>
             <CardHeader>

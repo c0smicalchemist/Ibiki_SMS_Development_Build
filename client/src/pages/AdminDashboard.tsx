@@ -526,20 +526,23 @@ export default function AdminDashboard() {
           <Card className="hover-elevate active-elevate-2 cursor-pointer border-2 border-blue-500/30">
             <Link href="/inbox">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <InboxIcon className="h-5 w-5" />
-                  Inbox
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <InboxIcon className="h-5 w-5" />
+                    Inbox
+                  </CardTitle>
                   <Link href="/inbox?view=favorites">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="ml-2 h-6 px-2 text-xs bg-yellow-100 text-yellow-800 border border-yellow-500 hover:bg-yellow-200 flex items-center gap-1"
+                      className="h-7 px-2 text-xs bg-yellow-100 text-yellow-800 border border-yellow-500 hover:bg-yellow-200 flex items-center gap-1"
+                      title="★ Favourites"
                     >
                       <Star className="h-3 w-3" />
-                      Favorites
+                      ★ Favourites
                     </Button>
                   </Link>
-                </CardTitle>
+                </div>
                 <CardDescription>
                   View and reply to incoming messages
                 </CardDescription>
@@ -590,7 +593,7 @@ export default function AdminDashboard() {
                 <TabsTrigger value="monitoring" data-testid="tab-monitoring">{t('admin.tabs.monitoring')}</TabsTrigger>
                 <TabsTrigger value="actionlogs" data-testid="tab-actionlogs">{t('admin.actionLogs')}</TabsTrigger>
                 <TabsTrigger value="messages" data-testid="tab-messages">Message Activity</TabsTrigger>
-                <TabsTrigger value="createuser" data-testid="tab-createuser">Admin</TabsTrigger>
+                <TabsTrigger value="createuser" data-testid="tab-createuser">User Create</TabsTrigger>
               </>
             ) : (
               <TabsTrigger value="logs" data-testid="tab-logs">{t('admin.tabs.logs')}</TabsTrigger>
