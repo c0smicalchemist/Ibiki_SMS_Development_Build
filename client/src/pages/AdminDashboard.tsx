@@ -391,8 +391,12 @@ export default function AdminDashboard() {
   const extremeBalance = balanceData?.balance ?? null;
   const balanceCurrency = balanceData?.currency || 'USD';
   const sumCredits = clients.reduce((sum, c) => sum + (parseFloat(c.credits || '0') || 0), 0);
-  const sumSupervisorCredits = clients
-    .filter((c) => c.role === 'supervisor')
+  const myGroupId = clients.find(c => c.id === profile?.user?.id)?.groupId || null;
+  const groupSupervisorCredits = clients
+    .filter(c => c.groupId && myGroupId && c.groupId === myGroupId && c.role === 'supervisor')
+    .reduce((sum, c) => sum + (parseFloat(c.credits || '0') || 0), 0);
+  const groupClientCredits = clients
+    .filter(c => c.groupId && myGroupId && c.groupId === myGroupId && c.role !== 'supervisor')
     .reduce((sum, c) => sum + (parseFloat(c.credits || '0') || 0), 0);
   const clientRateNumber = parseFloat(clientRate || config?.config?.client_rate_per_sms || '0') || 0;
   const creditsValueUSD = (sumCredits * clientRateNumber).toFixed(2);
@@ -511,7 +515,7 @@ export default function AdminDashboard() {
                   <p className="text-xs text-muted-foreground">IbikiSMS Balance</p>
                   <p className="text-2xl font-bold tracking-tight mt-1">
                     {isSupervisor
-                      ? `${sumSupervisorCredits.toFixed(2)} credits (≈ $ ${(sumSupervisorCredits * clientRateNumber).toFixed(2)})`
+                      ? `${groupSupervisorCredits.toFixed(2)} credits (≈ $ ${(groupSupervisorCredits * clientRateNumber).toFixed(2)})`
                       : (balanceLoading ? 'Loading...' : balanceError ? 'Unavailable' : (
                           extremeBalance !== null ? `${extremeBalance.toLocaleString()} credits${extremeUSD ? ` (≈ $ ${extremeUSD})` : ''}` : 'N/A'
                         ))}
@@ -522,19 +526,19 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Allocated Credits</p>
-                  <p className={`text-2xl font-bold tracking-tight mt-1 ${extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-600' : 'text-red-600'}`}>
-                    {sumCredits.toFixed(2)} credits (≈ $ {(sumCredits * clientRateNumber).toFixed(2)})
+                  <p className={`text-2xl font-bold tracking-tight mt-1 ${isSupervisor ? 'text-red-600' : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-600' : 'text-red-600')}`}>
+                    {(isSupervisor ? groupClientCredits : sumCredits).toFixed(2)} credits (≈ $ {((isSupervisor ? groupClientCredits : sumCredits) * clientRateNumber).toFixed(2)})
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">Sum of all client credits</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Remaining Credits</p>
-                  <p className={`text-2xl font-bold tracking-tight mt-1 ${extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-600' : 'text-red-600'}`}>
+                  <p className={`text-2xl font-bold tracking-tight mt-1 ${isSupervisor ? 'text-red-600' : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-600' : 'text-red-600')}`}>
                     {isSupervisor
                       ? 'N/A'
                       : (extremeBalance !== null ? `${Math.max(extremeBalance - sumCredits, 0).toFixed(2)} credits (≈ $ ${(Math.max(extremeBalance - sumCredits, 0) * (parseFloat(extremeCost || '0') || 0)).toFixed(2)})` : 'N/A')}
                   </p>
-                  <p className={`text-xs mt-1 ${extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-700' : 'text-red-700'}`}>{isSupervisor ? '—' : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? (t('admin.syncStatus.inSync') || 'In Sync') : (t('admin.syncStatus.needsSync') || 'Needs Sync'))}</p>
+                  <p className={`text-xs mt-1 ${isSupervisor ? 'text-red-700' : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-700' : 'text-red-700')}`}>{isSupervisor ? '—' : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? (t('admin.syncStatus.inSync') || 'In Sync') : (t('admin.syncStatus.needsSync') || 'Needs Sync'))}</p>
                 </div>
               </div>
             </CardContent>
