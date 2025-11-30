@@ -25,6 +25,7 @@ import ResetPasswordDialog from "@/components/ResetPasswordDialog";
 import WebhookEditDialog from "@/components/WebhookEditDialog";
 import { WorldClock } from "@/components/WorldClock";
 import { MessageStatusChart } from "@/components/MessageStatusChart";
+import MessageStatusTiles from "@/components/MessageStatusTiles";
 
 export default function AdminDashboard() {
   const { toast } = useToast();
@@ -581,6 +582,7 @@ export default function AdminDashboard() {
           <WorldClock />
           <MessageStatusChart />
         </div>
+        <MessageStatusTiles />
 
         <Tabs defaultValue="clients" data-testid="tabs-admin">
           <TabsList>
