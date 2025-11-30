@@ -43,6 +43,9 @@ export default function AdminDashboard() {
   const [editDeliveryMode, setEditDeliveryMode] = useState<'poll' | 'push' | 'both'>('poll');
   const [editWebhookUrl, setEditWebhookUrl] = useState('');
   const [editWebhookSecret, setEditWebhookSecret] = useState('');
+  const [groupIdPricing, setGroupIdPricing] = useState<string>('');
+  const [groupExtremeCost, setGroupExtremeCost] = useState<string>('');
+  const [groupClientRate, setGroupClientRate] = useState<string>('');
 
   const usTimezones = [
     { value: "America/New_York", label: "Eastern Time (ET)" },
@@ -76,6 +79,24 @@ export default function AdminDashboard() {
     }
   }, [config]);
 
+  const groupPricingQuery = useQuery<{ success: boolean; base: { extremeCost: number; clientRate: number }; group?: { extremeCost?: number; clientRate?: number } | null; groupId: string | null }>({
+    queryKey: ['/api/admin/pricing', groupIdPricing || ''],
+    queryFn: async () => {
+      const url = groupIdPricing ? `/api/admin/pricing?groupId=${encodeURIComponent(groupIdPricing)}` : '/api/admin/pricing';
+      const r = await apiRequest(url);
+      return r.json();
+    },
+    enabled: !!groupIdPricing,
+  });
+
+  useEffect(() => {
+    if (groupPricingQuery.data?.group) {
+      const g = groupPricingQuery.data.group;
+      setGroupExtremeCost(g.extremeCost !== undefined ? String(g.extremeCost) : '');
+      setGroupClientRate(g.clientRate !== undefined ? String(g.clientRate) : '');
+    }
+  }, [groupPricingQuery.data]);
+
   const saveConfigMutation = useMutation({
     mutationFn: async (data: { extremeApiKey?: string; extremeCost?: string; clientRate?: string; timezone?: string; adminDefaultBusinessId?: string }) => {
       return await apiRequest('/api/admin/config', {
@@ -96,6 +117,22 @@ export default function AdminDashboard() {
         description: t("admin.config.error.saveFailed"),
         variant: "destructive"
       });
+    }
+  });
+
+  const saveGroupPricingMutation = useMutation({
+    mutationFn: async () => {
+      const body: any = { groupId: groupIdPricing };
+      if (groupExtremeCost) body.extremeCost = parseFloat(groupExtremeCost);
+      if (groupClientRate) body.clientRate = parseFloat(groupClientRate);
+      return await apiRequest('/api/admin/pricing', { method: 'POST', body: JSON.stringify(body) });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/pricing', groupIdPricing || ''] });
+      toast({ title: t('common.success'), description: 'Group pricing saved' });
+    },
+    onError: (error: any) => {
+      toast({ title: t('common.error'), description: error?.message || 'Failed to save group pricing', variant: 'destructive' });
     }
   });
 
@@ -1014,6 +1051,33 @@ export default function AdminDashboard() {
                         <p className="text-xs text-muted-foreground">
                           What you charge your clients per message
                         </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 space-y-3">
+                      <Label>Group Pricing (optional)</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <Select value={groupIdPricing || ''} onValueChange={(v) => setGroupIdPricing(v)}>
+                          <SelectTrigger data-testid="select-pricing-group">
+                            <SelectValue placeholder="Select Group ID" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(clients || []).map(c => c.groupId).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).map(g => (
+                              <SelectItem key={String(g)} value={String(g)}>{String(g)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input type="number" step="0.0001" placeholder="Group Extreme Cost" value={groupExtremeCost}
+                          onChange={(e) => setGroupExtremeCost(e.target.value)} data-testid="input-group-extreme" />
+                        <Input type="number" step="0.0001" placeholder="Group Client Rate" value={groupClientRate}
+                          onChange={(e) => setGroupClientRate(e.target.value)} data-testid="input-group-rate" />
+                      </div>
+                      <div className="text-xs text-muted-foreground">If no Group ID is selected, the default pricing above is used.</div>
+                      <div className="flex items-center gap-2">
+                        <Button type="button" variant="outline" disabled={!groupIdPricing} onClick={() => saveGroupPricingMutation.mutate()} data-testid="button-save-group-pricing">Save Group Pricing</Button>
+                        {groupPricingQuery.data?.group && (groupPricingQuery.data.group.extremeCost || groupPricingQuery.data.group.clientRate) ? (
+                          <Badge>Group configured</Badge>
+                        ) : <Badge variant="secondary">Group not set</Badge>}
                       </div>
                     </div>
 

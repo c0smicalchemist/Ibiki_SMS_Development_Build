@@ -95,13 +95,25 @@ async function authenticateApiKey(req: any, res: any, next: any) {
 }
 
 // Helper to get pricing configuration
-async function getPricingConfig() {
+async function getPricingConfig(userId?: string, groupId?: string) {
+  let gid = groupId;
+  if (!gid && userId) {
+    const u = await storage.getUser(userId).catch(() => undefined);
+    gid = (u as any)?.groupId || undefined;
+  }
+  if (gid) {
+    const gExtreme = await storage.getSystemConfig(`pricing.group.${gid}.extreme_cost`);
+    const gRate = await storage.getSystemConfig(`pricing.group.${gid}.client_rate`);
+    if (gExtreme && gRate) {
+      const extremeCost = parseFloat(gExtreme.value);
+      const clientRate = parseFloat(gRate.value);
+      if (!Number.isNaN(extremeCost) && !Number.isNaN(clientRate)) return { extremeCost, clientRate };
+    }
+  }
   const extremeCostConfig = await storage.getSystemConfig("extreme_cost_per_sms");
   const clientRateConfig = await storage.getSystemConfig("client_rate_per_sms");
-
   const extremeCost = extremeCostConfig ? parseFloat(extremeCostConfig.value) : 0.01;
   const clientRate = clientRateConfig ? parseFloat(clientRateConfig.value) : 0.02;
-
   return { extremeCost, clientRate };
 }
 
@@ -118,7 +130,7 @@ async function deductCreditsAndLog(
   recipients?: string[],
   senderPhoneNumber?: string
 ) {
-  const { extremeCost, clientRate } = await getPricingConfig();
+  const { extremeCost, clientRate } = await getPricingConfig(userId);
   
   const totalCost = extremeCost * messageCount;
   const totalCharge = clientRate * messageCount;
@@ -4321,3 +4333,43 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
     }
   }
       
+  // Admin pricing config endpoints
+  app.get('/api/admin/pricing', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { groupId } = req.query as { groupId?: string };
+      const baseExtreme = await storage.getSystemConfig('extreme_cost_per_sms');
+      const baseRate = await storage.getSystemConfig('client_rate_per_sms');
+      const base = {
+        extremeCost: baseExtreme ? parseFloat(baseExtreme.value) : 0.01,
+        clientRate: baseRate ? parseFloat(baseRate.value) : 0.02,
+      };
+      let group: { extremeCost?: number; clientRate?: number } | null = null;
+      if (groupId) {
+        const gExtreme = await storage.getSystemConfig(`pricing.group.${groupId}.extreme_cost`);
+        const gRate = await storage.getSystemConfig(`pricing.group.${groupId}.client_rate`);
+        group = {
+          extremeCost: gExtreme ? parseFloat(gExtreme.value) : undefined,
+          clientRate: gRate ? parseFloat(gRate.value) : undefined,
+        };
+      }
+      res.json({ success: true, base, group, groupId: groupId || null });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  app.post('/api/admin/pricing', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { groupId, extremeCost, clientRate } = req.body as { groupId?: string; extremeCost?: number; clientRate?: number };
+      if (groupId) {
+        if (typeof extremeCost === 'number') await storage.setSystemConfig(`pricing.group.${groupId}.extreme_cost`, String(extremeCost));
+        if (typeof clientRate === 'number') await storage.setSystemConfig(`pricing.group.${groupId}.client_rate`, String(clientRate));
+      } else {
+        if (typeof extremeCost === 'number') await storage.setSystemConfig('extreme_cost_per_sms', String(extremeCost));
+        if (typeof clientRate === 'number') await storage.setSystemConfig('client_rate_per_sms', String(clientRate));
+      }
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
