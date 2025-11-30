@@ -123,6 +123,27 @@ export default function Inbox() {
   const [viewFavorites, setViewFavorites] = useState(false);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
+  const { data: logsData } = useQuery<{ success: boolean; messages: Array<any> }>({
+    queryKey: [effectiveUserId ? '/api/admin/messages' : '/api/client/messages', effectiveUserId],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      const url = effectiveUserId ? `/api/admin/messages?userId=${effectiveUserId}` : '/api/client/messages';
+      const resp = await fetch(url, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+      if (!resp.ok) throw new Error('Failed to fetch logs');
+      return resp.json();
+    },
+    refetchInterval: 10000,
+  });
+  const lastOutByPhone: Record<string, number> = {};
+  (logsData?.messages || []).forEach((l: any) => {
+    const recips = Array.isArray(l?.recipients) ? l.recipients : (l?.recipient ? [l.recipient] : []);
+    const ts = new Date(l?.createdAt).getTime();
+    recips.forEach((r: any) => {
+      const k = String(r);
+      if (!lastOutByPhone[k] || ts > lastOutByPhone[k]) lastOutByPhone[k] = ts;
+    });
+  });
+
   useEffect(() => {
     try {
       const sp = new URLSearchParams(window.location.search);
@@ -398,11 +419,14 @@ export default function Inbox() {
                       const latest = (msgs as any[]).slice().sort((a: any, b: any) => new Date((b.timestamp||b.createdAt)).getTime() - new Date((a.timestamp||a.createdAt)).getTime())[0];
                       const dt = new Date((latest as any).timestamp || (latest as any).createdAt);
                       const hasUnread = (msgs as any[]).some((m: any) => !m.isRead);
+                      const lastInboundTs = new Date(((latest as any).timestamp || (latest as any).createdAt)).getTime();
+                      const pendingReply = lastInboundTs > (lastOutByPhone[String(phone)] || 0);
                       return (
                         <div key={phone} className={`p-3 border-b cursor-pointer ${selectedPhoneNumber === phone ? 'bg-muted' : ''}`} onClick={() => setSelectedPhoneNumber(phone)}>
                           <div className="text-sm font-semibold flex items-center gap-2">
                             {t('inbox.from')}: <span className="font-mono">{String(phone)}</span>
                             {hasUnread && <span className="inline-block w-2 h-2 rounded-full bg-blue-600" title="Unread" />}
+                            {pendingReply && <span className="inline-block w-2 h-2 rounded-full bg-blue-400" title={t('inbox.pendingReply')} />}
                           </div>
                           <div className="text-xs text-muted-foreground">{t('inbox.to')}: {(latest as any).receiver}</div>
                           <div className="text-xs truncate mt-1">{(latest as any).message}</div>
