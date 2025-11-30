@@ -412,6 +412,21 @@ export default function AdminDashboard() {
     }
   });
 
+  const [autoSyncInterval, setAutoSyncInterval] = useState<number>(() => {
+    const saved = Number(localStorage.getItem('autoSyncInterval'));
+    return (saved && saved >= 120000 && saved <= 3600000) ? saved : 300000;
+  });
+  useEffect(() => {
+    localStorage.setItem('autoSyncInterval', String(autoSyncInterval));
+  }, [autoSyncInterval]);
+  useEffect(() => {
+    if (profile?.user?.role !== 'admin') return;
+    const id = setInterval(() => {
+      try { syncCreditsMutation.mutate(); } catch {}
+    }, autoSyncInterval);
+    return () => clearInterval(id);
+  }, [autoSyncInterval, profile?.user?.role]);
+
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
     saveConfigMutation.mutate({
@@ -1303,13 +1318,4 @@ function SupervisorLogsTable() {
     </div>
   );
 }
-  const [autoSyncInterval, setAutoSyncInterval] = useState<number>(() => {
-    const saved = Number(localStorage.getItem('autoSyncInterval'));
-    return (saved && saved >= 120000 && saved <= 3600000) ? saved : 300000;
-  });
-  useEffect(() => { localStorage.setItem('autoSyncInterval', String(autoSyncInterval)); }, [autoSyncInterval]);
-  useEffect(() => {
-    if (profile?.user?.role !== 'admin') return;
-    const id = setInterval(() => { try { syncCreditsMutation.mutate(); } catch {} }, autoSyncInterval);
-    return () => clearInterval(id);
-  }, [autoSyncInterval, profile?.user?.role]);
+  
