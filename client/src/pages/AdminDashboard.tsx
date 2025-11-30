@@ -454,6 +454,44 @@ export default function AdminDashboard() {
     }
   });
 
+  const groupPricingAllQuery = useQuery<{ success: boolean; base: { extremeCost: number; clientRate: number }; groups: Array<{ groupId: string; name: string | null; extremeCost?: number; clientRate?: number; margin?: number }> }>({
+    queryKey: ['/api/admin/pricing/all'],
+    enabled: profile?.user?.role === 'admin'
+  });
+
+  function GroupPricingTable() {
+    if (profile?.user?.role !== 'admin') return null;
+    const rows = groupPricingAllQuery.data?.groups || [];
+    return (
+      <div className="mt-4">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Group ID</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Extreme Cost</TableHead>
+              <TableHead>Client Rate</TableHead>
+              <TableHead>Margin</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No group pricing configured</TableCell></TableRow>
+            ) : rows.map(g => (
+              <TableRow key={g.groupId}>
+                <TableCell className="font-mono">{g.groupId}</TableCell>
+                <TableCell>{g.name || '-'}</TableCell>
+                <TableCell>{g.extremeCost !== undefined ? g.extremeCost.toFixed(4) : '-'}</TableCell>
+                <TableCell>{g.clientRate !== undefined ? g.clientRate.toFixed(4) : '-'}</TableCell>
+                <TableCell>{g.margin !== undefined ? g.margin.toFixed(4) : '-'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+
   const [autoSyncInterval, setAutoSyncInterval] = useState<number>(() => {
     const saved = Number(localStorage.getItem('autoSyncInterval'));
     return (saved && saved >= 120000 && saved <= 3600000) ? saved : 300000;
@@ -1053,6 +1091,13 @@ export default function AdminDashboard() {
                         </p>
                       </div>
                     </div>
+
+                    {profile?.user?.role === 'admin' && (
+                      <div className="mt-6">
+                        <h4 className="text-base font-semibold">Group Pricing Overview</h4>
+                        <GroupPricingTable />
+                      </div>
+                    )}
 
                     <div className="mt-6 space-y-3">
                       <Label>Group Pricing (optional)</Label>

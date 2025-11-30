@@ -4373,3 +4373,37 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       res.status(500).json({ success: false, error: e?.message || String(e) });
     }
   });
+
+  app.get('/api/admin/pricing/all', authenticateToken, requireAdmin, async (_req: any, res) => {
+    try {
+      const all = await storage.getAllSystemConfig();
+      const baseExtremeRec = all.find(x => x.key === 'extreme_cost_per_sms');
+      const baseRateRec = all.find(x => x.key === 'client_rate_per_sms');
+      const base = {
+        extremeCost: baseExtremeRec ? parseFloat(baseExtremeRec.value) : 0.01,
+        clientRate: baseRateRec ? parseFloat(baseRateRec.value) : 0.02,
+      };
+      const groups: Array<{ groupId: string; name: string | null; extremeCost?: number; clientRate?: number; margin?: number }> = [];
+      const map: Record<string, { extremeCost?: number; clientRate?: number }> = {};
+      for (const rec of all) {
+        if (rec.key.startsWith('pricing.group.')) {
+          const rest = rec.key.replace('pricing.group.', '');
+          const [gid, type] = rest.split('.');
+          if (!gid || !type) continue;
+          if (!map[gid]) map[gid] = {};
+          if (type === 'extreme_cost') map[gid].extremeCost = parseFloat(rec.value);
+          if (type === 'client_rate') map[gid].clientRate = parseFloat(rec.value);
+        }
+      }
+      for (const gid of Object.keys(map)) {
+        const g = await storage.getContactGroup(gid).catch(() => undefined);
+        const extremeCost = map[gid].extremeCost;
+        const clientRate = map[gid].clientRate;
+        const margin = extremeCost !== undefined && clientRate !== undefined ? clientRate - extremeCost : undefined;
+        groups.push({ groupId: gid, name: g ? (g as any).name : null, extremeCost, clientRate, margin });
+      }
+      res.json({ success: true, base, groups });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
