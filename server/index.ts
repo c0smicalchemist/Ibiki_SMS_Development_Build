@@ -163,7 +163,14 @@ function serveStatic(app: express.Express) {
   app.use(express.static(distPath));
   app.get(/^(?!\/api).*/, (_req, res) => {
     const indexPath = path.resolve(distPath, "index.html");
-    res.sendFile(indexPath);
+    try {
+      const html = fs.readFileSync(indexPath, 'utf8');
+      const inject = `<script>\n(function(){\nvar s=document.createElement('style');s.innerHTML='.__err{position:fixed;left:0;right:0;top:0;background:#f44336;color:#fff;padding:8px 12px;font:14px/1.4 system-ui;z-index:2147483647;box-shadow:0 2px 10px rgba(0,0,0,.2)}';document.head.appendChild(s);\nfunction show(e){var el=document.querySelector('.__err');if(!el){el=document.createElement('div');el.className='__err';document.body.appendChild(el);}el.textContent='Error: '+e;}\nwindow.addEventListener('error',function(ev){try{show(ev.error?ev.error.message:String(ev.message||ev));}catch{}});\nwindow.addEventListener('unhandledrejection',function(ev){try{show(ev.reason?String(ev.reason):'Unhandled rejection');}catch{}});\n})();\n</script>`;
+      const out = html.replace('</head>', inject + '</head>');
+      res.type('html').send(out);
+    } catch {
+      res.sendFile(indexPath);
+    }
   });
 }
 
