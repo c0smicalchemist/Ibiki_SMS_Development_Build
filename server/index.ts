@@ -29,18 +29,9 @@ if (isRailway) {
     console.log('🚄 Using Railway-provided environment variables only');
   }
 } else {
-  // Local development: load appropriate .env file
-  const shouldLoadProductionEnv = process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL;
-  const envFile = shouldLoadProductionEnv ? '.env.production' : '.env.development';
-  
-  if (process.env.LOG_LEVEL === 'debug') {
-    console.log('Environment file decision:');
-    console.log('Should load .env.production:', shouldLoadProductionEnv);
-    console.log('Loading env file:', envFile);
-  }
-
+  const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development';
   dotenv.config({ path: envFile });
-  dotenv.config(); // Also load .env as fallback
+  dotenv.config();
 }
 
 // Debug: Log environment info for Railway
