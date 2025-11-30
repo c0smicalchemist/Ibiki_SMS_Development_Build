@@ -20,6 +20,7 @@ import Contacts from "@/pages/Contacts";
 import SendSMS from "@/pages/SendSMS";
 import Inbox from "@/pages/Inbox";
 import MessageHistory from "@/pages/MessageHistory";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 function ProtectedAdmin() {
   const [location, setLocation] = useLocation();
@@ -118,7 +119,9 @@ function App() {
         <LanguageProvider>
           <TooltipProvider>
             <Toaster />
-            <Router />
+            <ErrorBoundary>
+              <Router />
+            </ErrorBoundary>
           </TooltipProvider>
         </LanguageProvider>
       </ThemeProvider>
