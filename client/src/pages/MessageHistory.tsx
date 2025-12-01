@@ -276,7 +276,7 @@ export default function MessageHistory() {
       <DashboardHeader />
       <div className="p-6 space-y-6">
         <div className="flex items-center gap-4">
-          <Link href={(profile?.user?.role === 'admin' || profile?.user?.role === 'supervisor') ? '/admin' : '/dashboard'}>
+          <Link href={profile?.user?.role === 'admin' ? '/admin' : (profile?.user?.role === 'supervisor' ? '/adminsup' : '/dashboard')}>
             <Button variant="ghost" size="icon" data-testid="button-back">
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -359,7 +359,6 @@ export default function MessageHistory() {
                         <TableHead>{t('messageHistory.table.type')}</TableHead>
                         <TableHead>{t('messageHistory.table.status')}</TableHead>
                         <TableHead>{t('messageHistory.table.date')}</TableHead>
-                        <TableHead className="text-right">{t('messageHistory.table.cost')}</TableHead>
                         <TableHead className="text-right">{t('messageHistory.table.actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -419,9 +418,6 @@ export default function MessageHistory() {
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground" data-testid={`date-${msg.id}`}>
                             {formatDate(msg.createdAt)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-sm">
-                            ${parseFloat(msg.totalCharge).toFixed(4)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button

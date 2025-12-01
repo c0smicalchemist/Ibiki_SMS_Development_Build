@@ -1,0 +1,5 @@
+chmod +x /root/db-ensure.sh
+chmod +x /root/set-db-url.sh
+bash /root/db-ensure.sh
+bash /root/set-db-url.sh
+curl -s http://localhost:5000/api/health

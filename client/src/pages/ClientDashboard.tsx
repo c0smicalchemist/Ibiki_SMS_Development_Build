@@ -59,6 +59,9 @@ export default function ClientDashboard() {
     <div className="min-h-screen bg-background">
       <DashboardHeader />
       <div className="p-6 space-y-8">
+        <div className="rounded border p-3 bg-muted/40">
+          <p className="text-xs text-muted-foreground">SMS capacity: {Math.floor(parseFloat(credits)).toLocaleString()} messages</p>
+        </div>
         <div className="flex items-center gap-4">
           <Link href="/">
             <Button variant="ghost" size="icon" data-testid="button-back">
@@ -78,12 +81,7 @@ export default function ClientDashboard() {
             icon={MessageSquare}
             description={t('dashboard.stats.allTime')}
           />
-          <StatCard
-            title={t('dashboard.stats.credits')}
-            value={`${parseFloat(credits).toFixed(2)}`}
-            icon={DollarSign}
-            description={t('dashboard.stats.balance')}
-          />
+          <StatCard title={t('dashboard.stats.credits')} value={`${parseFloat(credits).toFixed(2)}`} icon={DollarSign} description={t('dashboard.stats.balance')} />
           <StatCard
             title={t('dashboard.stats.status')}
             value={t('dashboard.stats.online')}

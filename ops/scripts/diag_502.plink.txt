@@ -1,0 +1,15 @@
+echo '== PM2 status =='
+pm2 status ibiki-sms || true
+echo '== App health =='
+curl -s http://localhost:5000/api/health || true
+echo '\n== Listening sockets =='
+ss -ltnp 2>/dev/null | grep -E ':(5000|80|443) ' || true
+echo '\n== Nginx config (site) =='
+sudo grep -R "ibiki" -n /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null || true
+sudo cat /etc/nginx/sites-enabled/ibiki-sms.conf 2>/dev/null || sudo cat /etc/nginx/conf.d/ibiki-sms.conf 2>/dev/null || true
+echo '\n== Nginx test =='
+sudo nginx -t || true
+echo '\n== Nginx error log (last 60) =='
+sudo tail -n 60 /var/log/nginx/error.log || true
+echo '\n== Nginx access log (last 20) =='
+sudo tail -n 20 /var/log/nginx/access.log || true

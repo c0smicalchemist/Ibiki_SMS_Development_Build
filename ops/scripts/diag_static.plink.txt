@@ -1,0 +1,11 @@
+cd /opt/ibiki-sms
+echo '== dist/public listing =='
+ls -la dist/public | sed -n '1,80p'
+echo '== index.html first 30 lines =='
+sed -n '1,30p' dist/public/index.html
+echo '== localhost root HEAD =='
+curl -sI http://localhost:5000/ | sed -n '1,20p'
+echo '== localhost asset HEAD (js) =='
+ls dist/public/assets | grep -E 'index-.*\.js' | head -n 1 | xargs -I{} curl -sI http://localhost:5000/assets/{} | sed -n '1,20p'
+echo '== public asset HEAD (js) =='
+ls dist/public/assets | grep -E 'index-.*\.js' | head -n 1 | xargs -I{} curl -sI https://ibiki.run.place/assets/{} | sed -n '1,20p'

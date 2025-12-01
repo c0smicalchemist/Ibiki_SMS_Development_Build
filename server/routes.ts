@@ -147,12 +147,18 @@ async function deductCreditsAndLog(
 
   const newCredits = currentCredits - totalCharge;
 
-  // Extract sender phone from response if available
-  const senderPhone = senderPhoneNumber || 
-                      responsePayload?.senderPhone || 
-                      responsePayload?.from || 
-                      responsePayload?.sender || 
-                      null;
+  // Extract sender phone from response if available, otherwise fall back to client's assigned number
+  let senderPhone = senderPhoneNumber || 
+                    responsePayload?.senderPhone || 
+                    responsePayload?.from || 
+                    responsePayload?.sender || 
+                    null;
+  if (!senderPhone) {
+    try {
+      const assigned = (profile as any)?.assignedPhoneNumbers || [];
+      if (Array.isArray(assigned) && assigned.length > 0) senderPhone = assigned[0];
+    } catch {}
+  }
 
   // Create message log
   const messageLog = await storage.createMessageLog({
@@ -518,11 +524,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/signup", async (req, res) => {
     try {
       console.log('🔐 Signup attempt started');
-      const { email, password, confirmPassword, groupId, captchaToken } = req.body;
+      const { username, email, password, confirmPassword, groupId, captchaToken } = req.body;
 
-      if (!email || !password) {
-        console.log('❌ Signup failed: Missing email or password');
-        return res.status(400).json({ error: "Email and password are required" });
+      if ((!email && !username) || !password) {
+        console.log('❌ Signup failed: Missing identifier or password');
+        return res.status(400).json({ error: "identifier_required" });
       }
 
       if (!confirmPassword) {
@@ -544,33 +550,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('❌ Signup failed: missing groupId');
         return res.status(400).json({ error: "groupId_required" });
       }
-      const groupRec = await storage.getContactGroup(groupId);
-      if (!groupRec) {
+      async function resolveGroup(code: string): Promise<string | null> {
+        const rec = await (storage as any).findContactGroupByCode?.(code) || await storage.getContactGroup(code);
+        if (rec?.id) return rec.id;
+        const cfgExtreme = await storage.getSystemConfig(`pricing.group.${code}.extreme_cost`).catch(()=>undefined);
+        const cfgRate = await storage.getSystemConfig(`pricing.group.${code}.client_rate`).catch(()=>undefined);
+        if (cfgExtreme || cfgRate) return code; // accept pricing-configured group codes even if contact_groups missing
+        return null;
+      }
+      const resolvedGroupId = await resolveGroup(groupId);
+      if (!resolvedGroupId) {
         console.log('❌ Signup failed: invalid groupId');
         return res.status(400).json({ error: "groupId_invalid" });
       }
 
-      console.log('🔍 Checking if user exists:', email);
-      const existingUser = await storage.getUserByEmail(email);
-      if (existingUser) {
-        console.log('❌ Signup failed: Email already registered');
-        return res.status(400).json({ error: "Email already registered" });
+      if (email) {
+        console.log('🔍 Checking if email exists:', email);
+        const existingEmail = await storage.getUserByEmail(email);
+        if (existingEmail) return res.status(400).json({ error: "email_taken" });
+      }
+      if (username) {
+        console.log('🔍 Checking if username exists:', username);
+        const existingUser = await (storage as any).getUserByUsername?.(username);
+        if (existingUser) return res.status(400).json({ error: "username_taken" });
       }
 
-      // Generate name from email (username part)
-      const name = email.split('@')[0];
+      // Generate name from username or email
+      const name = (username || (email ? email.split('@')[0] : 'user'));
       console.log('👤 Creating user:', { email, name });
 
       const hashedPassword = await bcrypt.hash(password, 10);
+      const emailNormalized = email || `${username}@local`;
       const user = await storage.createUser({
-        email,
+        email: emailNormalized,
         password: hashedPassword,
         name,
         company: null,
         role: "client",
         isActive: true,
-        groupId: groupId || null
+        groupId: resolvedGroupId || null
       });
+      if (username) { try { await (storage as any).setUsername?.(user.id, username); } catch {} }
       console.log('✅ User created successfully:', user.id);
 
       // Create client profile with initial credits
@@ -599,32 +619,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       console.log('✅ API key created');
 
-      // Seed example data for new users
-      console.log('🌱 Seeding example data');
+      // Optional: seed example data if admin enabled it
       try {
-        await storage.seedExampleData(user.id);
-        console.log('✅ Example data seeded');
-      } catch (error) {
-        console.error("⚠️ Failed to seed example data:", error);
-        // Don't fail signup if example data seeding fails
-      }
+        const seedCfg = await storage.getSystemConfig('signup_seed_examples');
+        const shouldSeed = (seedCfg?.value || '').toLowerCase() === 'true';
+        if (shouldSeed) {
+          await storage.seedExampleData(user.id);
+        }
+      } catch {}
 
       console.log('🎫 Generating JWT token');
       const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
 
-      console.log('✅ Signup completed successfully for:', email);
+      console.log('✅ Signup completed successfully for:', username || emailNormalized);
       res.set('Cache-Control', 'no-store, must-revalidate');
       res.set('Pragma', 'no-cache');
-      try { await (storage as any).createActionLog?.({ actorUserId: user.id, actorRole: user.role, targetUserId: user.id, action: 'signup', details: email }); } catch {}
+      try { await (storage as any).createActionLog?.({ actorUserId: user.id, actorRole: user.role, targetUserId: user.id, action: 'signup', details: (username || emailNormalized) }); } catch {}
       res.json({
         success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          groupId: (user as any).groupId || null
-        },
+        user: { id: user.id, email: user.email, name: user.name, role: user.role, groupId: (user as any).groupId || null, username: username || null },
         token,
         apiKey: rawApiKey // Only shown once
       });
@@ -643,15 +656,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/login", async (req, res) => {
     try {
       console.log('🔐 Login attempt started');
-      const { email, password, captchaToken } = req.body;
+      const { identifier, password, captchaToken } = req.body;
 
-      if (!email || !password) {
-        console.log('❌ Login failed: Missing email or password');
-        return res.status(400).json({ error: "Email and password are required" });
+      if (!identifier || !password) {
+        console.log('❌ Login failed: Missing identifier or password');
+        return res.status(400).json({ error: "identifier_required" });
       }
 
-      console.log('🔍 Looking up user:', email);
-      const user = await storage.getUserByEmail(email);
+      console.log('🔍 Looking up user:', identifier);
+      let user = await (storage as any).getUserByUsername?.(identifier);
+      if (!user) user = await storage.getUserByEmail(identifier);
       if (!user || !user.isActive) {
         console.log('❌ Login failed: User not found or inactive');
         return res.status(401).json({ error: "Invalid credentials" });
@@ -670,7 +684,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Emergency: ensure admin access for primary operator account
-      if (email === 'ibiki_dash@proton.me') {
+      if ((user as any)?.email === 'ibiki_dash@proton.me') {
         try {
           await storage.updateUser(user.id, { role: 'admin', isActive: true });
           user.role = 'admin';
@@ -684,10 +698,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('🎫 Generating JWT token');
       const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
 
-      console.log('✅ Login successful for:', email);
+      console.log('✅ Login successful for:', user?.username || (user as any)?.email || identifier);
       res.set('Cache-Control', 'no-store, must-revalidate');
       res.set('Pragma', 'no-cache');
-      try { await (storage as any).createActionLog?.({ actorUserId: user.id, actorRole: user.role, targetUserId: user.id, action: 'login_success', details: email }); } catch {}
+      try { await (storage as any).createActionLog?.({ actorUserId: user.id, actorRole: user.role, targetUserId: user.id, action: 'login_success', details: (user as any)?.username || (user as any)?.email || identifier }); } catch {}
       res.json({
         success: true,
         user: {
@@ -715,22 +729,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin create user
   app.post("/api/admin/users/create", authenticateToken, requireAdmin, async (req: any, res) => {
     try {
-      const { email, password, role = 'client', groupId } = req.body as { email: string; password: string; role?: 'client'|'supervisor'|'admin'; groupId?: string };
-      if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
-      const existing = await storage.getUserByEmail(email);
-      if (existing) return res.status(400).json({ error: 'Email already exists' });
+      const { username, email, password, role = 'client', groupId } = req.body as { username?: string; email?: string; password: string; role?: 'client'|'supervisor'|'admin'; groupId?: string };
+      if ((!email && !username) || !password) return res.status(400).json({ error: 'Missing fields' });
+      if (email) { const existing = await storage.getUserByEmail(email); if (existing) return res.status(400).json({ error: 'email_taken' }); }
+      if (username) { const existingU = await (storage as any).getUserByUsername?.(username); if (existingU) return res.status(400).json({ error: 'username_taken' }); }
       let grpId: string | null = null;
       if (groupId) {
-        const grp = await storage.getContactGroup(groupId);
+        const grp = await (storage as any).findContactGroupByCode?.(groupId) || await storage.getContactGroup(groupId);
         if (!grp) return res.status(400).json({ error: 'groupId_invalid' });
         grpId = grp.id;
       }
       const hashed = await bcrypt.hash(password, 10);
-      const user = await storage.createUser({ email, password: hashed, name: email.split('@')[0], role, isActive: true, company: null, groupId: grpId });
+      const emailNormalized = email || `${username}@local`;
+      const name = (username || (email ? email.split('@')[0] : 'user'));
+      const user = await storage.createUser({ email: emailNormalized, password: hashed, name, role, isActive: true, company: null, groupId: grpId });
+      if (username) { try { await (storage as any).setUsername?.(user.id, username); } catch {} }
       await storage.createClientProfile({ userId: user.id, credits: '0.00', currency: 'USD', customMarkup: null });
       res.json({ success: true, user });
     } catch (error) {
       console.error('Admin create user error:', error);
+      res.status(500).json({ error: 'Failed to create user' });
+    }
+  });
+
+  // Supervisor create user (auto-assign groupId from supervisor)
+  app.post('/api/supervisor/users/create', authenticateToken, requireRole(['supervisor']), async (req: any, res) => {
+    try {
+      const { username, email, password } = req.body as { username?: string; email?: string; password: string };
+      if ((!email && !username) || !password) return res.status(400).json({ error: 'Missing fields' });
+      if (email) { const existing = await storage.getUserByEmail(email); if (existing) return res.status(400).json({ error: 'email_taken' }); }
+      if (username) { const existingU = await (storage as any).getUserByUsername?.(username); if (existingU) return res.status(400).json({ error: 'username_taken' }); }
+      const me = await storage.getUser(req.user.userId);
+      const myGroupId = (me as any)?.groupId || null;
+      if (!myGroupId) return res.status(400).json({ error: 'groupId_required' });
+      const emailNormalized = email || `${username}@local`;
+      const name = (username || (email ? email.split('@')[0] : 'user'));
+      const hashed = await bcrypt.hash(password, 10);
+      const user = await storage.createUser({ email: emailNormalized, password: hashed, name, role: 'client', isActive: true, company: null, groupId: myGroupId });
+      if (username) { try { await (storage as any).setUsername?.(user.id, username); } catch {} }
+      await storage.createClientProfile({ userId: user.id, credits: '0.00', currency: 'USD', customMarkup: null });
+      res.json({ success: true, user });
+    } catch (e: any) {
+      console.error('Supervisor create user error:', e);
       res.status(500).json({ error: 'Failed to create user' });
     }
   });
@@ -1163,10 +1203,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const limit = await resolveFetchLimit(undefined, 'admin', req.query.limit as string | undefined);
       const logs = await storage.getAllMessageLogs(limit);
-      res.json({ success: true, messages: logs, count: logs.length, limit });
+      const enriched = await Promise.all(logs.map(async (l: any) => {
+        const u = await storage.getUser(l.userId).catch(() => undefined);
+        return {
+          ...l,
+          userEmail: (u as any)?.email || null,
+          userName: (u as any)?.name || null,
+          userDisplay: ((u as any)?.name || (u as any)?.email || l.userId || null)
+        };
+      }));
+      res.json({ success: true, messages: enriched, count: enriched.length, limit });
     } catch (error) {
       console.error("Admin all message logs fetch error:", error);
       res.status(500).json({ error: "Failed to fetch all message logs" });
+    }
+  });
+
+  app.get('/api/admin/users/resolve', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const idOrEmail = String((req.query.id || req.query.email || '')).trim();
+      if (!idOrEmail) return res.status(400).json({ success: false, error: 'id_or_email_required' });
+      let u = await storage.getUser(idOrEmail);
+      if (!u) u = await storage.getUserByEmail(idOrEmail);
+      if (!u) return res.status(404).json({ success: false, error: 'not_found' });
+      res.json({ success: true, user: { id: (u as any).id, email: (u as any).email, name: (u as any).name, role: (u as any).role } });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || 'resolve_failed' });
     }
   });
 
@@ -1446,7 +1508,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const actorGroup = (actor as any)?.groupId || null;
         const targetGroup = (target as any)?.groupId || null;
         const ok = (actorGroup && actorGroup === myGroupId) || (targetGroup && targetGroup === myGroupId);
-        return ok ? l : null;
+        return ok ? {
+          ...l,
+          actorEmail: (actor as any)?.email || null,
+          actorName: (actor as any)?.name || null,
+          targetEmail: (target as any)?.email || null,
+          targetName: (target as any)?.name || null,
+          actorDisplay: ((actor as any)?.name || (actor as any)?.email || l.actorUserId || null),
+          targetDisplay: ((target as any)?.name || (target as any)?.email || l.targetUserId || null),
+        } : null;
       }));
       res.json({ success: true, logs: scoped.filter(Boolean) });
     } catch (e: any) {
@@ -1463,7 +1533,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const scoped = await Promise.all(logs.map(async (log: any) => {
         const u = await storage.getUser(log.userId);
         const g = (u as any)?.groupId || null;
-        return (g && g === myGroupId) ? log : null;
+        return (g && g === myGroupId) ? { ...log, userEmail: (u as any)?.email || null, userName: (u as any)?.name || null, userDisplay: ((u as any)?.name || (u as any)?.email || log.userId || null) } : null;
       }));
       res.json({ success: true, messages: scoped.filter(Boolean) });
     } catch (error: any) {
@@ -1479,7 +1549,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const type = String(req.query.type || 'all');
       const all = await storage.getActionLogs(limit);
       const filtered = all.filter((l: any) => type === 'all' ? true : (type === 'supervisor' ? l.actorRole === 'supervisor' : l.actorRole === 'user'));
-      res.json({ success: true, logs: filtered });
+      const enriched = await Promise.all(filtered.map(async (l: any) => {
+        const actor = l.actorUserId ? await storage.getUser(l.actorUserId) : undefined;
+        const target = l.targetUserId ? await storage.getUser(l.targetUserId) : undefined;
+        return {
+          ...l,
+          actorEmail: (actor as any)?.email || null,
+          actorName: (actor as any)?.name || null,
+          targetEmail: (target as any)?.email || null,
+          targetName: (target as any)?.name || null,
+          actorDisplay: ((actor as any)?.name || (actor as any)?.email || l.actorUserId || null),
+          targetDisplay: ((target as any)?.name || (target as any)?.email || l.targetUserId || null),
+        };
+      }));
+      res.json({ success: true, logs: enriched });
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'Failed to fetch logs' });
     }
@@ -1725,7 +1808,7 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
   // Update system configuration
   app.post("/api/admin/config", authenticateToken, requireAdmin, async (req, res) => {
     try {
-      const { extremeApiKey, extremeCost, clientRate, timezone, defaultAdminMessagesLimit, defaultClientMessagesLimit, messagesLimitForUser, messagesLimitUserId, adminDefaultBusinessId } = req.body;
+      const { extremeApiKey, extremeCost, clientRate, timezone, defaultAdminMessagesLimit, defaultClientMessagesLimit, messagesLimitForUser, messagesLimitUserId, adminDefaultBusinessId, signupSeedExamples } = req.body;
 
       if (extremeApiKey) {
         await storage.setSystemConfig("extreme_api_key", extremeApiKey);
@@ -1750,6 +1833,9 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
       }
       if (adminDefaultBusinessId) {
         await storage.setSystemConfig('admin_default_business_id', String(adminDefaultBusinessId));
+      }
+      if (typeof signupSeedExamples !== 'undefined') {
+        await storage.setSystemConfig('signup_seed_examples', String(!!signupSeedExamples));
       }
 
       res.json({ success: true, message: "Configuration updated" });
@@ -3883,10 +3969,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       const targetUserId = (req.user.role === 'admin' && req.query.userId) 
         ? req.query.userId 
         : req.user.userId;
-      // Ensure example exists for clients; seed is idempotent
-      if (req.user.role !== 'admin') {
-        try { await storage.seedExampleData(targetUserId); } catch {}
-      }
+      // Do not auto-seed example inbox for clients
       let messages: any[] = [];
       try {
         messages = await storage.getIncomingMessagesByUserId(targetUserId, limit);
@@ -3934,11 +4017,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       await pool.end();
     } catch {}
     messages = messages.filter((m: any) => !m.isDeleted);
-      // Auto-seed example for clients if inbox is empty (make example permanent)
-      if (messages.length === 0 && req.user.role !== 'admin') {
-        await storage.seedExampleData(targetUserId);
-        messages = await storage.getIncomingMessagesByUserId(targetUserId, limit);
-      }
+      // No auto-seed; empty inbox is expected for new accounts
       
       res.json({
         success: true,
@@ -4309,31 +4388,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
-}
-  // Captcha verifier (Turnstile preferred)
-  async function verifyCaptchaToken(token?: string) {
-    try {
-      if (process.env.TURNSTILE_SECRET) {
-        const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ secret: String(process.env.TURNSTILE_SECRET), response: String(token || '') }),
-        });
-        const data = await resp.json();
-        return !!data.success;
-      }
-      if (process.env.CAPTCHA_SECRET) {
-        return token === 'slider_ok';
-      }
-      return true;
-    } catch {
-      return false;
-    }
-  }
-      
-  // Admin pricing config endpoints
+  // Admin pricing config endpoints (moved inside registerRoutes)
   app.get('/api/admin/pricing', authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const { groupId } = req.query as { groupId?: string };
@@ -4374,6 +4429,17 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
     }
   });
 
+  app.delete('/api/admin/pricing/group/:groupId', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const gid = String(req.params.groupId);
+      await storage.deleteSystemConfig(`pricing.group.${gid}.extreme_cost`);
+      await storage.deleteSystemConfig(`pricing.group.${gid}.client_rate`);
+      res.json({ success: true, groupId: gid });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
   app.get('/api/admin/pricing/all', authenticateToken, requireAdmin, async (_req: any, res) => {
     try {
       const all = await storage.getAllSystemConfig();
@@ -4407,3 +4473,28 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       res.status(500).json({ success: false, error: e?.message || String(e) });
     }
   });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}
+  // Captcha verifier (Turnstile preferred)
+  async function verifyCaptchaToken(token?: string) {
+    try {
+      if (process.env.TURNSTILE_SECRET) {
+        const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ secret: String(process.env.TURNSTILE_SECRET), response: String(token || '') }),
+        });
+        const data = await resp.json();
+        return !!data.success;
+      }
+      if (process.env.CAPTCHA_SECRET) {
+        return token === 'slider_ok';
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+      

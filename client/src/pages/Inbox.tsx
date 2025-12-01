@@ -283,6 +283,10 @@ export default function Inbox() {
     <div className="min-h-screen bg-background">
       <DashboardHeader />
       <div className="mx-[2cm] p-6 space-y-6">
+        <div className="rounded border p-3 bg-muted/40">
+          <p className="text-sm">1 credit = 1 SMS</p>
+          <p className="text-xs text-muted-foreground">Your credits translate directly to SMS capacity.</p>
+        </div>
         <Card>
           <CardHeader>
             <CardTitle>{isSupervisor ? 'Supervisor Mode' : t('inbox.adminMode')}</CardTitle>

@@ -550,3 +550,7 @@ export const translations: Record<Language, Record<string, string>> = {
 export function translate(key: string, lang: Language): string {
   return (translations[lang] as Record<string, string>)[key] || key
 }
+    'credits.note': '1 credit = 1 SMS. Capacity is based on credits only.',
+    'credits.capacity': 'SMS capacity',
+    'credits.note': '1 余额 = 1 短信。容量仅依据余额计算。',
+    'credits.capacity': '短信容量',

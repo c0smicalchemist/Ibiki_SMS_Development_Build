@@ -1,0 +1,13 @@
+cat >/opt/ibiki-sms/.env.production <<'EOF'
+NODE_ENV=production
+PORT=5000
+DATABASE_URL=postgresql://ibiki_user:c0smic4382@localhost:5432/ibiki
+RUN_DB_MIGRATIONS=true
+RUN_DB_BOOTSTRAP=true
+POSTGRES_SSL=false
+LOG_LEVEL=debug
+EOF
+pm2 restart ibiki-sms --update-env || true
+sleep 2
+curl -sS -m 6 http://127.0.0.1:5000/api/health || true
+curl -sS -m 8 https://ibiki.run.place/api/health || true

@@ -17,7 +17,7 @@ export default function Login() {
   const { toast } = useToast();
   const { t } = useLanguage();
   const [formData, setFormData] = useState({
-    email: "",
+    identifier: "",
     password: "",
     captchaToken: ""
   });
@@ -35,7 +35,7 @@ export default function Login() {
       queryClient.clear();
       toast({
         title: "Welcome back!",
-        description: `Logged in as ${data.user.email}`
+        description: `Logged in as ${data.user.username || data.user.email}`
       });
       if (data.user.role === 'admin') {
         setLocation('/admin');
@@ -77,14 +77,13 @@ export default function Login() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">{t('auth.login.email')}</Label>
+                <Label htmlFor="identifier">Username or Email</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="john@example.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  data-testid="input-email"
+                  id="identifier"
+                  placeholder="john_smith or john@example.com"
+                  value={formData.identifier}
+                  onChange={(e) => setFormData({ ...formData, identifier: e.target.value })}
+                  data-testid="input-identifier"
                   required
                 />
               </div>

@@ -1,0 +1,2 @@
+tail -n 200 /root/.pm2/logs/ibiki-sms-out.log || true
+tail -n 80 /root/.pm2/logs/ibiki-sms-error.log || true

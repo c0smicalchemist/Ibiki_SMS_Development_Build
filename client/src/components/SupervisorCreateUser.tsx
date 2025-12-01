@@ -7,21 +7,19 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
-export default function AdminCreateUser() {
+export default function SupervisorCreateUser() {
   const { toast } = useToast();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<'client'|'supervisor'|'admin'>("client");
-  const [groupId, setGroupId] = useState("");
   const m = useMutation({
     mutationFn: async () => {
-      return await apiRequest('/api/admin/users/create', { method: 'POST', body: JSON.stringify({ username, email, password, role, groupId }) });
+      return await apiRequest('/api/supervisor/users/create', { method: 'POST', body: JSON.stringify({ username, email, password }) });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
       toast({ title: 'Success', description: 'User created successfully' });
-      setUsername(""); setEmail(""); setPassword(""); setRole('client'); setGroupId("");
+      setUsername(""); setEmail(""); setPassword("");
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error?.message || 'Failed to create user', variant: 'destructive' });
@@ -30,7 +28,7 @@ export default function AdminCreateUser() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create User</CardTitle>
+        <CardTitle>Supervisor Create User (Auto group)</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="space-y-2">
@@ -44,18 +42,6 @@ export default function AdminCreateUser() {
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
           <Input id="password" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="role">Role</Label>
-          <select id="role" className="border rounded px-2 py-1" value={role} onChange={(e)=>setRole(e.target.value as any)}>
-            <option value="client">Client</option>
-            <option value="supervisor">Supervisor</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="groupId">Group ID</Label>
-          <Input id="groupId" value={groupId} onChange={(e)=>setGroupId(e.target.value)} placeholder="optional; must exist if provided" />
         </div>
         <Button onClick={()=>m.mutate()} disabled={m.isPending || !username || !password}>Create</Button>
       </CardContent>

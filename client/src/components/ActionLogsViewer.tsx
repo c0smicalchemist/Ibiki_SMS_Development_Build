@@ -1,15 +1,20 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
 
 interface ActionLog {
   id: string;
   actorUserId: string;
+  actorEmail?: string | null;
+  actorName?: string | null;
   actorRole: string;
   targetUserId: string | null;
+  targetEmail?: string | null;
+  targetName?: string | null;
   action: string;
   details: string | null;
   createdAt: string;
@@ -47,8 +52,9 @@ export default function ActionLogsViewer() {
         <CardTitle>Action Logs</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-3 mb-3">
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search logs" className="w-64" />
+          <Translator />
         </div>
         <div className="max-h-[60vh] overflow-y-auto">
           <Table>
@@ -68,9 +74,9 @@ export default function ActionLogsViewer() {
                 return (
                   <TableRow key={l.id}>
                     <TableCell>{format(dt, "yyyy-MM-dd HH:mm:ss")}</TableCell>
-                    <TableCell className="font-mono">{l.actorUserId}</TableCell>
+                    <TableCell className="truncate max-w-[240px]">{(l as any).actorDisplay || l.actorName || l.actorEmail || l.actorUserId}</TableCell>
                     <TableCell>{l.actorRole}</TableCell>
-                    <TableCell className="font-mono">{l.targetUserId || ""}</TableCell>
+                    <TableCell className="truncate max-w-[240px]">{(l as any).targetDisplay || l.targetName || l.targetEmail || l.targetUserId || ""}</TableCell>
                     <TableCell>{l.action}</TableCell>
                     <TableCell className="truncate max-w-[360px]">{l.details || ""}</TableCell>
                   </TableRow>
@@ -81,5 +87,26 @@ export default function ActionLogsViewer() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function Translator() {
+  const [idLookup, setIdLookup] = useState("");
+  const resolveMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const token = localStorage.getItem('token');
+      const resp = await fetch(`/api/admin/users/resolve?id=${encodeURIComponent(id)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!resp.ok) throw new Error('resolve_failed');
+      return resp.json();
+    }
+  });
+  return (
+    <div className="flex items-center gap-2">
+      <Input value={idLookup} onChange={(e) => setIdLookup(e.target.value)} placeholder="Translate ID" className="w-64" />
+      <Button size="sm" onClick={() => resolveMutation.mutate(idLookup)} disabled={!idLookup}>Translate</Button>
+      {resolveMutation.data?.success && (
+        <span className="text-xs text-muted-foreground">{resolveMutation.data.user?.name || resolveMutation.data.user?.email || idLookup}</span>
+      )}
+    </div>
   );
 }

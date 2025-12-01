@@ -20,6 +20,7 @@ import ErrorLogsViewer from "@/components/ErrorLogsViewer";
 import ActionLogsViewer from "@/components/ActionLogsViewer";
 import MessageActivityViewer from "@/components/MessageActivityViewer";
 import AdminCreateUser from "@/components/AdminCreateUser";
+import SupervisorCreateUser from "@/components/SupervisorCreateUser";
 import { AddCreditsToClientDialog } from "@/components/AddCreditsToClientDialog";
 import ResetPasswordDialog from "@/components/ResetPasswordDialog";
 import WebhookEditDialog from "@/components/WebhookEditDialog";
@@ -76,6 +77,7 @@ export default function AdminDashboard() {
       setClientRate(config.config.client_rate_per_sms || "0.02");
       setTimezone(config.config.timezone || "America/New_York");
       setWebhookBusiness(config.config.admin_default_business_id || 'IBS_0');
+      setSignupSeedExamples((config.config.signup_seed_examples || 'false') === 'true');
     }
   }, [config]);
 
@@ -97,8 +99,10 @@ export default function AdminDashboard() {
     }
   }, [groupPricingQuery.data]);
 
+  const [signupSeedExamples, setSignupSeedExamples] = useState<boolean>(false);
+
   const saveConfigMutation = useMutation({
-    mutationFn: async (data: { extremeApiKey?: string; extremeCost?: string; clientRate?: string; timezone?: string; adminDefaultBusinessId?: string }) => {
+    mutationFn: async (data: { extremeApiKey?: string; extremeCost?: string; clientRate?: string; timezone?: string; adminDefaultBusinessId?: string; signupSeedExamples?: boolean }) => {
       return await apiRequest('/api/admin/config', {
         method: 'POST',
         body: JSON.stringify(data)
@@ -458,6 +462,18 @@ export default function AdminDashboard() {
     queryKey: ['/api/admin/pricing/all'],
     enabled: profile?.user?.role === 'admin'
   });
+  const deleteGroupPricingMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      return await apiRequest(`/api/admin/pricing/group/${encodeURIComponent(groupId)}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/pricing/all'] });
+      toast({ title: t('common.success'), description: 'Group pricing deleted; reverted to base.' });
+    },
+    onError: (error: any) => {
+      toast({ title: t('common.error'), description: error?.message || 'Failed to delete group pricing', variant: 'destructive' });
+    }
+  });
 
   function GroupPricingTable() {
     if (profile?.user?.role !== 'admin') return null;
@@ -472,6 +488,7 @@ export default function AdminDashboard() {
               <TableHead>Extreme Cost</TableHead>
               <TableHead>Client Rate</TableHead>
               <TableHead>Margin</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -484,6 +501,16 @@ export default function AdminDashboard() {
                 <TableCell>{g.extremeCost !== undefined ? g.extremeCost.toFixed(4) : '-'}</TableCell>
                 <TableCell>{g.clientRate !== undefined ? g.clientRate.toFixed(4) : '-'}</TableCell>
                 <TableCell>{g.margin !== undefined ? g.margin.toFixed(4) : '-'}</TableCell>
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => deleteGroupPricingMutation.mutate(g.groupId)}
+                    data-testid={`button-delete-group-pricing-${g.groupId}`}
+                  >
+                    Delete
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -514,14 +541,19 @@ export default function AdminDashboard() {
       extremeCost,
       clientRate,
       timezone,
-      adminDefaultBusinessId: webhookBusiness || 'IBS_0'
+      adminDefaultBusinessId: webhookBusiness || 'IBS_0',
+      signupSeedExamples
     });
   };
 
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
-      <div className="p-6 space-y-8">
+      <div className="p-6 space-y-6">
+        <div className="rounded border p-3 bg-muted/40">
+          <p className="text-sm">1 credit = 1 SMS</p>
+          <p className="text-xs text-muted-foreground">SMS capacity shown based on credits. Rates are never displayed.</p>
+        </div>
         <div className="flex items-center gap-4">
           <Link href={isSupervisor ? "/adminsup" : (profile?.user?.role === 'admin' ? "/admin" : "/dashboard")}>
             <Button variant="ghost" size="icon" data-testid="button-back">
@@ -591,35 +623,39 @@ export default function AdminDashboard() {
                   <p className="text-xs text-muted-foreground">IbikiSMS Balance</p>
                   <p className="text-2xl font-bold tracking-tight mt-1">
                     {isSupervisor
-                      ? `${groupSupervisorCredits.toFixed(2)} credits (≈ $ ${(groupSupervisorCredits * clientRateNumber).toFixed(2)})`
+                      ? `${groupSupervisorCredits.toFixed(2)} credits`
                       : (balanceLoading ? 'Loading...' : balanceError ? 'Unavailable' : (
-                          extremeBalance !== null ? `${extremeBalance.toLocaleString()} credits${extremeUSD ? ` (≈ $ ${extremeUSD})` : ''}` : 'N/A'
+                          extremeBalance !== null ? `${extremeBalance.toLocaleString()} credits` : 'N/A'
                         ))}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {isSupervisor ? 'Pooled balance for supervisors in your group' : 'Current account balance'}
                   </p>
+                  <p className="text-xs text-muted-foreground mt-1">SMS capacity: {isSupervisor ? Math.floor(groupSupervisorCredits).toLocaleString() : (extremeBalance !== null ? Math.floor(extremeBalance).toLocaleString() : '0')} messages</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Allocated Credits</p>
                   <p className={`text-2xl font-bold tracking-tight mt-1 ${isSupervisor ? 'text-green-600' : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-600' : 'text-red-600')}`}>
-                    {(isSupervisor ? groupClientCredits : sumCredits).toFixed(2)} credits (≈ $ {((isSupervisor ? groupClientCredits : sumCredits) * clientRateNumber).toFixed(2)})
+                    {(isSupervisor ? groupClientCredits : sumCredits).toFixed(2)} credits
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">Sum of all client credits</p>
+                  <p className="text-xs text-muted-foreground mt-1">SMS capacity: {Math.floor(isSupervisor ? groupClientCredits : sumCredits).toLocaleString()} messages</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Remaining Credits</p>
                   <p className={`text-2xl font-bold tracking-tight mt-1 ${isSupervisor ? (groupRemainingCredits >= 0 ? 'text-green-600' : 'text-red-600') : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-600' : 'text-red-600')}`}>
                     {isSupervisor
-                      ? `${groupRemainingCredits.toFixed(2)} credits (≈ $ ${(groupRemainingCredits * clientRateNumber).toFixed(2)})`
-                      : (extremeBalance !== null ? `${Math.max(extremeBalance - sumCredits, 0).toFixed(2)} credits (≈ $ ${(Math.max(extremeBalance - sumCredits, 0) * (parseFloat(extremeCost || '0') || 0)).toFixed(2)})` : 'N/A')}
+                      ? `${groupRemainingCredits.toFixed(2)} credits`
+                      : (extremeBalance !== null ? `${Math.max(extremeBalance - sumCredits, 0).toFixed(2)} credits` : 'N/A')}
                   </p>
                   <p className={`text-xs mt-1 ${isSupervisor ? (groupRemainingCredits >= 0 ? 'text-green-700' : 'text-red-700') : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-700' : 'text-red-700')}`}>{isSupervisor ? 'Supervisor pooled minus allocated (group)' : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? (t('admin.syncStatus.inSync') || 'In Sync') : (t('admin.syncStatus.needsSync') || 'Needs Sync'))}</p>
+                  <p className="text-xs text-muted-foreground mt-1">SMS capacity: {isSupervisor ? Math.floor(groupRemainingCredits).toLocaleString() : (extremeBalance !== null ? Math.floor(Math.max(extremeBalance - sumCredits, 0)).toLocaleString() : '0')} messages</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+              <div className="mt-3 p-3 rounded border bg-muted/40 text-xs text-muted-foreground">1 credit = 1 SMS. Capacity is based on credits only.</div>
+              </CardContent>
+            </Card>
+          </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="hover-elevate active-elevate-2 cursor-pointer border-2 border-blue-500/30">
@@ -688,6 +724,12 @@ export default function AdminDashboard() {
             </Link>
           </Card>
         </div>
+
+        {isSupervisor && (
+          <div className="grid grid-cols-1 gap-4 mt-6">
+            <SupervisorCreateUser />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <WorldClock />
@@ -1054,6 +1096,19 @@ export default function AdminDashboard() {
                   </p>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="signupSeedExamples">Seed sample data for new signups</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="signupSeedExamples"
+                      type="checkbox"
+                      checked={signupSeedExamples}
+                      onChange={(e) => setSignupSeedExamples(e.target.checked)}
+                    />
+                    <span className="text-xs text-muted-foreground">When enabled, new accounts receive example inbox/messages</span>
+                  </div>
+                </div>
+
                 {profile?.user?.role === 'admin' && (
                   <div className="border-t pt-6 space-y-4">
                     <h3 className="text-lg font-semibold">Pricing Configuration</h3>
@@ -1379,7 +1434,7 @@ export default function AdminDashboard() {
 }
 function SupervisorLogsTable() {
   const { t } = useLanguage();
-  const { data } = useQuery<{ success: boolean; logs: Array<{ id: string; actorUserId: string; actorRole: string; targetUserId: string | null; action: string; details: string | null; createdAt: string }> }>({
+  const { data } = useQuery<{ success: boolean; logs: Array<{ id: string; actorUserId: string; actorEmail?: string | null; actorName?: string | null; actorRole: string; targetUserId: string | null; targetEmail?: string | null; targetName?: string | null; action: string; details: string | null; createdAt: string }> }>({
     queryKey: ['/api/supervisor/logs'],
     queryFn: async () => {
       const token = localStorage.getItem('token');
@@ -1392,6 +1447,19 @@ function SupervisorLogsTable() {
     }
   });
   const logs = data?.logs || [];
+  const [lookup, setLookup] = useState("");
+  const [lookupResult, setLookupResult] = useState<string>("");
+  const resolveLookup = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const resp = await fetch(`/api/admin/users/resolve?id=${encodeURIComponent(lookup)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const json = await resp.json();
+      if (json?.success) setLookupResult(json.user?.name || json.user?.email || lookup);
+      else setLookupResult('Not found');
+    } catch {
+      setLookupResult('Not found');
+    }
+  };
   const exportTxt = () => {
     const lines = logs.map(l => `${l.createdAt} | actor=${l.actorUserId}(${l.actorRole}) | action=${l.action} | target=${l.targetUserId || ''} | details=${l.details || ''}`).join('\n');
     const blob = new Blob([lines], { type: 'text/plain' });
@@ -1400,7 +1468,12 @@ function SupervisorLogsTable() {
   };
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Input placeholder="Translate ID" className="w-64" onChange={(e) => setLookup(e.target.value)} />
+          <Button size="sm" onClick={resolveLookup} disabled={!lookup}>{t('common.translate') || 'Translate'}</Button>
+          {lookupResult && (<span className="text-xs text-muted-foreground">{lookupResult}</span>)}
+        </div>
         <Button size="sm" variant="outline" onClick={exportTxt}>{t('logs.export') || 'Export'}</Button>
       </div>
       <div className="max-h-[65vh] overflow-y-auto rounded border">
@@ -1419,10 +1492,10 @@ function SupervisorLogsTable() {
           {logs.map(l => (
             <TableRow key={l.id}>
               <TableCell>{new Date(l.createdAt).toLocaleString()}</TableCell>
-              <TableCell className="font-mono text-xs">{l.actorUserId}</TableCell>
+              <TableCell className="truncate max-w-[220px] text-xs">{(l as any).actorDisplay || l.actorName || l.actorEmail || l.actorUserId}</TableCell>
               <TableCell>{l.actorRole}</TableCell>
               <TableCell className="font-mono text-xs">{l.action}</TableCell>
-              <TableCell className="font-mono text-xs">{l.targetUserId || '-'}</TableCell>
+              <TableCell className="truncate max-w-[220px] text-xs">{(l as any).targetDisplay || l.targetName || l.targetEmail || l.targetUserId || '-'}</TableCell>
               <TableCell className="font-mono text-xs break-words">{l.details || '-'}</TableCell>
             </TableRow>
           ))}

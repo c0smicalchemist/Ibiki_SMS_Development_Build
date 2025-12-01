@@ -1,0 +1,9 @@
+sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE ROLE ibiki_user LOGIN PASSWORD 'c0smic4382';" || true
+sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE ibiki_user WITH LOGIN PASSWORD 'c0smic4382';"
+sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='ibiki'" | grep -q 1 || sudo -u postgres createdb -O ibiki_user ibiki
+sudo -u postgres psql -d ibiki -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+PGPASSWORD=c0smic4382 psql -h 127.0.0.1 -U ibiki_user -d ibiki -c "SELECT current_database(), current_user;"
+pm2 restart ibiki-sms --update-env || true
+sleep 2
+curl -sS -m 5 http://127.0.0.1:5000/api/health || true
+curl -sS -m 8 https://ibiki.run.place/api/health || true

@@ -1,0 +1,10 @@
+echo '== ENV VARS =='
+grep -E 'DATABASE|POSTGRES|RUN_DB|NODE_ENV|LOG_LEVEL' /opt/ibiki-sms/.env.production || true
+echo '== PROCESS ENV (runtime) =='
+pm2 env 0 | grep -E 'DATABASE|POSTGRES|RUN_DB|NODE_ENV|LOG_LEVEL' || true
+echo '== PSQL Connectivity Test =='
+psql "postgresql://ibiki_user:c0smic4382@localhost:5432/ibiki" -c "SELECT 1;" || echo 'psql failed'
+echo '== List users table =='
+psql "postgresql://ibiki_user:c0smic4382@localhost:5432/ibiki" -c "\dt" || echo 'list tables failed'
+echo '== App health =='
+curl -s http://localhost:5000/api/health | head -c 400

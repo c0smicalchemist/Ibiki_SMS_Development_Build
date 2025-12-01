@@ -1,0 +1,17 @@
+cd /opt/ibiki-sms
+echo '== PM2 Status =='
+pm2 status ibiki-sms
+echo '== Server Logs (last 80) =='
+pm2 logs ibiki-sms --lines 80
+echo '== Dist contents =='
+ls -la dist/public | head -n 50
+echo '== Index.html head =='
+head -n 20 dist/public/index.html
+echo '== Local HTTP HEAD =='
+curl -sI http://localhost:5000/ | sed -n '1,20p'
+echo '== Public HTTP HEAD =='
+curl -sI https://ibiki.run.place/ | sed -n '1,20p'
+echo '== Asset HEAD (CSS) =='
+curl -sI https://ibiki.run.place/assets/index-*.css 2>/dev/null | sed -n '1,20p'
+echo '== Asset HEAD (JS) =='
+curl -sI https://ibiki.run.place/assets/index-*.js 2>/dev/null | sed -n '1,20p'

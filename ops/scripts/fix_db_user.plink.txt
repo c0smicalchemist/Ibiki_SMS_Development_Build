@@ -1,0 +1,4 @@
+sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE ibiki_user WITH LOGIN PASSWORD 'c0smic4382';" || true
+sudo -u postgres psql -v ON_ERROR_STOP=1 -c "GRANT ALL PRIVILEGES ON DATABASE ibiki TO ibiki_user;" || true
+psql "postgresql://ibiki_user:c0smic4382@localhost:5432/ibiki" -c "SELECT 1;" || true
+pm2 restart ibiki-sms --update-env

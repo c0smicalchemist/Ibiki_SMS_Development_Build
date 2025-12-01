@@ -1,0 +1,6 @@
+cd /opt/ibiki-sms
+export NODE_ENV=production
+pm2 start dist/index.js --name ibiki-sms
+sleep 1
+pm2 status ibiki-sms
+curl -sI http://localhost:5000/ | head -n 20

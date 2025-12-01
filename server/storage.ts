@@ -72,6 +72,7 @@ export interface IStorage {
   // System Config methods
   getSystemConfig(key: string): Promise<SystemConfig | undefined>;
   setSystemConfig(key: string, value: string): Promise<SystemConfig>;
+  deleteSystemConfig(key: string): Promise<void>;
   getAllSystemConfig(): Promise<SystemConfig[]>;
   
   // Message Log methods
@@ -108,6 +109,7 @@ export interface IStorage {
   createContactGroup(group: InsertContactGroup): Promise<ContactGroup>;
   getContactGroupsByUserId(userId: string): Promise<ContactGroup[]>;
   getContactGroup(id: string): Promise<ContactGroup | undefined>;
+  findContactGroupByCode(code: string): Promise<ContactGroup | undefined>;
   updateContactGroup(id: string, updates: Partial<ContactGroup>): Promise<ContactGroup | undefined>;
   deleteContactGroup(id: string): Promise<void>;
   
@@ -446,6 +448,12 @@ export class MemStorage implements IStorage {
     return config;
   }
 
+  async deleteSystemConfig(key: string): Promise<void> {
+    const existing = await this.getSystemConfig(key);
+    if (!existing) return;
+    this.systemConfigs.delete(existing.id);
+  }
+
   async getAllSystemConfig(): Promise<SystemConfig[]> {
     return Array.from(this.systemConfigs.values());
   }
@@ -717,6 +725,17 @@ export class MemStorage implements IStorage {
     return this.contactGroups.get(id);
   }
 
+  async findContactGroupByCode(code: string): Promise<ContactGroup | undefined> {
+    const norm = (s: string | null | undefined) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const target = norm(code);
+    for (const g of this.contactGroups.values()) {
+      if (norm(g.id) === target) return g;
+      if (norm(g.businessUnitPrefix) === target) return g;
+      if (norm(g.name) === target) return g;
+    }
+    return undefined;
+  }
+
   async updateContactGroup(id: string, updates: Partial<ContactGroup>): Promise<ContactGroup | undefined> {
     const group = this.contactGroups.get(id);
     if (!group) return undefined;
@@ -919,6 +938,14 @@ export class DbStorage implements IStorage {
       // Ensure optional columns exist for backwards compatibility
       poolInstance.query('ALTER TABLE IF NOT EXISTS users ADD COLUMN IF NOT EXISTS group_id text').catch(() => {});
       poolInstance.query('CREATE INDEX IF NOT EXISTS user_group_id_idx ON users(group_id)').catch(() => {});
+      // Username column and email nullable for username-only signup
+      poolInstance.query('ALTER TABLE IF NOT EXISTS users ADD COLUMN IF NOT EXISTS username text').catch(() => {});
+      // Backfill usernames where missing
+      poolInstance.query(`UPDATE users SET username = COALESCE(NULLIF(username,''), NULLIF(name,''), split_part(email,'@',1)) WHERE username IS NULL OR username = ''`).catch(() => {});
+      // Ensure unique index on username
+      poolInstance.query('CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique_idx ON users(username)').catch(() => {});
+      // Allow email to be nullable
+      poolInstance.query('ALTER TABLE IF EXISTS users ALTER COLUMN email DROP NOT NULL').catch(() => {});
       
       
       // Cleanup on process exit
@@ -965,6 +992,53 @@ export class DbStorage implements IStorage {
     } catch (e: any) {
       console.error('❌ getUserByEmail fallback query failed:', e?.message || e);
       throw e;
+    }
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    try {
+      const r = await poolInstance!.query(
+        'SELECT id, email, username, password, name, company, role, is_active, reset_token, reset_token_expiry, created_at, group_id FROM users WHERE username=$1 LIMIT 1',
+        [username]
+      );
+      const row = r.rows[0];
+      if (!row) return undefined;
+      return {
+        id: row.id,
+        email: row.email,
+        password: row.password,
+        name: row.name,
+        company: row.company,
+        role: row.role,
+        isActive: row.is_active,
+        resetToken: row.reset_token,
+        resetTokenExpiry: row.reset_token_expiry,
+        createdAt: row.created_at,
+        groupId: row.group_id,
+        username: row.username,
+      } as any as User;
+    } catch (e: any) {
+      console.error('❌ getUserByUsername query failed:', e?.message || e);
+      throw e;
+    }
+  }
+
+  async setUsername(userId: string, username: string): Promise<void> {
+    try {
+      await poolInstance!.query('UPDATE users SET username=$1 WHERE id=$2', [username, userId]);
+    } catch (e: any) {
+      console.error('❌ setUsername failed:', e?.message || e);
+      throw e;
+    }
+  }
+
+  async supervisorExistsForGroup(groupId: string): Promise<boolean> {
+    try {
+      const r = await poolInstance!.query('SELECT 1 FROM users WHERE role=$1 AND group_id=$2 LIMIT 1', ['supervisor', groupId]);
+      return !!r.rows[0];
+    } catch (e: any) {
+      console.error('❌ supervisorExistsForGroup failed:', e?.message || e);
+      return false;
     }
   }
 
@@ -1161,6 +1235,10 @@ export class DbStorage implements IStorage {
         .returning();
       return result[0];
     }
+  }
+
+  async deleteSystemConfig(key: string): Promise<void> {
+    await this.db.delete(systemConfig).where(eq(systemConfig.key, key));
   }
 
   async getAllSystemConfig(): Promise<SystemConfig[]> {
@@ -1382,6 +1460,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async findContactGroupByCode(code: string): Promise<ContactGroup | undefined> {
+    const normalize = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const target = normalize(String(code));
+    const result = await this.db.select().from(contactGroups)
+      .where(sql`
+        LOWER(regexp_replace(${contactGroups.id}, '[^a-zA-Z0-9]', '', 'g')) = ${target}
+        OR LOWER(regexp_replace(${contactGroups.businessUnitPrefix}, '[^a-zA-Z0-9]', '', 'g')) = ${target}
+        OR LOWER(regexp_replace(${contactGroups.name}, '[^a-zA-Z0-9]', '', 'g')) = ${target}
+      `)
+      .limit(1);
+    return result[0];
+  }
+
   async updateContactGroup(id: string, updates: Partial<ContactGroup>): Promise<ContactGroup | undefined> {
     const result = await this.db.update(contactGroups)
       .set({ ...updates, updatedAt: new Date() })
@@ -1448,6 +1539,18 @@ export class DbStorage implements IStorage {
         updatedAt: new Date()
       })
       .where(sql`${contacts.id} IN (${sql.join(contactIds.map(id => sql`${id}`), sql`, `)})`);
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    // Delete related records first to avoid FK constraint errors
+    await this.db.delete(apiKeys).where(eq(apiKeys.userId, userId));
+    await this.db.delete(clientProfiles).where(eq(clientProfiles.userId, userId));
+    await this.db.delete(incomingMessages).where(eq(incomingMessages.userId, userId));
+    await this.db.delete(messageLogs).where(eq(messageLogs.userId, userId));
+    await this.db.delete(creditTransactions).where(eq(creditTransactions.userId, userId));
+    await this.db.delete(contacts).where(eq(contacts.userId, userId));
+    await this.db.delete(contactGroups).where(eq(contactGroups.userId, userId));
+    await this.db.delete(users).where(eq(users.id, userId));
   }
 
   async getSyncStats(userId: string): Promise<{ total: number; synced: number; unsynced: number }> {

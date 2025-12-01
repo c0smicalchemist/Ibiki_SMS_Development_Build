@@ -18,6 +18,7 @@ export default function Signup() {
   const { toast } = useToast();
   const { t } = useLanguage();
   const [formData, setFormData] = useState({
+    username: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -28,7 +29,7 @@ export default function Signup() {
   const [apiKey, setApiKey] = useState("");
 
   const signupMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; confirmPassword: string; groupId?: string; captchaToken?: string }) => {
+    mutationFn: async (data: { username?: string; email?: string; password: string; confirmPassword: string; groupId?: string; captchaToken?: string }) => {
       return await apiRequest('/api/auth/signup', {
         method: 'POST',
         body: JSON.stringify(data)
@@ -79,16 +80,14 @@ export default function Signup() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">{t('auth.signup.email')}</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="john@example.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  data-testid="input-email"
-                  required
-                />
+                <Label htmlFor="username">Username (optional)</Label>
+                <Input id="username" placeholder="john_smith" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} data-testid="input-username" />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email (optional)</Label>
+                <Input id="email" type="email" placeholder="john@example.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} data-testid="input-email" />
+                <p className="text-xs text-muted-foreground">Provide username or email (at least one)</p>
               </div>
 
               <div className="space-y-2">

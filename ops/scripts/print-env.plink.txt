@@ -1,0 +1,6 @@
+echo ===ENV_FROM_ROOT===
+cat /root/.env.production || true
+echo ===APP_ENV===
+cat /opt/ibiki-sms/.env || true
+echo ===PROC_ENV_SAMPLE===
+export | grep -E "^(declare -x )?(DATABASE_URL|NODE_ENV|PORT|POSTGRES_SSL|RUN_DB_MIGRATIONS)=" || true

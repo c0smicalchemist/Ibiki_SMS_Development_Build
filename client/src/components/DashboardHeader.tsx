@@ -124,6 +124,10 @@ export function DashboardHeader() {
           </Button>
         </div>
       </div>
+      <div className="px-6 pb-3">
+        <div className="text-xs text-muted-foreground">
+        </div>
+      </div>
     </header>
   );
 }

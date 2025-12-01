@@ -1,13 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
 
 interface MessageLog {
   id: string;
   userId: string;
+  userEmail?: string | null;
+  userName?: string | null;
   messageId: string;
   endpoint: string;
   recipient?: string | null;
@@ -38,6 +41,24 @@ export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admi
     refetchInterval: 10000,
   });
   const logs = data?.messages || [];
+  // Best-effort mapping: if display fields missing, try to map via /api/admin/clients
+  const adminMapQuery = useQuery<{ success: boolean; clients: Array<{ id: string; email: string; name?: string | null }> }>({
+    queryKey: ['/api/admin/clients'],
+    enabled: mode === 'admin'
+  });
+  const idToDisplay = (id: string) => {
+    const c = adminMapQuery.data?.clients?.find(x => x.id === id);
+    return c ? (c.name || c.email || id) : id;
+  };
+  const [idLookup, setIdLookup] = useState("");
+  const resolveMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const token = localStorage.getItem('token');
+      const resp = await fetch(`/api/admin/users/resolve?id=${encodeURIComponent(id)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!resp.ok) throw new Error('resolve_failed');
+      return resp.json();
+    }
+  });
   const filtered = logs.filter((l) => {
     const s = q.trim().toLowerCase();
     if (!s) return true;
@@ -57,8 +78,15 @@ export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admi
         <CardTitle>Message Activity</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-3 mb-3">
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search messages" className="w-64" />
+          <div className="flex items-center gap-2">
+            <Input value={idLookup} onChange={(e) => setIdLookup(e.target.value)} placeholder="Translate ID" className="w-64" />
+            <Button size="sm" onClick={() => resolveMutation.mutate(idLookup)} disabled={!idLookup}>Translate</Button>
+            {resolveMutation.data?.success && (
+              <span className="text-xs text-muted-foreground">{resolveMutation.data.user?.name || resolveMutation.data.user?.email || idLookup}</span>
+            )}
+          </div>
         </div>
         <div className="max-h-[60vh] overflow-y-auto">
           <Table>
@@ -70,8 +98,6 @@ export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admi
                 <TableHead>Recipient(s)</TableHead>
                 <TableHead>Sender</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Cost</TableHead>
-                <TableHead>Charge</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -83,14 +109,12 @@ export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admi
                 return (
                   <TableRow key={l.id}>
                     <TableCell>{format(dt, "yyyy-MM-dd HH:mm:ss")}</TableCell>
-                    <TableCell className="font-mono">{l.userId}</TableCell>
+                    <TableCell className="truncate max-w-[220px]">{l.userDisplay || l.userName || l.userEmail || idToDisplay(l.userId)}</TableCell>
                     <TableCell className="truncate max-w-[200px]">{l.endpoint}</TableCell>
                     <TableCell className="truncate max-w-[240px]">{recipients}</TableCell>
                     <TableCell className="font-mono">{l.senderPhoneNumber || ""}</TableCell>
                     <TableCell>{l.status}</TableCell>
-                    <TableCell>{l.totalCost ?? l.costPerMessage ?? ""}</TableCell>
-                    <TableCell>{l.totalCharge ?? l.chargePerMessage ?? ""}</TableCell>
-                  </TableRow>
+                </TableRow>
                 );
               })}
             </TableBody>

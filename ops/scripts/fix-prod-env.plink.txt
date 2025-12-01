@@ -1,0 +1,8 @@
+cd /opt/ibiki-sms
+printf "DATABASE_URL=postgresql://ibiki_user:c0smic4382@localhost:5432/ibiki\nRUN_DB_MIGRATIONS=true\nPOSTGRES_SSL=false\n" > .env.production
+cp .env.production .env
+export NODE_ENV=production
+pm2 restart ibiki-sms --update-env
+sleep 1
+pm2 status ibiki-sms
+curl -sI http://localhost:5000/ | head -n 20

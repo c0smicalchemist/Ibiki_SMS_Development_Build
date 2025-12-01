@@ -1,0 +1,7 @@
+chmod +x /root/db-ensure.sh
+chmod +x /root/set-db-url.sh
+bash /root/db-ensure.sh
+bash /root/set-db-url.sh
+psql "postgresql://ibiki_user:c0smic4382@localhost:5432/ibiki" -c "SELECT 1;"
+pm2 restart ibiki-sms --update-env
+curl -s http://localhost:5000/api/health
