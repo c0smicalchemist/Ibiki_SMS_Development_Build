@@ -127,6 +127,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.tabs.webhook': 'Webhook Setup',
     'admin.tabs.testing': 'API Testing',
     'admin.tabs.logs': 'Error Logs',
+    'admin.tabs.createUser': 'Create User',
     'admin.title': 'Admin Dashboard',
     'admin.subtitle': 'Manage clients, configuration and monitoring',
     'admin.stats.totalClients': 'Total Clients',
@@ -271,7 +272,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'contacts.error.fetchGroupsFailed': 'Failed to fetch groups',
     'contacts.error.fetchFailed': 'Failed to fetch contacts',
     'contacts.error.exportFailed': 'Export failed',
-    'contacts.includeBusiness': 'Include business'
+    'contacts.includeBusiness': 'Include business',
+    'credits.note': '1 credit = 1 SMS. Capacity is based on credits only.',
+    'credits.capacity': 'SMS capacity'
   },
   zh: {
     'common.loading': '加载中…',
@@ -399,6 +402,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'admin.tabs.webhook': 'Webhook设置',
     'admin.tabs.testing': 'API测试',
     'admin.tabs.logs': '错误日志',
+    'admin.tabs.createUser': '创建用户',
     'admin.title': '管理员看板',
     'admin.subtitle': '管理客户、配置与监控',
     'admin.stats.totalClients': '客户总数',
@@ -543,14 +547,12 @@ export const translations: Record<Language, Record<string, string>> = {
     'contacts.error.fetchGroupsFailed': '获取分组失败',
     'contacts.error.fetchFailed': '获取联系人失败',
     'contacts.error.exportFailed': '导出失败',
-    'contacts.includeBusiness': '包含公司'
+    'contacts.includeBusiness': '包含公司',
+    'credits.note': '1 余额 = 1 短信。容量仅依据余额计算。',
+    'credits.capacity': '短信容量'
   }
 }
 
 export function translate(key: string, lang: Language): string {
   return (translations[lang] as Record<string, string>)[key] || key
 }
-    'credits.note': '1 credit = 1 SMS. Capacity is based on credits only.',
-    'credits.capacity': 'SMS capacity',
-    'credits.note': '1 余额 = 1 短信。容量仅依据余额计算。',
-    'credits.capacity': '短信容量',

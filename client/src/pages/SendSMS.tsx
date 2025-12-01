@@ -91,6 +91,20 @@ export default function SendSMS() {
   const isSupervisor = profile?.user?.role === 'supervisor';
   const effectiveUserId = isAdmin && !isAdminMode && selectedClientId ? selectedClientId : undefined;
 
+  const normalizeLocal = (input: string, defaultDial: string = '+1'): string => {
+    if (!input) return '';
+    const s = String(input).trim();
+    if (/^00/.test(s)) return '+' + s.replace(/^0+/, '').replace(/[^0-9]/g, '');
+    if (/^011/.test(s)) return '+' + s.replace(/^011/, '').replace(/[^0-9]/g, '');
+    if (s.startsWith('+')) return '+' + s.replace(/[^0-9]/g, '');
+    const digits = s.replace(/[^0-9]/g, '');
+    const defDigits = String(defaultDial || '+1').replace(/[^0-9]/g, '');
+    if (digits.length === 11 && digits.startsWith('1')) return '+' + digits;
+    if (digits.length === 10) return '+' + defDigits + digits;
+    if (digits.length >= 6 && digits.length <= 15) return '+' + digits; // fallback international
+    return ''; // invalid
+  };
+
   // Fetch contacts and groups
   const { data: contactsData } = useQuery({
     queryKey: ["/api/contacts", effectiveUserId],
@@ -187,8 +201,8 @@ export default function SendSMS() {
       toast({ title: t('common.error'), description: t('sendSms.error.fillFields'), variant: "destructive" });
       return;
     }
-    const dial = countries.find(c => c.code === singleCountry)?.dial || '';
-    const normalizedTo = singleTo.startsWith('+') ? singleTo : `${dial}${singleTo.replace(/^\+/, '')}`;
+    const dial = countries.find(c => c.code === singleCountry)?.dial || '+1';
+    const normalizedTo = normalizeLocal(singleTo, dial);
     const defaultDial = countries.find(c => c.code === singleCountry)?.dial || '+1';
     const payload: { to: string; message: string; userId?: string; defaultDial?: string; adminDirect?: boolean; supervisorDirect?: boolean } = {
       to: normalizedTo,
@@ -229,7 +243,7 @@ export default function SendSMS() {
     }
 
     const defaultDial = countries.find(c => c.code === bulkCountry)?.dial || '+1';
-    const normalizedRecipients = recipients.map(r => r.startsWith('+') ? r : `${defaultDial}${r.replace(/^\+/, '')}`);
+    const normalizedRecipients = recipients.map(r => normalizeLocal(r, defaultDial)).filter(n => n);
     const uniqueNormalizedRecipients = Array.from(new Set(normalizedRecipients));
     if (uniqueNormalizedRecipients.length > 3000) {
       toast({ title: t('common.error'), description: 'Maximum 3000 recipients allowed per bulk send', variant: 'destructive' });
@@ -258,9 +272,9 @@ export default function SendSMS() {
     }
     const defaultDialMulti = countries.find(c => c.code === multiCountry)?.dial || '+1';
     const normalizedMulti = validMessages.map(m => ({
-      to: m.to.startsWith('+') ? m.to : `${defaultDialMulti}${m.to.replace(/^\+/, '')}`,
+      to: normalizeLocal(m.to, defaultDialMulti),
       message: m.message
-    }));
+    })).filter(m => !!m.to);
     if (normalizedMulti.length > 3000) {
       toast({ title: t('common.error'), description: 'Maximum 3000 messages allowed per bulk send', variant: 'destructive' });
       return;

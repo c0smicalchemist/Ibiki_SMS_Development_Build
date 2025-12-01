@@ -123,7 +123,7 @@ export default function ClientDashboard() {
                       className="ml-2 h-6 px-2 text-xs bg-yellow-100 text-yellow-800 border border-yellow-500 hover:bg-yellow-200 flex items-center gap-1"
                     >
                       <Star className="h-3 w-3" />
-                      Favorites
+                      {t('inbox.favorites')}
                     </Button>
                   </Link>
                   <div className="ml-auto flex items-center gap-2">

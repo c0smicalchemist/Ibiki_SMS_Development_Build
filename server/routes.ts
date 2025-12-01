@@ -7,6 +7,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import axios from "axios";
+import { exec } from "child_process";
 import { normalizePhone, normalizeMany } from "../shared/phone";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "./resend";
@@ -113,7 +114,7 @@ async function getPricingConfig(userId?: string, groupId?: string) {
   const extremeCostConfig = await storage.getSystemConfig("extreme_cost_per_sms");
   const clientRateConfig = await storage.getSystemConfig("client_rate_per_sms");
   const extremeCost = extremeCostConfig ? parseFloat(extremeCostConfig.value) : 0.01;
-  const clientRate = clientRateConfig ? parseFloat(clientRateConfig.value) : 0.02;
+  const clientRate = clientRateConfig ? parseFloat(clientRateConfig.value) : 1.0;
   return { extremeCost, clientRate };
 }
 
@@ -192,6 +193,27 @@ async function deductCreditsAndLog(
   // Update credits
   await storage.updateClientCredits(userId, newCredits.toFixed(2));
 
+  // Reduce group pool if configured for this user's group
+  try {
+    const u = await storage.getUser(userId).catch(() => undefined);
+    const gid = (u as any)?.groupId || undefined;
+    if (gid) {
+      await ensureGroupPoolInitialized(gid);
+      const pool = await storage.getSystemConfig(`group.pool.${gid}`);
+      const currentPool = parseFloat(pool?.value || '0') || 0;
+      const nextPool = Math.max(currentPool - totalCharge, 0);
+      await storage.setSystemConfig(`group.pool.${gid}`, nextPool.toFixed(2));
+    }
+  } catch {}
+
+  // Reduce admin overall pool (IbikiSMS Balance tracked locally)
+  try {
+    const adminPool = await storage.getSystemConfig('admin.pool');
+    const currentAdminPool = adminPool ? parseFloat(adminPool.value) || 0 : 0;
+    const nextAdminPool = Math.max(currentAdminPool - totalCharge, 0);
+    await storage.setSystemConfig('admin.pool', nextAdminPool.toFixed(2));
+  } catch {}
+
   return { messageLog, newBalance: newCredits };
 }
 
@@ -226,6 +248,33 @@ async function createAdminAuditLog(
   });
 }
 
+// Helper: allocate next unique IBS_<n> business name
+async function allocateNextBusinessName(): Promise<string> {
+  const all = await storage.getAllUsers();
+  const names: string[] = [];
+  for (const u of all) {
+    const p = await storage.getClientProfileByUserId(u.id);
+    if (p?.businessName) names.push(String(p.businessName));
+  }
+  const nums = names.map(n => /^IBS_(\d+)$/i.test(n) ? parseInt(n.replace(/^IBS_/, ''), 10) : null).filter((v: any) => typeof v === 'number') as number[];
+  const next = (nums.length ? Math.max(...nums) + 1 : 0);
+  return `IBS_${next}`;
+}
+
+async function ensureGroupPoolInitialized(gid: string): Promise<void> {
+  const existing = await storage.getSystemConfig(`group.pool.${gid}`);
+  if (existing) return;
+  const all = await storage.getAllUsers();
+  let sum = 0;
+  for (const u of all) {
+    if ((u as any)?.role === 'supervisor' && (u as any)?.groupId === gid) {
+      const p = await storage.getClientProfileByUserId(u.id);
+      sum += parseFloat(p?.credits || '0') || 0;
+    }
+  }
+  await storage.setSystemConfig(`group.pool.${gid}`, sum.toFixed(2));
+}
+
 async function resolveFetchLimit(userId: string | undefined, role: string | undefined, provided?: string | number) {
   if (provided) {
     const n = typeof provided === 'string' ? parseInt(provided) : provided;
@@ -245,9 +294,9 @@ async function resolveFetchLimit(userId: string | undefined, role: string | unde
   return 100;
 }
 
-// Helper to get ExtremeSMS API key
-async function getExtremeApiKey() {
-  const config = await storage.getSystemConfig("extreme_api_key");
+  // Helper to get ExtremeSMS API key
+  async function getExtremeApiKey() {
+    const config = await storage.getSystemConfig("extreme_api_key");
   if (!config) {
     throw new Error("ExtremeSMS API key not configured");
   }
@@ -601,6 +650,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currency: "USD",
         customMarkup: null
       });
+      try {
+        const all = await storage.getAllUsers();
+        const names: string[] = [];
+        for (const u of all) {
+          const p = await storage.getClientProfileByUserId(u.id);
+          if (p?.businessName) names.push(String(p.businessName));
+        }
+        const nums = names.map(n => /^IBS_(\d+)$/i.test(n) ? parseInt(n.replace(/^IBS_/, ''), 10) : null).filter((v: any) => typeof v === 'number') as number[];
+        const next = (nums.length ? Math.max(...nums) + 1 : 0);
+        await storage.updateClientBusinessName(user.id, `IBS_${next}`);
+      } catch {}
       console.log('✅ Client profile created');
 
       // Generate API key
@@ -744,8 +804,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const name = (username || (email ? email.split('@')[0] : 'user'));
       const user = await storage.createUser({ email: emailNormalized, password: hashed, name, role, isActive: true, company: null, groupId: grpId });
       if (username) { try { await (storage as any).setUsername?.(user.id, username); } catch {} }
-      await storage.createClientProfile({ userId: user.id, credits: '0.00', currency: 'USD', customMarkup: null });
-      res.json({ success: true, user });
+      const biz = await allocateNextBusinessName();
+      await storage.createClientProfile({ userId: user.id, businessName: biz, credits: '0.00', currency: 'USD', customMarkup: null });
+      res.json({ success: true, user, businessName: biz });
     } catch (error) {
       console.error('Admin create user error:', error);
       res.status(500).json({ error: 'Failed to create user' });
@@ -767,8 +828,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashed = await bcrypt.hash(password, 10);
       const user = await storage.createUser({ email: emailNormalized, password: hashed, name, role: 'client', isActive: true, company: null, groupId: myGroupId });
       if (username) { try { await (storage as any).setUsername?.(user.id, username); } catch {} }
-      await storage.createClientProfile({ userId: user.id, credits: '0.00', currency: 'USD', customMarkup: null });
-      res.json({ success: true, user });
+      const biz = await allocateNextBusinessName();
+      await storage.createClientProfile({ userId: user.id, businessName: biz, credits: '0.00', currency: 'USD', customMarkup: null });
+      res.json({ success: true, user, businessName: biz });
     } catch (e: any) {
       console.error('Supervisor create user error:', e);
       res.status(500).json({ error: 'Failed to create user' });
@@ -1007,7 +1069,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'Unauthorized: Only admins can act on behalf of other users' });
       }
       const targetUserId = (req.user.role === 'admin' && userId) ? userId : req.user.userId;
-      const normalizePhone = (v: any) => String(v || '').replace(/[^+\d]/g, '').replace(/^00/, '+');
+      const normalizePhoneLocal = (v: any) => normalizePhone(String(v || ''), '+1') || '';
       const key = `favorites_user_${targetUserId}`;
       const rec = await storage.getSystemConfig(key);
       let list: string[] = [];
@@ -1196,6 +1258,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Admin message logs fetch error:", error);
       res.status(500).json({ error: "Failed to fetch messages for client" });
+    }
+  });
+
+  // Supervisor: Get message logs for a client in same group
+  app.get("/api/supervisor/messages", authenticateToken, requireRole(['supervisor']), async (req: any, res) => {
+    try {
+      const { userId } = req.query as { userId?: string };
+      if (!userId) return res.status(400).json({ error: "userId is required" });
+      const me = await storage.getUser(req.user.userId);
+      const target = await storage.getUser(String(userId));
+      if (((me as any)?.groupId || null) !== ((target as any)?.groupId || null)) {
+        return res.status(403).json({ error: 'Unauthorized: client not in your group' });
+      }
+      const limit = await resolveFetchLimit(String(userId), 'client', req.query.limit as string | undefined);
+      const logs = await storage.getMessageLogsByUserId(String(userId), limit);
+      res.json({ success: true, messages: logs, count: logs.length, limit });
+    } catch (error) {
+      console.error("Supervisor message logs fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch messages for client" });
+    }
+  });
+
+  // Supervisor: Get inbox messages for a client in same group
+  app.get("/api/supervisor/inbox", authenticateToken, requireRole(['supervisor']), async (req: any, res) => {
+    try {
+      const { userId } = req.query as { userId?: string };
+      if (!userId) return res.status(400).json({ error: "userId is required" });
+      const me = await storage.getUser(req.user.userId);
+      const target = await storage.getUser(String(userId));
+      if (((me as any)?.groupId || null) !== ((target as any)?.groupId || null)) {
+        return res.status(403).json({ error: 'Unauthorized: client not in your group' });
+      }
+      const limit = await resolveFetchLimit(String(userId), 'client', req.query.limit as string | undefined);
+      const messages = await storage.getIncomingMessagesByUserId(String(userId), limit);
+      res.json({ success: true, messages, count: messages.length, limit });
+    } catch (error) {
+      console.error("Supervisor inbox fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch inbox for client" });
     }
   });
 
@@ -1602,45 +1702,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentSum = validProfiles.reduce((sum, p: any) => sum + (parseFloat(p.credits || '0') || 0), 0);
 
       if (providerBalance <= 0) return res.status(400).json({ error: 'Provider balance unavailable or zero' });
-      if (currentSum === 0) return res.json({ success: true, message: 'No allocated client credits to sync', providerBalance, currentSum, adjustedCount: 0 });
+      if (currentSum === 0) return res.json({ success: true, message: 'No allocated client credits to sync', providerBalance, currentSum, adjustedCount: 0, redistributed: false });
 
       if (Math.abs(currentSum - providerBalance) < 0.01) {
-        return res.json({ success: true, message: 'Already in sync', providerBalance, currentSum, adjustedCount: 0 });
+        return res.json({ success: true, message: 'Already in sync', providerBalance, currentSum, adjustedCount: 0, redistributed: false });
       }
 
-      const scale = providerBalance / currentSum;
-      let adjustedCount = 0;
-      let totalDelta = 0;
-      for (let idx = 0; idx < validProfiles.length; idx++) {
-        const p: any = validProfiles[idx];
-        const old = parseFloat(p.credits || '0') || 0;
-        const nextRaw = old * scale;
-        const next = parseFloat(nextRaw.toFixed(2));
-        if (Math.abs(next - old) < 0.01) continue;
-        adjustedCount++;
-        const delta = next - old; // negative means deduction
-        totalDelta += delta;
-        await storage.updateClientCredits(p.userId, next.toFixed(2));
-        await storage.createCreditTransaction({
-          userId: p.userId,
-          amount: delta.toFixed(2),
-          type: delta >= 0 ? 'credit' : 'debit',
-          description: 'Admin credits sync to provider balance',
-          balanceBefore: old.toFixed(2),
-          balanceAfter: next.toFixed(2),
-          messageLogId: null
-        });
-      }
-
-      const newSum = (await Promise.all(validProfiles.map(async (p: any) => {
-        const refreshed = await storage.getClientProfileByUserId(p.userId);
-        return parseFloat(refreshed?.credits || '0') || 0;
-      }))).reduce((s, v) => s + v, 0);
-
-      res.json({ success: true, providerBalance, before: currentSum, after: parseFloat(newSum.toFixed(2)), adjustedCount, totalDelta: parseFloat(totalDelta.toFixed(2)) });
+      // Policy: Do not redistribute per-account credits; preserve allocations.
+      // Return delta info so UI can show "Needs Sync" while keeping balances intact.
+      const delta = parseFloat((providerBalance - currentSum).toFixed(2));
+      try {
+        await storage.setSystemConfig('admin.pool', String(providerBalance));
+      } catch {}
+      return res.json({ success: true, message: 'Admin pool updated from provider; allocations preserved', providerBalance, currentSum, adjustedCount: 0, totalDelta: delta, redistributed: false });
     } catch (e: any) {
       console.error('Credits sync error:', e?.message || e);
       res.status(500).json({ error: e?.message || 'Failed to sync credits' });
+    }
+  });
+
+  // Admin: Recalculate balances retrospectively (admin.pool and group pools)
+  app.post('/api/admin/recalculate-balances', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const extremeApiKey = await storage.getSystemConfig('extreme_api_key');
+      if (!extremeApiKey?.value) return res.status(400).json({ error: 'ExtremeSMS API key not configured' });
+      const balResp = await axios.get(`${EXTREMESMS_BASE_URL}/api/v2/account/balance`, { headers: { Authorization: `Bearer ${extremeApiKey.value}` } });
+      const providerBalance: number = parseFloat(String(balResp?.data?.balance || '0')) || 0;
+
+      // Update admin overall pool to provider balance
+      await storage.setSystemConfig('admin.pool', String(providerBalance));
+
+      // Recompute group pools as sum of supervisor credits per group
+      const users = await storage.getAllUsers();
+      const supervisors = users.filter((u: any) => u.role === 'supervisor' && (u as any)?.groupId);
+      const groups: Record<string, number> = {};
+      for (const s of supervisors) {
+        const gid = (s as any).groupId as string;
+        const p = await storage.getClientProfileByUserId(s.id);
+        const credits = parseFloat(p?.credits || '0') || 0;
+        groups[gid] = (groups[gid] || 0) + credits;
+      }
+      const updates: Array<{ groupId: string; credits: number }> = [];
+      for (const [gid, sum] of Object.entries(groups)) {
+        await storage.setSystemConfig(`group.pool.${gid}`, sum.toFixed(2));
+        updates.push({ groupId: gid, credits: parseFloat(sum.toFixed(2)) });
+      }
+
+      res.json({ success: true, adminPool: providerBalance, groupPools: updates });
+    } catch (e: any) {
+      console.error('Recalculate balances error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to recalculate balances' });
+    }
+  });
+
+  app.post('/api/admin/purge-cache', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        exec("nginx -t && systemctl reload nginx && rm -rf /var/cache/nginx/* || true && pm2 restart ibiki-sms --update-env", (err, stdout, stderr) => {
+          if (err) return reject(err);
+          resolve();
+        });
+      });
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // Group supervisor pool credits (admin-only)
+  app.get('/api/admin/group/pool', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const groupId = (req.query.groupId as string) || '';
+      if (groupId) {
+        const rec = await storage.getSystemConfig(`group.pool.${groupId}`);
+        const credits = rec ? parseFloat(rec.value) : null;
+        return res.json({ success: true, groupId, credits });
+      }
+      const all = await storage.getAllSystemConfig();
+      const pools = all
+        .filter(c => c.key.startsWith('group.pool.'))
+        .map(c => ({ groupId: c.key.replace('group.pool.', ''), credits: parseFloat(c.value) }));
+      return res.json({ success: true, pools });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  app.get('/api/group/pool', authenticateToken, requireRole(['admin','supervisor']), async (req: any, res) => {
+    try {
+      const groupId = (req.query.groupId as string) || '';
+      if (groupId) {
+        const rec = await storage.getSystemConfig(`group.pool.${groupId}`);
+        const credits = rec ? parseFloat(rec.value) : null;
+        return res.json({ success: true, groupId, credits });
+      }
+      const all = await storage.getAllSystemConfig();
+      const pools = all
+        .filter(c => c.key.startsWith('group.pool.'))
+        .map(c => ({ groupId: c.key.replace('group.pool.', ''), credits: parseFloat(c.value) }));
+      return res.json({ success: true, pools });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  app.post('/api/admin/group/pool', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { groupId, credits } = req.body as { groupId: string; credits: number };
+      if (!groupId) return res.status(400).json({ success: false, error: 'groupId_required' });
+      if (typeof credits !== 'number' || isNaN(credits)) return res.status(400).json({ success: false, error: 'credits_invalid' });
+      const rec = await storage.setSystemConfig(`group.pool.${groupId}`, String(credits));
+      return res.json({ success: true, groupId, credits: parseFloat(rec.value) });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e?.message || String(e) });
     }
   });
 
@@ -2057,16 +2231,18 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
   app.post('/api/webhook/extreme', async (req, res) => {
     try {
       const p = req.body || {};
-      const from = p.from || p.sender || p.msisdn;
-      const receiver = p.receiver || p.to || p.recipient;
+      const fromRaw = p.from || p.sender || p.msisdn;
+      const receiverRaw = p.receiver || p.to || p.recipient;
       const message = p.message || p.text || '';
       const usedmodem = p.usedmodem || p.usemodem || null;
       const port = p.port || null;
       const messageId = p.messageId || p.id || `ext-${Date.now()}`;
       const tsRaw = p.timestamp || p.time || Date.now();
       const timestamp = new Date(typeof tsRaw === 'string' ? tsRaw : Number(tsRaw));
+      const from = normalizePhone(String(fromRaw), '+1');
+      const receiver = normalizePhone(String(receiverRaw), '+1');
       const looksLikePhone = (v: any) => typeof v === 'string' && /\+?\d{6,}/.test(v);
-      const business = p.business || (!looksLikePhone(p.to) ? p.to : null) || (!looksLikePhone(p.receiver) ? p.receiver : null) || null;
+      const business = p.business || (!looksLikePhone(receiverRaw) ? receiverRaw : null) || null;
 
       if (!from || !receiver || !message) {
         return res.status(400).json({ success: false, error: 'Invalid webhook payload' });
@@ -2292,13 +2468,15 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
   // Client: initial send (omit modem/port)
   app.post('/api/sms/send', authenticateToken, async (req: any, res) => {
     try {
-      const { recipient, message } = req.body || {};
+      const { recipient, message, defaultDial } = req.body || {};
       if (!recipient || !message) return res.status(400).json({ error: 'recipient and message required' });
 
       const extremeApiKey = await storage.getSystemConfig('extreme_api_key');
       if (!extremeApiKey?.value) return res.status(400).json({ error: 'ExtremeSMS API key not configured' });
 
-      const payload = { recipient, message };
+      const normalizedRecipient = normalizePhone(String(recipient), String(defaultDial || '+1'));
+      if (!normalizedRecipient) return res.status(400).json({ error: 'Invalid recipient number' });
+      const payload = { recipient: normalizedRecipient, message };
       const response = await axios.post(`${EXTREMESMS_BASE_URL}/api/v2/sms/sendsingle`, payload, {
         headers: {
           'Authorization': `Bearer ${extremeApiKey.value}`,
@@ -2306,31 +2484,23 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
         }
       });
 
-      // Log message and auto-capture contact
-      await storage.createMessageLog({
-        userId: req.user.userId,
-        messageId: response.data?.messageId || `send-${Date.now()}`,
-        endpoint: 'send-single',
-        recipient,
-        recipients: null,
-        senderPhoneNumber: null,
-        status: 'sent',
-        costPerMessage: '0.0000',
-        chargePerMessage: '0.0000',
-        totalCost: '0.00',
-        totalCharge: '0.00',
-        messageCount: 1,
-        requestPayload: JSON.stringify(payload),
-        responsePayload: JSON.stringify(response.data || {}),
-        isExample: false,
-      } as any);
+      await deductCreditsAndLog(
+        req.user.userId,
+        1,
+        'send-single',
+        response.data?.messageId || `send-${Date.now()}`,
+        'sent',
+        payload,
+        response.data,
+        normalizedRecipient
+      );
 
       const existing = await storage.getClientContactsByUserId(req.user.userId);
-      if (!existing.find(c => c.phoneNumber === recipient)) {
+      if (!existing.find(c => c.phoneNumber === normalizedRecipient)) {
         const clientProfile = await storage.getClientProfileByUserId(req.user.userId);
         await storage.createClientContact({
           userId: req.user.userId,
-          phoneNumber: recipient,
+          phoneNumber: normalizedRecipient,
           firstname: null,
           lastname: null,
           business: clientProfile?.businessName || null,
@@ -2344,15 +2514,17 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
     }
   });
 
-  // Client: reply (map usemodem/port from inbound)
+  // Client: reply (normalize + deduct)
   app.post('/api/web/inbox/reply', authenticateToken, async (req: any, res) => {
     try {
-      const { to, message, userId } = req.body || {};
+      const { to, message, userId, defaultDial } = req.body || {};
       if (!to || !message) return res.status(400).json({ error: 'to and message required' });
       const effectiveUserId = req.user.role === 'admin' && userId ? userId : req.user.userId;
 
-      // Find last inbound for this conversation to get modem/port
-      const history = await storage.getConversationHistory(effectiveUserId, to);
+      const normalizedTo = normalizePhone(String(to), String(defaultDial || '+1'));
+      if (!normalizedTo) return res.status(400).json({ error: 'Invalid recipient number' });
+
+      const history = await storage.getConversationHistory(effectiveUserId, normalizedTo);
       const lastInbound = [...(history.incoming || [])].reverse().find(m => !!m.port || !!m.usedmodem) || (history.incoming || []).slice(-1)[0];
       const usemodem = lastInbound?.usedmodem || null;
       const port = lastInbound?.port || null;
@@ -2360,35 +2532,24 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
       const extremeApiKey = await storage.getSystemConfig('extreme_api_key');
       if (!extremeApiKey?.value) return res.status(400).json({ error: 'ExtremeSMS API key not configured' });
 
-      const payload: any = { recipient: to, message };
+      const payload: any = { recipient: normalizedTo, message };
       if (usemodem) payload.usemodem = usemodem;
       if (port) payload.port = port;
 
       const response = await axios.post(`${EXTREMESMS_BASE_URL}/api/v2/sms/sendsingle`, payload, {
-        headers: {
-          'Authorization': `Bearer ${extremeApiKey.value}`,
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Authorization': `Bearer ${extremeApiKey.value}`, 'Content-Type': 'application/json' }
       });
 
-      await storage.createMessageLog({
-        userId: effectiveUserId,
-        messageId: response.data?.messageId || `reply-${Date.now()}`,
-        endpoint: 'send-single',
-        recipient: to,
-        recipients: null,
-        senderPhoneNumber: lastInbound?.receiver || null,
-        status: 'sent',
-        costPerMessage: '0.0000',
-        chargePerMessage: '0.0000',
-        totalCost: '0.00',
-        totalCharge: '0.00',
-        messageCount: 1,
-        requestPayload: JSON.stringify(payload),
-        responsePayload: JSON.stringify(response.data || {}),
-        isExample: false,
-      } as any);
-
+      await deductCreditsAndLog(
+        effectiveUserId,
+        1,
+        'web-ui-reply',
+        response.data?.messageId || `reply-${Date.now()}`,
+        'sent',
+        payload,
+        response.data,
+        normalizedTo
+      );
       res.json({ success: true });
     } catch (error: any) {
       console.error('Reply send error:', error.response?.data || error.message);
@@ -2589,7 +2750,7 @@ app.post("/api/admin/adjust-credits", authenticateToken, requireRole(['admin','s
 
       // Calculate new balance based on operation
       let newBalance: string;
-      if (operation === "add") {
+  if (operation === "add") {
         newBalance = (currentBalance + parsedAmount).toFixed(2);
       } else {
         // Check if deduction would result in negative balance
@@ -2602,10 +2763,10 @@ app.post("/api/admin/adjust-credits", authenticateToken, requireRole(['admin','s
         newBalance = (currentBalance - parsedAmount).toFixed(2);
       }
       
-      // Update credits
+  // Update credits on target client
       await storage.updateClientCredits(userId, newBalance);
 
-      // Log the transaction
+  // Log the transaction for target client
       await storage.createCreditTransaction({
         userId: userId,
         amount: parsedAmount.toString(),
@@ -2617,10 +2778,38 @@ app.post("/api/admin/adjust-credits", authenticateToken, requireRole(['admin','s
         balanceAfter: newBalance
       });
 
-      // Audit supervisor actions (if ever used via supervisor-allowed UI in future)
-      if (req.user?.role === 'supervisor') {
-        await storage.createActionLog({ actorUserId: req.user.userId, actorRole: req.user.role, targetUserId: userId, action: 'adjust_credits', details: `${operation}:${amount}` });
+      // If supervisor is adding credits, perform a transfer from supervisor's own balance and reduce group pool
+      if (req.user?.role === 'supervisor' && operation === 'add') {
+        const supProfile = await storage.getClientProfileByUserId(req.user.userId);
+        const supBefore = parseFloat(supProfile?.credits || '0');
+        if (supBefore < parsedAmount) {
+          return res.status(400).json({ error: 'Supervisor has insufficient pooled credits to allocate' });
+        }
+        const supAfter = (supBefore - parsedAmount).toFixed(2);
+        await storage.updateClientCredits(req.user.userId, supAfter);
+        await storage.createCreditTransaction({
+          userId: req.user.userId,
+          amount: (-parsedAmount).toString(),
+          type: 'transfer_out',
+          description: `Supervisor transferred ${parsedAmount} credits to user ${userId}`,
+          balanceBefore: supBefore.toFixed(2),
+          balanceAfter: supAfter
+        });
+        try {
+          const gid = (await storage.getUser(req.user.userId))?.groupId;
+          if (gid) {
+            const pool = await storage.getSystemConfig(`group.pool.${gid}`);
+            if (pool) {
+              const poolBefore = parseFloat(pool.value) || 0;
+              const poolAfter = Math.max(poolBefore - parsedAmount, 0).toFixed(2);
+              await storage.setSystemConfig(`group.pool.${gid}`, poolAfter);
+            }
+          }
+        } catch {}
       }
+
+      // Audit actions
+      await storage.createActionLog({ actorUserId: req.user.userId, actorRole: req.user.role, targetUserId: userId, action: 'adjust_credits', details: `${operation}:${amount}` });
       res.json({ 
         success: true, 
         message: operation === "add" ? "Credits added successfully" : "Credits deducted successfully",
@@ -2876,7 +3065,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   // Send single SMS
   app.post("/api/v2/sms/sendsingle", authenticateApiKey, async (req: any, res) => {
     try {
-      const { recipient, message } = req.body;
+      const { recipient, message, defaultDial } = req.body;
 
       if (!recipient || !message) {
         return res.status(400).json({ 
@@ -2886,9 +3075,8 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         });
       }
 
-      // Check credits before sending
       const profile = await storage.getClientProfileByUserId(req.user.userId);
-      const { clientRate } = await getPricingConfig();
+      const { clientRate } = await getPricingConfig(req.user.userId);
       
       if (!profile || parseFloat(profile.credits) < clientRate) {
         return res.status(402).json({ 
@@ -2899,11 +3087,13 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       }
 
       const extremeApiKey = await getExtremeApiKey();
+      const normalizedRecipient = normalizePhone(String(recipient), String(defaultDial || '+1'));
+      if (!normalizedRecipient) return res.status(400).json({ success: false, error: "Invalid recipient phone number", code: "INVALID_RECIPIENT" });
       
       // Forward request to ExtremeSMS
       const response = await axios.post(
         `${EXTREMESMS_BASE_URL}/api/v2/sms/sendsingle`,
-        { recipient, message },
+        { recipient: normalizedRecipient, message },
         {
           headers: {
             "Authorization": `Bearer ${extremeApiKey}`,
@@ -2919,9 +3109,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         "/api/v2/sms/sendsingle",
         response.data.messageId,
         response.data.status,
-        { recipient, message },
+        { recipient, normalizedRecipient, message },
         response.data,
-        recipient
+        normalizedRecipient
       );
 
       res.json(response.data);
@@ -2946,7 +3136,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   // Send bulk SMS (same content)
   app.post("/api/v2/sms/sendbulk", authenticateApiKey, async (req: any, res) => {
     try {
-      const { recipients, content } = req.body;
+      const { recipients, content, defaultDial } = req.body;
 
       if (!recipients || !Array.isArray(recipients) || !content) {
         return res.status(400).json({ 
@@ -2956,10 +3146,11 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         });
       }
 
-      // Check credits before sending
       const profile = await storage.getClientProfileByUserId(req.user.userId);
-      const { clientRate } = await getPricingConfig();
-      const totalCharge = clientRate * recipients.length;
+      const { ok: normalizedRecipients, invalid } = normalizeMany(recipients, String(defaultDial || '+1'));
+      if (normalizedRecipients.length === 0) return res.status(400).json({ success: false, error: "No valid recipients after normalization", invalid, code: "INVALID_RECIPIENTS" });
+      const { clientRate } = await getPricingConfig(req.user.userId);
+      const totalCharge = clientRate * normalizedRecipients.length;
       
       if (!profile || parseFloat(profile.credits) < totalCharge) {
         return res.status(402).json({ 
@@ -2973,7 +3164,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       
       const response = await axios.post(
         `${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulk`,
-        { recipients, content },
+        { recipients: normalizedRecipients, content },
         {
           headers: {
             "Authorization": `Bearer ${extremeApiKey}`,
@@ -2984,14 +3175,14 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
 
       await deductCreditsAndLog(
         req.user.userId,
-        recipients.length,
+        normalizedRecipients.length,
         "/api/v2/sms/sendbulk",
         response.data.messageIds?.[0] || "bulk_" + Date.now(),
         response.data.status,
-        { recipients, content },
+        { recipients, normalizedRecipients, invalid, content },
         response.data,
         undefined,
-        recipients
+        normalizedRecipients
       );
 
       res.json(response.data);
@@ -3026,9 +3217,8 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         });
       }
 
-      // Check credits
       const profile = await storage.getClientProfileByUserId(req.user.userId);
-      const { clientRate } = await getPricingConfig();
+      const { clientRate } = await getPricingConfig(req.user.userId);
       const totalCharge = clientRate * messages.length;
       
       if (!profile || parseFloat(profile.credits) < totalCharge) {
@@ -3041,9 +3231,11 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
 
       const extremeApiKey = await getExtremeApiKey();
       
+      const transformed = messages.map((m: any) => ({ recipient: normalizePhone(String(m.recipient || m.to), '+1'), message: m.message, content: m.message })).filter((m: any) => !!m.recipient);
+      if (transformed.length === 0) return res.status(400).json({ success: false, error: "No valid messages after normalization", code: "INVALID_MESSAGES" });
       const response = await axios.post(
         `${EXTREMESMS_BASE_URL}/api/v2/sms/sendbulkmulti`,
-        messages,
+        transformed,
         {
           headers: {
             "Authorization": `Bearer ${extremeApiKey}`,
@@ -3052,14 +3244,14 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         }
       );
 
-      const recipients = messages.map(m => m.recipient);
+      const recipients = transformed.map(m => m.recipient);
       await deductCreditsAndLog(
         req.user.userId,
-        messages.length,
+        transformed.length,
         "/api/v2/sms/sendbulkmulti",
         response.data.results?.[0]?.messageId || "multi_" + Date.now(),
         "queued",
-        messages,
+        transformed,
         response.data,
         undefined,
         recipients
@@ -3402,12 +3594,13 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       } catch {}
       const businessByPhone = new Map<string, string>();
       clientContacts.forEach((cc: any) => {
-        if (cc.phoneNumber && cc.business) businessByPhone.set(normalizePhone(cc.phoneNumber), cc.business);
+        const n = normalizePhoneLocal(cc.phoneNumber);
+        if (n && cc.business) businessByPhone.set(n, cc.business);
       });
       const enriched = contacts.map((c: any) => ({
         ...c,
-        phoneNumber: normalizePhone(c.phoneNumber),
-        business: businessByPhone.get(normalizePhone(c.phoneNumber)) || null
+        phoneNumber: normalizePhoneLocal(c.phoneNumber),
+        business: businessByPhone.get(normalizePhoneLocal(c.phoneNumber)) || null
       }));
       res.json({ success: true, contacts: enriched });
     } catch (error) {
@@ -3500,10 +3693,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         ? userId 
         : req.user.userId;
 
-      const normalizePhone = (v: any) => String(v || '').replace(/[^+\d]/g, '').replace(/^00/, '+');
       const insertContacts = contacts.map(c => ({
         userId: targetUserId,
-        phoneNumber: normalizePhone(c.phoneNumber),
+        phoneNumber: normalizePhone(String(c.phoneNumber || ''), '+1') || '',
         name: c.name || null,
         email: c.email || null,
         notes: c.notes || null,
@@ -3517,7 +3709,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       const effectiveBusiness = businessName || await getAdminDefaultBusinessId();
       const clientContactPayload = created.map((c: any) => ({
         userId: targetUserId,
-        phoneNumber: normalizePhone(c.phoneNumber),
+        phoneNumber: normalizePhone(String(c.phoneNumber || ''), '+1') || '',
         firstname: c.name ? c.name.split(' ')[0] : null,
         lastname: c.name && c.name.split(' ').length > 1 ? c.name.split(' ').slice(1).join(' ') : null,
         business: effectiveBusiness || null
@@ -3724,10 +3916,14 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         }
       );
         
-      // Admin direct mode: skip client credit check and charge zero
-      if ((isAdmin && adminDirect === true) || (isSupervisor && supervisorDirect === true)) {
+      // Admin direct mode: audit-only (no charge)
+      if (isAdmin && adminDirect === true) {
         await createAdminAuditLog(req.user.userId, 'web-ui-single', response.data.messageId || 'unknown', 'sent', { to, message, normalizedTo }, response.data, normalizedTo);
       } else {
+        // Supervisor direct mode should deduct from supervisor's own account
+        if (isSupervisor && supervisorDirect === true) {
+          targetUserId = req.user.userId;
+        }
         const { messageLog } = await deductCreditsAndLog(
           targetUserId,
           1,
@@ -3816,9 +4012,12 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         { headers: { Authorization: `Bearer ${extremeApiKey}`, "Content-Type": "application/json" } }
       );
 
-      if ((isAdmin && adminDirect === true) || (isSupervisor && supervisorDirect === true)) {
+      if (isAdmin && adminDirect === true) {
         await createAdminAuditLog(req.user.userId, 'web-ui-bulk', response.data.messageId || 'unknown', 'sent', { recipients, normalizedRecipients, invalid, message }, response.data, undefined, normalizedRecipients);
       } else {
+        if (isSupervisor && supervisorDirect === true) {
+          targetUserId = req.user.userId;
+        }
         const { messageLog } = await deductCreditsAndLog(
           targetUserId,
           normalizedRecipients.length,
@@ -3910,16 +4109,19 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         { headers: { Authorization: `Bearer ${extremeApiKey}`, "Content-Type": "application/json" } }
       );
 
-      if ((isAdmin && adminDirect === true) || (isSupervisor && supervisorDirect === true)) {
+      if (isAdmin && adminDirect === true) {
         await createAdminAuditLog(req.user.userId, 'web-ui-bulk-multi', response.data.messageId || 'unknown', 'sent', { messages }, response.data);
       } else {
+        if (isSupervisor && supervisorDirect === true) {
+          targetUserId = req.user.userId;
+        }
         const { messageLog } = await deductCreditsAndLog(
           targetUserId,
-          messages.length,
+          transformed.length,
           'web-ui-bulk-multi',
           response.data.messageId || 'unknown',
           'sent',
-          { messages },
+          { messages, transformed },
           response.data
         );
         if ((isAdmin || isSupervisor) && req.user.userId !== targetUserId) {
@@ -4186,7 +4388,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   // Reply to incoming message
   app.post("/api/web/inbox/reply", authenticateToken, async (req: any, res) => {
     try {
-      const { to, message, userId } = req.body;
+      const { to, message, userId, defaultDial } = req.body;
       
       // Check if userId parameter is being used by non-admin
       if (userId && req.user.role !== 'admin') {
@@ -4203,7 +4405,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         : req.user.userId;
 
       // Map modem/port from the last inbound message for proper two-way routing
-      const history = await storage.getConversationHistory(targetUserId, to);
+      const normalizedTo = normalizePhone(String(to), String(defaultDial || '+1'));
+      if (!normalizedTo) return res.status(400).json({ error: "Invalid recipient number" });
+      const history = await storage.getConversationHistory(targetUserId, normalizedTo);
       const lastInbound = [...(history.incoming || [])].reverse().find(m => !!m.port || !!m.usedmodem) || (history.incoming || []).slice(-1)[0];
       const usemodem = lastInbound?.usedmodem || null;
       const port = lastInbound?.port || null;
@@ -4211,7 +4415,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       const extremeApiKey = await storage.getSystemConfig('extreme_api_key');
       if (!extremeApiKey?.value) return res.status(400).json({ error: 'ExtremeSMS API key not configured' });
 
-      const payload: any = { recipient: to, message };
+      const payload: any = { recipient: normalizedTo, message };
       if (usemodem) payload.usemodem = usemodem;
       if (port) payload.port = port;
 
@@ -4228,7 +4432,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         'sent',
         payload,
         response.data,
-        to
+        normalizedTo
       );
 
       res.json({ success: true, data: response.data });

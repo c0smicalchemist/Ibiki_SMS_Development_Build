@@ -68,7 +68,8 @@ export default function MessageHistory() {
   });
 
   const isAdmin = profile?.user?.role === 'admin';
-  const effectiveUserId = isAdmin && !isAdminMode && selectedClientId ? selectedClientId : undefined;
+  const isSupervisor = profile?.user?.role === 'supervisor';
+  const effectiveUserId = (isAdmin || isSupervisor) && !isAdminMode && selectedClientId ? selectedClientId : undefined;
 
   // Admin clients list (to resolve selected client's business name)
   const { data: adminClients } = useQuery<{ success: boolean; clients: Array<{ id: string; email: string; name: string; businessName?: string | null }> }>({
@@ -83,11 +84,11 @@ export default function MessageHistory() {
     count: number;
   }>({
     queryKey: effectiveUserId 
-      ? ['/api/admin/messages', effectiveUserId]
+      ? [isSupervisor ? '/api/supervisor/messages' : '/api/admin/messages', effectiveUserId]
       : ['/api/client/messages'],
     queryFn: async () => {
       const endpoint = effectiveUserId 
-        ? `/api/admin/messages?userId=${effectiveUserId}`
+        ? (isSupervisor ? `/api/supervisor/messages?userId=${effectiveUserId}` : `/api/admin/messages?userId=${effectiveUserId}`)
         : '/api/client/messages';
       const response = await fetch(endpoint, {
         headers: {

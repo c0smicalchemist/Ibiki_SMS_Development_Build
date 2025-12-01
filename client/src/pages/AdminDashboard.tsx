@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -433,9 +434,23 @@ export default function AdminDashboard() {
   const balanceCurrency = balanceData?.currency || 'USD';
   const sumCredits = clients.reduce((sum, c) => sum + (parseFloat(c.credits || '0') || 0), 0);
   const myGroupId = clients.find(c => c.id === profile?.user?.id)?.groupId || null;
-  const groupSupervisorCredits = clients
-    .filter(c => c.groupId && myGroupId && c.groupId === myGroupId && c.role === 'supervisor')
-    .reduce((sum, c) => sum + (parseFloat(c.credits || '0') || 0), 0);
+  // Group pool from system_config (fallback to sum of supervisor credits)
+  const { data: groupPool } = useQuery<{ success: boolean; groupId: string; credits: number | null } | { success: boolean; pools: Array<{ groupId: string; credits: number }> }>({
+    queryKey: ['/api/group/pool', myGroupId || ''],
+    queryFn: async () => {
+      if (!myGroupId) return { success: true, groupId: '', credits: null } as any;
+      const r = await apiRequest(`/api/group/pool?groupId=${encodeURIComponent(myGroupId)}`);
+      return r.json();
+    },
+    refetchInterval: 10000,
+    enabled: !!myGroupId && profile?.user?.role !== undefined
+  });
+  const groupPoolCredits = (groupPool as any)?.credits;
+  const groupSupervisorCredits = typeof groupPoolCredits === 'number' && !isNaN(groupPoolCredits)
+    ? groupPoolCredits
+    : clients
+      .filter(c => c.groupId && myGroupId && c.groupId === myGroupId && c.role === 'supervisor')
+      .reduce((sum, c) => sum + (parseFloat(c.credits || '0') || 0), 0);
   const groupClientCredits = clients
     .filter(c => c.groupId && myGroupId && c.groupId === myGroupId && c.role !== 'supervisor')
     .reduce((sum, c) => sum + (parseFloat(c.credits || '0') || 0), 0);
@@ -455,6 +470,23 @@ export default function AdminDashboard() {
     },
     onError: (error: any) => {
       toast({ title: t('common.error'), description: error?.message || t('admin.syncCredits.failed'), variant: 'destructive' });
+    }
+  });
+
+  const recalcBalancesMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/admin/recalculate-balances', { method: 'POST' });
+    },
+    onSuccess: async (resp: any) => {
+      try {
+        queryClient.invalidateQueries({ queryKey: ['/api/group/pool'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/admin/extremesms-balance'] });
+      } catch {}
+      toast({ title: t('common.success'), description: 'Balances recalculated' });
+    },
+    onError: (error: any) => {
+      toast({ title: t('common.error'), description: error?.message || 'Failed to recalculate', variant: 'destructive' });
     }
   });
 
@@ -515,6 +547,37 @@ export default function AdminDashboard() {
             ))}
           </TableBody>
         </Table>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="col-span-1">
+            <Label>Group Supervisor Pool (credits)</Label>
+            <div className="flex items-center gap-2 mt-2">
+              <Select value={groupIdPricing || ''} onValueChange={(v) => setGroupIdPricing(v)}>
+                <SelectTrigger data-testid="select-pool-group">
+                  <SelectValue placeholder="Select Group ID" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(clients || []).map(c => c.groupId).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).map(g => (
+                    <SelectItem key={String(g)} value={String(g)}>{String(g)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input type="number" step="0.01" placeholder="Credits" value={groupExtremeCost /* temp hold to reuse input state */} onChange={(e) => setGroupExtremeCost(e.target.value)} />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!groupIdPricing}
+                onClick={async () => {
+                  const val = parseFloat(groupExtremeCost);
+                  if (isNaN(val)) { toast({ title: t('common.error'), description: 'Enter credits', variant: 'destructive' }); return; }
+                  await apiRequest('/api/admin/group/pool', { method: 'POST', body: JSON.stringify({ groupId: groupIdPricing, credits: val }) });
+                  queryClient.invalidateQueries({ queryKey: ['/api/admin/group/pool', groupIdPricing] });
+                  toast({ title: t('common.success'), description: 'Group pool updated' });
+                }}
+              >Save Pool</Button>
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">Pool is used for supervisor overview; per-account credits remain attached.</div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -613,6 +676,32 @@ export default function AdminDashboard() {
                         <Button size="sm" variant="default" onClick={() => syncCreditsMutation.mutate()} data-testid="button-sync-credits">
                           {t('admin.syncCredits')}
                         </Button>
+                        <Button size="sm" variant="secondary" onClick={() => recalcBalancesMutation.mutate()} data-testid="button-recalc-balances">
+                          Recalculate Balances
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="outline" data-testid="button-purge-cache">Purge Cache</Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Confirm Purge Cache</AlertDialogTitle>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={async () => {
+                                const r = await apiRequest('/api/admin/purge-cache', { method: 'POST' });
+                                if ((r as any).ok) {
+                                  toast({ title: t('common.success'), description: 'Cache purged and server restarted' });
+                                  queryClient.invalidateQueries({ queryKey: ['/api/group/pool'] });
+                                  queryClient.invalidateQueries({ queryKey: ['/api/admin/extremesms-balance'] });
+                                } else {
+                                  toast({ title: t('common.error'), description: 'Failed to purge cache', variant: 'destructive' });
+                                }
+                              }}>Confirm</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </>
                     )}
                     <div className="p-3 rounded-lg bg-primary/10"><Wallet className="w-5 h-5 text-primary" /></div>
@@ -663,10 +752,10 @@ export default function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Send className="h-5 w-5" />
-                  Send SMS
+                  {t('sendSms.title')}
                 </CardTitle>
                 <CardDescription>
-                  Send single or bulk SMS messages
+                  {t('sendSms.subtitle')}
                 </CardDescription>
               </CardHeader>
             </Link>
@@ -677,7 +766,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     <InboxIcon className="h-5 w-5" />
-                    Inbox
+                    {t('inbox.title')}
                   </CardTitle>
                   <Link href="/inbox?view=favorites">
                     <Button
@@ -687,7 +776,7 @@ export default function AdminDashboard() {
                       title="★ Favourites"
                     >
                       <Star className="h-3 w-3" />
-                      ★ Favourites
+                      {t('inbox.favorites')}
                     </Button>
                   </Link>
                 </div>
@@ -725,11 +814,7 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {isSupervisor && (
-          <div className="grid grid-cols-1 gap-4 mt-6">
-            <SupervisorCreateUser />
-          </div>
-        )}
+        {/* Create User moved to its own tab */}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <WorldClock />
@@ -748,12 +833,13 @@ export default function AdminDashboard() {
                 <TabsTrigger value="monitoring" data-testid="tab-monitoring">{t('admin.tabs.monitoring')}</TabsTrigger>
                 <TabsTrigger value="actionlogs" data-testid="tab-actionlogs">{t('admin.actionLogs')}</TabsTrigger>
                 <TabsTrigger value="messages" data-testid="tab-messages">Message Activity</TabsTrigger>
-                <TabsTrigger value="createuser" data-testid="tab-createuser">User Create</TabsTrigger>
+                <TabsTrigger value="createuser" data-testid="tab-createuser">{t('admin.tabs.createUser') || 'User Create'}</TabsTrigger>
               </>
             ) : (
               <>
                 <TabsTrigger value="actionlogs" data-testid="tab-actionlogs">{t('admin.actionLogs')}</TabsTrigger>
                 <TabsTrigger value="messages" data-testid="tab-messages">Message Activity</TabsTrigger>
+                <TabsTrigger value="createuser" data-testid="tab-createuser">{t('admin.tabs.createUser') || 'User Create'}</TabsTrigger>
               </>
             )}
           </TabsList>
@@ -811,9 +897,11 @@ export default function AdminDashboard() {
                           <span className="font-mono font-semibold" data-testid={`text-credits-${client.id}`}>
                             {parseFloat(client.credits || '0').toFixed(2)} credits
                           </span>
-                          <div className="text-xs text-muted-foreground">
-                            ≈ ${ ( (parseFloat(client.credits || '0') || 0) * clientRateNumber ).toFixed(2) } USD
-                          </div>
+                          {profile?.user?.role === 'admin' && (
+                            <div className="text-xs text-muted-foreground">
+                              ≈ ${ ( (parseFloat(client.credits || '0') || 0) * clientRateNumber ).toFixed(2) } USD
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -1384,7 +1472,7 @@ export default function AdminDashboard() {
         </TabsContent>
 
         <TabsContent value="createuser" className="space-y-4">
-          <AdminCreateUser />
+          {profile?.user?.role === 'admin' ? <AdminCreateUser /> : <SupervisorCreateUser />}
         </TabsContent>
 
 

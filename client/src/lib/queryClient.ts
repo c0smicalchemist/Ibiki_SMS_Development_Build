@@ -13,20 +13,7 @@ export async function apiRequest(url: string, options?: RequestInit): Promise<an
     "Content-Type": "application/json",
     ...(token ? { "Authorization": `Bearer ${token}` } : {})
   };
-  const addTokenParam = (u: string) => {
-    if (!token) return u;
-    try {
-      const hasApiPrefix = u.startsWith('/api/');
-      const hasToken = /[?&]token=/.test(u);
-      if (hasApiPrefix && !hasToken) {
-        const sep = u.includes('?') ? '&' : '?';
-        return `${u}${sep}token=${encodeURIComponent(token)}`;
-      }
-    } catch {}
-    return u;
-  };
-
-  const res = await fetch(addTokenParam(url), {
+  const res = await fetch(url, {
     ...options,
     headers: {
       ...headers,
@@ -45,19 +32,7 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const token = localStorage.getItem('token');
-    const reqUrl = (() => {
-      const u = queryKey.join("/") as string;
-      if (!token) return u;
-      try {
-        const hasApiPrefix = u.startsWith('/api/');
-        const hasToken = /[?&]token=/.test(u);
-        if (hasApiPrefix && !hasToken) {
-          const sep = u.includes('?') ? '&' : '?';
-          return `${u}${sep}token=${encodeURIComponent(token)}`;
-        }
-      } catch {}
-      return u;
-    })();
+    const reqUrl = queryKey.join("/") as string;
 
     const res = await fetch(reqUrl, {
       headers: token ? { "Authorization": `Bearer ${token}` } : {}
