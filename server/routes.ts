@@ -23,12 +23,6 @@ async function authenticateToken(req: any, res: any, next: any) {
   if (hdr && typeof hdr === 'string') {
     token = hdr.includes('Bearer ') ? hdr.split(' ')[1] : hdr;
   }
-  if (!token && typeof req.query?.token === 'string') {
-    token = req.query.token;
-  }
-  if (!token && typeof req.body?.token === 'string') {
-    token = req.body.token;
-  }
 
   if (!token) {
     return res.status(401).json({ error: "Authentication required" });
@@ -132,9 +126,9 @@ async function deductCreditsAndLog(
   senderPhoneNumber?: string
 ) {
   const { extremeCost, clientRate } = await getPricingConfig(userId);
-  
   const totalCost = extremeCost * messageCount;
-  const totalCharge = clientRate * messageCount;
+  const totalChargeUSD = clientRate * messageCount;
+  const creditsToDeduct = messageCount;
 
   const profile = await storage.getClientProfileByUserId(userId);
   if (!profile) {
@@ -142,11 +136,11 @@ async function deductCreditsAndLog(
   }
 
   const currentCredits = parseFloat(profile.credits);
-  if (currentCredits < totalCharge) {
+  if (currentCredits < creditsToDeduct) {
     throw new Error("Insufficient credits");
   }
 
-  const newCredits = currentCredits - totalCharge;
+  const newCredits = currentCredits - creditsToDeduct;
 
   // Extract sender phone from response if available, otherwise fall back to client's assigned number
   let senderPhone = senderPhoneNumber || 
@@ -173,7 +167,7 @@ async function deductCreditsAndLog(
     costPerMessage: extremeCost.toFixed(4),
     chargePerMessage: clientRate.toFixed(4),
     totalCost: totalCost.toFixed(2),
-    totalCharge: totalCharge.toFixed(2),
+    totalCharge: creditsToDeduct.toFixed(2),
     messageCount,
     requestPayload: JSON.stringify(requestPayload),
     responsePayload: JSON.stringify(responsePayload)
@@ -182,9 +176,9 @@ async function deductCreditsAndLog(
   // Create credit transaction
   await storage.createCreditTransaction({
     userId,
-    amount: (-totalCharge).toFixed(2),
+    amount: (-creditsToDeduct).toFixed(2),
     type: "debit",
-    description: `SMS sent via ${endpoint}`,
+    description: `SMS sent via ${endpoint} (USD $${totalChargeUSD.toFixed(2)})`,
     balanceBefore: currentCredits.toFixed(2),
     balanceAfter: newCredits.toFixed(2),
     messageLogId: messageLog.id
@@ -201,7 +195,7 @@ async function deductCreditsAndLog(
       await ensureGroupPoolInitialized(gid);
       const pool = await storage.getSystemConfig(`group.pool.${gid}`);
       const currentPool = parseFloat(pool?.value || '0') || 0;
-      const nextPool = Math.max(currentPool - totalCharge, 0);
+      const nextPool = Math.max(currentPool - creditsToDeduct, 0);
       await storage.setSystemConfig(`group.pool.${gid}`, nextPool.toFixed(2));
     }
   } catch {}
@@ -210,7 +204,7 @@ async function deductCreditsAndLog(
   try {
     const adminPool = await storage.getSystemConfig('admin.pool');
     const currentAdminPool = adminPool ? parseFloat(adminPool.value) || 0 : 0;
-    const nextAdminPool = Math.max(currentAdminPool - totalCharge, 0);
+    const nextAdminPool = Math.max(currentAdminPool - creditsToDeduct, 0);
     await storage.setSystemConfig('admin.pool', nextAdminPool.toFixed(2));
   } catch {}
 
@@ -1755,15 +1749,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/admin/purge-cache', authenticateToken, requireAdmin, async (req: any, res) => {
+  app.post('/api/admin/purge-cache', authenticateToken, requireAdmin, async (_req: any, res) => {
     try {
-      await new Promise<void>((resolve, reject) => {
-        exec("nginx -t && systemctl reload nginx && rm -rf /var/cache/nginx/* || true && pm2 restart ibiki-sms --update-env", (err, stdout, stderr) => {
-          if (err) return reject(err);
-          resolve();
-        });
+      res.json({ success: true, scheduled: true });
+      exec("bash -lc 'nginx -t && rm -rf /var/cache/nginx/* || true && systemctl reload nginx && pm2 restart ibiki-sms --update-env'", (err) => {
+        if (err) console.error('purge-cache async error:', err?.message || err);
       });
-      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  app.post('/api/admin/reconcile-credits', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const logs = await storage.getAllMessageLogs(100000);
+      const usersMap: Map<string, { expected: number; actual: number }> = new Map();
+      for (const l of logs) {
+        const isExample = (l as any)?.isExample ? true : false;
+        if (isExample) continue;
+        const status = String((l as any)?.status || '').toLowerCase();
+        const chargeable = status === 'sent' || status === 'delivered' || status === 'queued';
+        if (!chargeable) continue;
+        const mc = (l as any)?.messageCount;
+        let count = Number.isFinite(mc) ? Number(mc) : NaN;
+        if (!Number.isFinite(count) || count <= 0) {
+          const recips = Array.isArray((l as any)?.recipients) ? ((l as any)?.recipients as any[]).length : 0;
+          const recip = ((l as any)?.recipient ? 1 : 0);
+          count = recips > 0 ? recips : (recip > 0 ? recip : 1);
+        }
+        const total = (Number.isFinite(count) ? count : 1);
+        const u = String((l as any)?.userId || '');
+        if (!u) continue;
+        const acc = usersMap.get(u) || { expected: 0, actual: 0 };
+        acc.expected += total;
+        usersMap.set(u, acc);
+      }
+      for (const [userId, acc] of usersMap.entries()) {
+        const txs = await storage.getCreditTransactionsByUserId(userId, 100000);
+        for (const t of txs) {
+          const amt = parseFloat((t as any)?.amount || '0');
+          if (Number.isFinite(amt) && amt < 0) acc.actual += (-amt);
+        }
+        usersMap.set(userId, acc);
+      }
+      const updates: Array<{ userId: string; delta: number; newCredits: number }> = [];
+      for (const [userId, { expected, actual }] of usersMap.entries()) {
+        const delta = Math.max(0, (expected || 0) - (actual || 0));
+        if (delta > 0.0001) {
+          const profile = await storage.getClientProfileByUserId(userId);
+          if (!profile) continue;
+          const current = parseFloat(profile.credits || '0') || 0;
+          const next = Math.max(0, current - delta);
+          await storage.updateClientCredits(userId, next.toFixed(2));
+          await storage.createCreditTransaction({
+            userId,
+            amount: (-delta).toFixed(2),
+            type: 'debit',
+            description: 'Reconcile backfill',
+            balanceBefore: current.toFixed(2),
+            balanceAfter: next.toFixed(2),
+            messageLogId: null
+          });
+          try {
+            const u = await storage.getUser(userId).catch(()=>undefined);
+            const gid = (u as any)?.groupId || null;
+            if (gid) {
+              await ensureGroupPoolInitialized(gid);
+              const pool = await storage.getSystemConfig(`group.pool.${gid}`);
+              const curPool = parseFloat(pool?.value || '0') || 0;
+              const nextPool = Math.max(0, curPool - delta);
+              await storage.setSystemConfig(`group.pool.${gid}`, nextPool.toFixed(2));
+            }
+          } catch {}
+          try {
+            const adminPoolRec = await storage.getSystemConfig('admin.pool');
+            const curAdmin = parseFloat(adminPoolRec?.value || '0') || 0;
+            const nextAdmin = Math.max(0, curAdmin - delta);
+            await storage.setSystemConfig('admin.pool', nextAdmin.toFixed(2));
+          } catch {}
+          updates.push({ userId, delta: parseFloat(delta.toFixed(2)), newCredits: parseFloat(next.toFixed(2)) });
+        }
+      }
+      res.json({ success: true, reconciled: updates.length, updates });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e?.message || String(e) });
     }
@@ -3076,9 +3143,8 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       }
 
       const profile = await storage.getClientProfileByUserId(req.user.userId);
-      const { clientRate } = await getPricingConfig(req.user.userId);
       
-      if (!profile || parseFloat(profile.credits) < clientRate) {
+      if (!profile || parseFloat(profile.credits) < 1) {
         return res.status(402).json({ 
           success: false, 
           error: "Insufficient credits",
@@ -3149,10 +3215,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       const profile = await storage.getClientProfileByUserId(req.user.userId);
       const { ok: normalizedRecipients, invalid } = normalizeMany(recipients, String(defaultDial || '+1'));
       if (normalizedRecipients.length === 0) return res.status(400).json({ success: false, error: "No valid recipients after normalization", invalid, code: "INVALID_RECIPIENTS" });
-      const { clientRate } = await getPricingConfig(req.user.userId);
-      const totalCharge = clientRate * normalizedRecipients.length;
+      const totalNeeded = normalizedRecipients.length;
       
-      if (!profile || parseFloat(profile.credits) < totalCharge) {
+      if (!profile || parseFloat(profile.credits) < totalNeeded) {
         return res.status(402).json({ 
           success: false, 
           error: "Insufficient credits",
@@ -3218,10 +3283,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       }
 
       const profile = await storage.getClientProfileByUserId(req.user.userId);
-      const { clientRate } = await getPricingConfig(req.user.userId);
-      const totalCharge = clientRate * messages.length;
+      const totalNeeded = messages.length;
       
-      if (!profile || parseFloat(profile.credits) < totalCharge) {
+      if (!profile || parseFloat(profile.credits) < totalNeeded) {
         return res.status(402).json({ 
           success: false, 
           error: "Insufficient credits",

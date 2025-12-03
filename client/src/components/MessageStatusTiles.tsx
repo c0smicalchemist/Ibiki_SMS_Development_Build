@@ -32,6 +32,9 @@ export default function MessageStatusTiles({ userId }: { userId?: string }) {
 
   const logs = (logsData?.messages || []).map((m: any) => ({
     createdAt: new Date(m?.createdAt || m?.timestamp || Date.now()).getTime(),
+    status: String(m?.status || '').toLowerCase(),
+    messageCount: Number(m?.messageCount ?? 1),
+    recipientsLen: Array.isArray(m?.recipients) ? (m?.recipients as any[]).length : (m?.recipient ? 1 : 0)
   }));
   const incoming = ((inboxData as any)?.messages || []).map((i: any) => ({
     timestamp: new Date(i?.timestamp || i?.createdAt || Date.now()).getTime(),
@@ -41,12 +44,20 @@ export default function MessageStatusTiles({ userId }: { userId?: string }) {
     const d = new Date(); d.setHours(0,0,0,0); return d.getTime();
   })();
 
-  const totalSent = logs.length;
+  const chargeable = (s: string) => s === 'sent' || s === 'delivered' || s === 'queued';
+  const countFor = (l: any) => {
+    const mc = Number(l.messageCount);
+    if (Number.isFinite(mc) && mc > 0) return mc;
+    const rl = Number(l.recipientsLen);
+    return (Number.isFinite(rl) && rl > 0) ? rl : 1;
+  };
+
+  const totalSent = logs.filter(l => chargeable(l.status)).reduce((acc, l) => acc + countFor(l), 0);
   const totalReceived = incoming.length;
   const totalCombined = totalSent + totalReceived;
   const totalReceivedPct = totalCombined ? Math.round((totalReceived / totalCombined) * 100) : 0;
 
-  const sentToday = logs.filter(l => l.createdAt >= startOfToday).length;
+  const sentToday = logs.filter(l => l.createdAt >= startOfToday && chargeable(l.status)).reduce((acc, l) => acc + countFor(l), 0);
   const receivedToday = incoming.filter(i => i.timestamp >= startOfToday).length;
   const todayCombined = sentToday + receivedToday;
   const todayReceivedPct = todayCombined ? Math.round((receivedToday / todayCombined) * 100) : 0;
@@ -60,19 +71,19 @@ export default function MessageStatusTiles({ userId }: { userId?: string }) {
         <CardContent>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="p-3 rounded border bg-muted/50">
-              <div className="text-muted-foreground">Total Sent</div>
+              <div className="text-muted-foreground">{t('messageStatus.totalSent') || 'Total Sent'}</div>
               <div className="text-2xl font-bold">{totalSent.toLocaleString()}</div>
             </div>
             <div className="p-3 rounded border bg-muted/50">
-              <div className="text-muted-foreground">Total Received</div>
+              <div className="text-muted-foreground">{t('messageStatus.totalReceived') || 'Total Received'}</div>
               <div className="text-2xl font-bold">{totalReceived.toLocaleString()}</div>
             </div>
             <div className="p-3 rounded border bg-muted/50">
-              <div className="text-muted-foreground">Total Received %</div>
+              <div className="text-muted-foreground">{t('messageStatus.totalReceivedPct') || 'Total Received %'}</div>
               <div className="text-2xl font-bold">{totalReceivedPct}%</div>
             </div>
             <div className="p-3 rounded border bg-muted/50">
-              <div className="text-muted-foreground">Total</div>
+              <div className="text-muted-foreground">{t('messageStatus.totalCombined') || 'Total'}</div>
               <div className="text-2xl font-bold">{totalCombined.toLocaleString()}</div>
             </div>
           </div>
@@ -86,19 +97,19 @@ export default function MessageStatusTiles({ userId }: { userId?: string }) {
         <CardContent>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="p-3 rounded border bg-muted/50">
-              <div className="text-muted-foreground">Sent Today</div>
+              <div className="text-muted-foreground">{t('messageStatus.sentToday') || 'Sent Today'}</div>
               <div className="text-2xl font-bold">{sentToday.toLocaleString()}</div>
             </div>
             <div className="p-3 rounded border bg-muted/50">
-              <div className="text-muted-foreground">Received Today</div>
+              <div className="text-muted-foreground">{t('messageStatus.receivedToday') || 'Received Today'}</div>
               <div className="text-2xl font-bold">{receivedToday.toLocaleString()}</div>
             </div>
             <div className="p-3 rounded border bg-muted/50">
-              <div className="text-muted-foreground">Today Received %</div>
+              <div className="text-muted-foreground">{t('messageStatus.todayReceivedPct') || 'Today Received %'}</div>
               <div className="text-2xl font-bold">{todayReceivedPct}%</div>
             </div>
             <div className="p-3 rounded border bg-muted/50">
-              <div className="text-muted-foreground">Total Today</div>
+              <div className="text-muted-foreground">{t('messageStatus.totalToday') || 'Total Today'}</div>
               <div className="text-2xl font-bold">{todayCombined.toLocaleString()}</div>
             </div>
           </div>

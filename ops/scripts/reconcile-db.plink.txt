@@ -1,0 +1,56 @@
+set -e
+cd /opt/ibiki-sms
+cat >/root/reconcile.cjs <<'NODE'
+const {Pool}=require('pg');
+const fs=require('fs');
+const path=require('path');
+(async()=>{
+  const envPath=path.resolve('/opt/ibiki-sms/.env');
+  const env=fs.existsSync(envPath)?fs.readFileSync(envPath,'utf8'):'';
+  function get(k){const m=new RegExp('^'+k+'=(.*)$','m').exec(env);return m?m[1].trim():process.env[k]||''}
+  const pool=new Pool({connectionString:get('DATABASE_URL'),ssl:{rejectUnauthorized:false}});
+  const exp=await pool.query("select user_id, sum(COALESCE(CAST(charge_per_message as numeric),1) * COALESCE(message_count,1)) as expected from message_logs where coalesce(is_example,false)=false group by user_id");
+  const act=await pool.query("select user_id, sum(CASE WHEN CAST(amount as numeric) < 0 THEN -CAST(amount as numeric) ELSE 0 END) as actual from credit_transactions group by user_id");
+  const map=new Map();
+  for(const r of exp.rows){map.set(r.user_id,{expected: Number(r.expected)||0, actual:0});}
+  for(const r of act.rows){const x=map.get(r.user_id)||{expected:0,actual:0}; x.actual = Number(r.actual)||0; map.set(r.user_id,x);}
+  const updates=[];
+  for(const [userId,acc] of map.entries()){
+    const delta = (acc.expected - acc.actual);
+    if(delta > 0.0001){
+      const prof=await pool.query('select credits from client_profiles where user_id=$1',[userId]);
+      if(prof.rows.length){
+        const cur=parseFloat(prof.rows[0].credits)||0;
+        const next=Math.max(0, cur - delta);
+        await pool.query('update client_profiles set credits=$2 where user_id=$1',[userId,next.toFixed(2)]);
+        const u=await pool.query('select group_id from users where id=$1',[userId]);
+        const gid=u.rows[0] && u.rows[0].group_id;
+        if(gid){
+          const gkey=`group.pool.${gid}`;
+          const g=await pool.query('select value from system_config where key=$1',[gkey]);
+          const gp=parseFloat(g.rows[0]?.value||'0')||0;
+          const gnext=Math.max(0, gp - delta);
+          if(g.rows.length){
+            await pool.query('update system_config set value=$2 where key=$1',[gkey, gnext.toFixed(2)]);
+          } else {
+            await pool.query('insert into system_config(key,value) values($1,$2)',[gkey, gnext.toFixed(2)]);
+          }
+        }
+        const a=await pool.query("select value from system_config where key='admin.pool'");
+        const ap=parseFloat(a.rows[0]?.value||'0')||0;
+        const anext=Math.max(0, ap - delta);
+        if(a.rows.length){
+          await pool.query("update system_config set value=$1 where key='admin.pool'",[anext.toFixed(2)]);
+        } else {
+          await pool.query("insert into system_config(key,value) values('admin.pool',$1)",[anext.toFixed(2)]);
+        }
+        updates.push({userId, delta: Number(delta.toFixed(2)), newCredits: Number(next.toFixed(2))});
+      }
+    }
+  }
+  console.log(JSON.stringify({reconciled: updates.length, updates}, null, 2));
+  await pool.end();
+})();
+NODE
+node /root/reconcile.cjs > /root/reconcile.out
+cat /root/reconcile.out

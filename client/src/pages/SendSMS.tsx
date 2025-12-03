@@ -331,8 +331,8 @@ export default function SendSMS() {
         
         <div className="mb-6 flex items-center gap-4">
           <Link href={isAdmin ? "/admin" : (isSupervisor ? "/adminsup" : "/dashboard")}>
-            <Button variant="ghost" size="icon" data-testid="button-back">
-              <ArrowLeft className="h-5 w-5" />
+            <Button size="icon" data-testid="button-back" className="bg-blue-600 text-white hover:bg-blue-700 font-bold">
+              <ArrowLeft className="h-5 w-5" strokeWidth={3} />
             </Button>
           </Link>
           <div>

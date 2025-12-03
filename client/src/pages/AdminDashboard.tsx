@@ -619,8 +619,8 @@ export default function AdminDashboard() {
         </div>
         <div className="flex items-center gap-4">
           <Link href={isSupervisor ? "/adminsup" : (profile?.user?.role === 'admin' ? "/admin" : "/dashboard")}>
-            <Button variant="ghost" size="icon" data-testid="button-back">
-              <ArrowLeft className="h-5 w-5" />
+            <Button size="icon" data-testid="button-back" className="bg-blue-600 text-white hover:bg-blue-700 font-bold">
+              <ArrowLeft className="h-5 w-5" strokeWidth={3} />
             </Button>
           </Link>
           <div>
@@ -660,49 +660,26 @@ export default function AdminDashboard() {
                   <p className="text-sm font-medium text-muted-foreground">Credits Overview</p>
                   <div className="flex items-center gap-2">
                     {profile?.user?.role === 'admin' && (
-                      <>
-                        <select
-                          className="border rounded px-2 py-1 text-xs"
-                          title={t('admin.autoSyncInterval') || 'Auto Sync Interval'}
-                          value={autoSyncInterval}
-                          onChange={(e) => setAutoSyncInterval(Number(e.target.value))}
-                        >
-                          <option value={120000}>2 min</option>
-                          <option value={300000}>5 min</option>
-                          <option value={600000}>10 min</option>
-                          <option value={1800000}>30 min</option>
-                          <option value={3600000}>1 hour</option>
-                        </select>
-                        <Button size="sm" variant="default" onClick={() => syncCreditsMutation.mutate()} data-testid="button-sync-credits">
-                          {t('admin.syncCredits')}
-                        </Button>
-                        <Button size="sm" variant="secondary" onClick={() => recalcBalancesMutation.mutate()} data-testid="button-recalc-balances">
-                          Recalculate Balances
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button size="sm" variant="outline" data-testid="button-purge-cache">Purge Cache</Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Confirm Purge Cache</AlertDialogTitle>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={async () => {
-                                const r = await apiRequest('/api/admin/purge-cache', { method: 'POST' });
-                                if ((r as any).ok) {
-                                  toast({ title: t('common.success'), description: 'Cache purged and server restarted' });
-                                  queryClient.invalidateQueries({ queryKey: ['/api/group/pool'] });
-                                  queryClient.invalidateQueries({ queryKey: ['/api/admin/extremesms-balance'] });
-                                } else {
-                                  toast({ title: t('common.error'), description: 'Failed to purge cache', variant: 'destructive' });
-                                }
-                              }}>Confirm</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </>
+                      <Button
+                        size="sm"
+                        className="bg-purple-600 hover:bg-purple-700 text-white"
+                        onClick={async () => {
+                          try {
+                            const r1 = await apiRequest('/api/admin/reconcile-credits', { method: 'POST' });
+                            await apiRequest('/api/admin/recalculate-balances', { method: 'POST' });
+                            queryClient.invalidateQueries({ queryKey: ['/api/admin/clients'] });
+                            queryClient.invalidateQueries({ queryKey: ['/api/group/pool'] });
+                            queryClient.invalidateQueries({ queryKey: ['/api/admin/extremesms-balance'] });
+                            const reconciled = Number(r1?.reconciled || 0);
+                            toast({ title: t('common.success'), description: reconciled > 0 ? `Reconciled ${reconciled} accounts` : 'Reconcile up to date' });
+                          } catch (e: any) {
+                            toast({ title: t('common.error'), description: e?.message || 'Reconcile failed', variant: 'destructive' });
+                          }
+                        }}
+                        data-testid="button-reconcile"
+                      >
+                        Reconcile
+                      </Button>
                     )}
                     <div className="p-3 rounded-lg bg-primary/10"><Wallet className="w-5 h-5 text-primary" /></div>
                   </div>
@@ -737,7 +714,7 @@ export default function AdminDashboard() {
                       ? `${groupRemainingCredits.toFixed(2)} credits`
                       : (extremeBalance !== null ? `${Math.max(extremeBalance - sumCredits, 0).toFixed(2)} credits` : 'N/A')}
                   </p>
-                  <p className={`text-xs mt-1 ${isSupervisor ? (groupRemainingCredits >= 0 ? 'text-green-700' : 'text-red-700') : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-700' : 'text-red-700')}`}>{isSupervisor ? 'Supervisor pooled minus allocated (group)' : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? (t('admin.syncStatus.inSync') || 'In Sync') : (t('admin.syncStatus.needsSync') || 'Needs Sync'))}</p>
+                  <p className={`text-xs mt-1 ${isSupervisor ? (groupRemainingCredits >= 0 ? 'text-green-700' : 'text-red-700') : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'text-green-700' : 'text-red-700')}`}>{isSupervisor ? 'Supervisor pooled minus allocated (group)' : (extremeBalance !== null && Math.abs((extremeBalance - sumCredits)) <= 0.01 ? 'In Sync' : 'Needs Reconcile')}</p>
                   <p className="text-xs text-muted-foreground mt-1">SMS capacity: {isSupervisor ? Math.floor(groupRemainingCredits).toLocaleString() : (extremeBalance !== null ? Math.floor(Math.max(extremeBalance - sumCredits, 0)).toLocaleString() : '0')} messages</p>
                 </div>
               </div>
@@ -1061,6 +1038,9 @@ export default function AdminDashboard() {
                             clientId={client.id}
                             clientName={client.name}
                             currentCredits={client.credits}
+                            groupId={client.groupId}
+                            showUSD={profile?.user?.role === 'admin'}
+                            showAvailableRemaining={profile?.user?.role === 'admin'}
                             triggerMode="add"
                             triggerLabel="$ Add"
                             buttonVariant="default"
@@ -1070,6 +1050,9 @@ export default function AdminDashboard() {
                             clientId={client.id}
                             clientName={client.name}
                             currentCredits={client.credits}
+                            groupId={client.groupId}
+                            showUSD={profile?.user?.role === 'admin'}
+                            showAvailableRemaining={profile?.user?.role === 'admin'}
                             triggerMode="deduct"
                             triggerLabel="$ Deduct"
                             buttonVariant="outline"

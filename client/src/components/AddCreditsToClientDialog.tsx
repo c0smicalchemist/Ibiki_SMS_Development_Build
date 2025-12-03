@@ -8,22 +8,62 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { DollarSign, Plus, Minus } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface AddCreditsToClientDialogProps {
   clientId: string;
   clientName: string;
   currentCredits: string;
+  groupId?: string;
+  showUSD?: boolean;
+  showAvailableRemaining?: boolean;
   triggerMode?: "add" | "deduct";
   triggerLabel?: string;
   buttonClassName?: string;
   buttonVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost";
 }
 
-export function AddCreditsToClientDialog({ clientId, clientName, currentCredits, triggerMode, triggerLabel, buttonClassName, buttonVariant = "outline" }: AddCreditsToClientDialogProps) {
+export function AddCreditsToClientDialog({ clientId, clientName, currentCredits, groupId, showUSD = true, showAvailableRemaining = false, triggerMode, triggerLabel, buttonClassName, buttonVariant = "outline" }: AddCreditsToClientDialogProps) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [operation, setOperation] = useState<"add" | "deduct">("add");
   const { toast } = useToast();
+  const { t } = useLanguage();
+  const [clientRate, setClientRate] = useState<number>(0.03);
+  const [availableCredits, setAvailableCredits] = useState<number | null>(null);
+
+  // Load pricing for the client's group (fallback to base client rate)
+  const loadRate = async () => {
+    try {
+      if (!showUSD) return;
+      const all = await apiRequest('/api/admin/pricing/all');
+      const base = await apiRequest('/api/admin/pricing');
+      const baseRate = parseFloat(all?.clientRate ?? base?.clientRate ?? '0.03') || 0.03;
+      if (groupId) {
+        const g = (all?.groups || []).find((g: any) => g.groupId === groupId);
+        const r = g?.clientRate;
+        setClientRate(typeof r === 'number' ? r : baseRate);
+      } else {
+        setClientRate(baseRate);
+      }
+    } catch {
+      setClientRate(0.03);
+    }
+  };
+
+  const loadAvailable = async () => {
+    try {
+      if (!showAvailableRemaining) { setAvailableCredits(null); return; }
+      const extreme = await apiRequest('/api/admin/extremesms-balance');
+      const clients = await apiRequest('/api/admin/clients');
+      const provider = parseFloat(String(extreme?.balance ?? '0')) || 0;
+      const sumAllocated = (Array.isArray(clients?.clients) ? clients.clients : []).reduce((acc: number, c: any) => acc + (parseFloat(String(c?.credits || '0')) || 0), 0);
+      const avail = Math.max(0, provider - sumAllocated);
+      setAvailableCredits(Number(avail.toFixed(2)));
+    } catch {
+      setAvailableCredits(null);
+    }
+  };
 
   const addCreditsMutation = useMutation({
     mutationFn: async (data: { userId: string; amount: string; operation: "add" | "deduct" }) => {
@@ -93,6 +133,8 @@ export function AddCreditsToClientDialog({ clientId, clientName, currentCredits,
     <Dialog open={open} onOpenChange={(val) => {
       setOpen(val);
       if (val) setOperation(triggerMode || "add");
+      if (val) loadRate();
+      if (val) loadAvailable();
     }}>
       <DialogTrigger asChild>
         <Button 
@@ -109,7 +151,12 @@ export function AddCreditsToClientDialog({ clientId, clientName, currentCredits,
         <DialogHeader>
           <DialogTitle>Adjust Balance for {clientName}</DialogTitle>
           <DialogDescription>
-            Current balance: {parseFloat(currentCredits).toFixed(2)} credits • You can add or deduct credits below
+            {t('dashboard.stats.balance') || 'Current balance'}: {parseFloat(currentCredits).toFixed(2)} {t('dashboard.stats.credits') || 'credits'}{showUSD ? ` • ${t('clientDashboard.ratePerSms') || 'Rate per SMS'}: ${clientRate.toFixed(2)} USD` : ''}
+            {showAvailableRemaining && availableCredits !== null ? (
+              <div className="mt-2 text-blue-600 font-medium">
+                • {t('credits.availableToDistribute') || 'Available to distribute'}: {availableCredits.toFixed(2)} {t('dashboard.stats.credits') || 'credits'}
+              </div>
+            ) : null}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -151,6 +198,11 @@ export function AddCreditsToClientDialog({ clientId, clientName, currentCredits,
                 data-testid="input-credit-amount"
                 autoFocus
               />
+              {showUSD && amount && parseFloat(amount) > 0 && (
+                <div className="text-xs text-muted-foreground">
+                  Value (USD): ${( (parseFloat(amount) || 0) * clientRate ).toFixed(2)}
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 {operation === "add" 
                   ? "Enter the amount to add to this client's balance" 

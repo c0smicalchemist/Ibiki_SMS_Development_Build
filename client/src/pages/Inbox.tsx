@@ -287,27 +287,29 @@ export default function Inbox() {
           <p className="text-sm">1 credit = 1 SMS</p>
           <p className="text-xs text-muted-foreground">Your credits translate directly to SMS capacity.</p>
         </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>{isSupervisor ? 'Supervisor Mode' : t('inbox.adminMode')}</CardTitle>
-            <CardDescription>{t('inbox.selectClient')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ClientSelector 
-              selectedClientId={selectedClientId}
-              onClientChange={setSelectedClientId}
-              isAdminMode={isAdminMode}
-              onAdminModeChange={setIsAdminMode}
-              modeLabel={isSupervisor ? 'Supervisor Mode' : 'Admin Direct Mode'}
-            />
-          </CardContent>
-        </Card>
+        {(isAdmin || isSupervisor) && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{isSupervisor ? 'Supervisor Mode' : t('inbox.adminMode')}</CardTitle>
+              <CardDescription>{t('inbox.selectClient')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ClientSelector 
+                selectedClientId={selectedClientId}
+                onClientChange={setSelectedClientId}
+                isAdminMode={isAdminMode}
+                onAdminModeChange={setIsAdminMode}
+                modeLabel={isSupervisor ? 'Supervisor Mode' : 'Admin Direct Mode'}
+              />
+            </CardContent>
+          </Card>
+        )}
         
         <div className="mb-6">
           <div className="flex items-center gap-4">
             <Link href={isAdmin ? "/admin" : (isSupervisor ? "/adminsup" : "/dashboard")}>
-              <Button variant="ghost" size="icon" data-testid="button-back">
-                <ArrowLeft className="h-5 w-5" />
+              <Button size="icon" data-testid="button-back" className="bg-blue-600 text-white hover:bg-blue-700 font-bold">
+                <ArrowLeft className="h-5 w-5" strokeWidth={3} />
               </Button>
             </Link>
             <div className="flex-1 min-w-0">
@@ -340,18 +342,11 @@ export default function Inbox() {
               <span className="text-[11px] opacity-80 leading-none mt-0.5">{t('inbox.unreadIndicator')}</span>
             </Button>
             <PendingReplyIndicator userId={effectiveUserId} isAdmin={isAdmin} />
-            <Button
-              onClick={() => setShowDeleted(!showDeleted)}
-              size="sm"
-              className="h-9"
-              variant={showDeleted ? 'destructive' : 'default'}
-            >
-              {showDeleted ? t('inbox.deletedMessages') : t('inbox.showDeleted')}
-            </Button>
+            {/* Deleted toggle moved below near favourites */}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4">
           {isLoading ? (
             <Card className={viewFavorites ? 'border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 ring-1 ring-yellow-300' : ''}>
               <CardContent className="p-6 text-center">
@@ -394,6 +389,36 @@ export default function Inbox() {
                       <Star className={`h-4 w-4 ${viewFavorites ? 'text-yellow-600' : ''}`} />
                       <span>{t('inbox.favorites')}</span>
                     </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowDeleted(d => !d)}
+                      className={`h-7 px-3 ${showDeleted ? 'bg-red-100 text-red-800 border border-red-500 hover:bg-red-200' : ''}`}
+                      variant={showDeleted ? 'outline' : 'outline'}
+                    >
+                      <span>{t('inbox.deleted') || 'Deleted'}</span>
+                    </Button>
+                    {showDeleted && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={async () => {
+                          try {
+                            const token = localStorage.getItem('token');
+                            const body: any = {};
+                            if (effectiveUserId) body.userId = effectiveUserId;
+                            await fetch('/api/web/inbox/purge-deleted', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                              body: JSON.stringify(body)
+                            });
+                            await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox/deleted", effectiveUserId] });
+                            await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
+                          } catch {}
+                        }}
+                      >
+                        Purge
+                      </Button>
+                    )}
                     <select className="border rounded px-2 py-1 text-xs" value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)}>
                       <option value="newest">{t('inbox.sort.mostRecent')}</option>
                       <option value="oldest">{t('inbox.sort.oldest')}</option>
@@ -444,17 +469,11 @@ export default function Inbox() {
 
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="text-sm">
-                      <div>{t('inbox.from')}: <span className="font-mono">{selectedPhoneNumber || '-'}</span></div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap justify-end">
-                      <Button
-                        onClick={() => setShowDeleted(!showDeleted)}
-                        variant={showDeleted ? 'destructive' : 'outline'}
-                      >
-                        {showDeleted ? t('inbox.deletedMessages') : t('inbox.showDeleted')}
-                      </Button>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="text-sm">
+                        <div>{t('inbox.from')}: <span className="font-mono">{selectedPhoneNumber || '-'}</span></div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
                       {/* Save selected conversation to favourites (header star) */}
                       <Button
                         variant="outline"

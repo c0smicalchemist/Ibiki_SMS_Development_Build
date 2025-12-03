@@ -523,10 +523,20 @@ export class MemStorage implements IStorage {
   async getMessageStatusStats(userId: string): Promise<{ sent: number; delivered: number; failed: number }> {
     const logs = Array.from(this.messageLogs.values())
       .filter((log) => log.userId === userId && !log.isExample);
-    
-    const sent = logs.filter((log) => log.status === 'sent' || log.status === 'queued').length;
-    const delivered = logs.filter((log) => log.status === 'delivered').length;
-    const failed = logs.filter((log) => log.status === 'failed').length;
+
+    const countFor = (log: any) => {
+      const mc = Number(log.messageCount);
+      if (Number.isFinite(mc) && mc > 0) return mc;
+      const rl = Array.isArray(log.recipients) ? log.recipients.length : (log.recipient ? 1 : 0);
+      return rl > 0 ? rl : 1;
+    };
+
+    const sent = logs.filter((log) => log.status === 'sent' || log.status === 'queued')
+      .reduce((acc, log) => acc + countFor(log), 0);
+    const delivered = logs.filter((log) => log.status === 'delivered')
+      .reduce((acc, log) => acc + countFor(log), 0);
+    const failed = logs.filter((log) => log.status === 'failed')
+      .reduce((acc, log) => acc + countFor(log), 0);
     
     return { sent, delivered, failed };
   }
@@ -1631,10 +1641,20 @@ export class DbStorage implements IStorage {
   async getMessageStatusStats(userId: string): Promise<{ sent: number; delivered: number; failed: number }> {
     const logs = await this.db.select().from(messageLogs)
       .where(sql`${messageLogs.userId} = ${userId} AND ${messageLogs.isExample} = false`);
-    
-    const sent = logs.filter((log) => log.status === 'sent' || log.status === 'queued').length;
-    const delivered = logs.filter((log) => log.status === 'delivered').length;
-    const failed = logs.filter((log) => log.status === 'failed').length;
+
+    const countFor = (log: any) => {
+      const mc = Number(log.messageCount);
+      if (Number.isFinite(mc) && mc > 0) return mc;
+      const rl = Array.isArray(log.recipients) ? log.recipients.length : (log.recipient ? 1 : 0);
+      return rl > 0 ? rl : 1;
+    };
+
+    const sent = logs.filter((log) => log.status === 'sent' || log.status === 'queued')
+      .reduce((acc, log) => acc + countFor(log), 0);
+    const delivered = logs.filter((log) => log.status === 'delivered')
+      .reduce((acc, log) => acc + countFor(log), 0);
+    const failed = logs.filter((log) => log.status === 'failed')
+      .reduce((acc, log) => acc + countFor(log), 0);
     
     return { sent, delivered, failed };
   }

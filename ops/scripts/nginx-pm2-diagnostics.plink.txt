@@ -1,0 +1,13 @@
+set -e
+DATE=$(date -Iseconds)
+echo "== DIAG $DATE =="
+pm2 status || true
+pm2 logs ibiki-sms --lines 120 --timestamp || true
+echo "== NGINX ERRORS =="
+tail -n 120 /var/log/nginx/error.log || true
+echo "== NGINX ACCESS =="
+tail -n 50 /var/log/nginx/access.log || true
+echo "== HEALTH (upstream) =="
+curl -sS -m 10 http://127.0.0.1:3000/api/health || true
+echo "== NETSTAT 3000 =="
+ss -tlnp | grep 3000 || netstat -tlnp | grep 3000 || true

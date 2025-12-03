@@ -64,8 +64,8 @@ export default function ClientDashboard() {
         </div>
         <div className="flex items-center gap-4">
           <Link href="/">
-            <Button variant="ghost" size="icon" data-testid="button-back">
-              <ArrowLeft className="h-5 w-5" />
+            <Button size="icon" data-testid="button-back" className="bg-blue-600 text-white hover:bg-blue-700 font-bold">
+              <ArrowLeft className="h-5 w-5" strokeWidth={3} />
             </Button>
           </Link>
           <div>

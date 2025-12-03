@@ -190,8 +190,8 @@ export default function ApiDocs() {
     <div className="p-6 space-y-8 max-w-5xl">
       <div className="flex items-center gap-4">
         <Link href="/dashboard">
-          <Button variant="ghost" size="icon" data-testid="button-back">
-            <ArrowLeft className="h-5 w-5" />
+          <Button size="icon" data-testid="button-back" className="bg-blue-600 text-white hover:bg-blue-700 font-bold">
+            <ArrowLeft className="h-5 w-5" strokeWidth={3} />
           </Button>
         </Link>
         <div>

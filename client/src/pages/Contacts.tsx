@@ -382,21 +382,23 @@ export default function Contacts() {
     <div className="min-h-screen bg-background">
       <DashboardHeader />
       <div className="container mx-auto p-6 space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>{profile?.user?.role === 'supervisor' ? t('sendSms.supervisorDirectMode') : t('contacts.adminMode')}</CardTitle>
-            <CardDescription>{t('contacts.selectClient')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ClientSelector 
-              selectedClientId={selectedClientId}
-              onClientChange={setSelectedClientId}
-              isAdminMode={isAdminMode}
-              onAdminModeChange={setIsAdminMode}
-              modeLabel={profile?.user?.role === 'supervisor' ? t('sendSms.supervisorDirectMode') : 'Admin Direct Mode'}
-            />
-          </CardContent>
-        </Card>
+        {(isAdmin || profile?.user?.role === 'supervisor') && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{profile?.user?.role === 'supervisor' ? t('sendSms.supervisorDirectMode') : t('contacts.adminMode')}</CardTitle>
+              <CardDescription>{t('contacts.selectClient')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ClientSelector 
+                selectedClientId={selectedClientId}
+                onClientChange={setSelectedClientId}
+                isAdminMode={isAdminMode}
+                onAdminModeChange={setIsAdminMode}
+                modeLabel={profile?.user?.role === 'supervisor' ? t('sendSms.supervisorDirectMode') : 'Admin Direct Mode'}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         {syncStats.unsynced > 0 && (
           <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20">
@@ -427,8 +429,8 @@ export default function Contacts() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href={isAdmin ? "/admin" : (profile?.user?.role === 'supervisor' ? "/adminsup" : "/dashboard")}>
-              <Button variant="ghost" size="icon" data-testid="button-back">
-                <ArrowLeft className="h-5 w-5" />
+              <Button size="icon" data-testid="button-back" className="bg-blue-600 text-white hover:bg-blue-700 font-bold">
+                <ArrowLeft className="h-5 w-5" strokeWidth={3} />
               </Button>
             </Link>
             <div>
