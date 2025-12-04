@@ -233,6 +233,7 @@ app.use((req, res, next) => {
     { env: 'CAPTCHA_SECRET', cfg: 'captcha_secret' },
     { env: 'TURNSTILE_SITE_KEY', cfg: 'turnstile_site_key' },
     { env: 'TURNSTILE_SECRET', cfg: 'turnstile_secret' },
+    { env: 'OPENROUTER_API_KEY', cfg: 'paraphraser.openrouter.key' },
   ];
     for (const k of desiredKeys) {
       if (!process.env[k.env]) {

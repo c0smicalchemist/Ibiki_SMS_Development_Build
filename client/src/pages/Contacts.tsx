@@ -552,10 +552,10 @@ export default function Contacts() {
                         <SelectValue placeholder={`${t("contacts.noGroup")} (${t("contacts.ungrouped")})`} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ungrouped">{t("contacts.noGroup")}</SelectItem>
-                        {groups.map((group: ContactGroup) => (
-                          <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
-                        ))}
+                        <SelectItem value="ungrouped" textValue={t("contacts.noGroup")}>{t("contacts.noGroup")}</SelectItem>
+                          {groups.map((group: ContactGroup) => (
+                            <SelectItem key={group.id} value={group.id} textValue={group.name}>{group.name}</SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>

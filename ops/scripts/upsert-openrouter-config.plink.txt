@@ -1,0 +1,22 @@
+set -e
+node - <<'NODE'
+const fs=require('fs');
+const path=require('path');
+const {Pool}=require('pg');
+(async()=>{
+  const envPath=path.resolve('/opt/ibiki-sms/.env');
+  const env=fs.existsSync(envPath)?fs.readFileSync(envPath,'utf8'):'';
+  function get(k){const m=new RegExp('^'+k+'=(.*)$','m').exec(env);return m?m[1].trim():process.env[k]||''}
+  const pool=new Pool({connectionString:get('DATABASE_URL'),ssl:{rejectUnauthorized:false}});
+  const entries=[
+    ['paraphraser.provider','openrouter'],
+    ['paraphraser.openrouter.model','openrouter/auto'],
+    ['paraphraser.openrouter.key','Bearer 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']
+  ];
+  for(const [k,v] of entries){
+    await pool.query("INSERT INTO system_config(key,value) VALUES($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",[k,v]);
+  }
+  await pool.end();
+  console.log('OK');
+})();
+NODE

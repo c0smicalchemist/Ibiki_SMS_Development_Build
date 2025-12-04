@@ -310,6 +310,230 @@ async function getExtremeSMSCredentials() {
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  // Paraphrase endpoint (Ibiki Phraser) - simple stub generator for MVP
+  app.post('/api/tools/paraphrase', authenticateToken, async (req: any, res) => {
+    try {
+      const { text, n = 5, creativity = 0.5, lang = 'en', includeLink = false } = req.body || {};
+      if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text required' });
+      const count = Math.max(1, Math.min(25, parseInt(String(n)) || 5));
+      const cfg = await getParaphraserConfig();
+      const placeholders: Record<string,string> = {};
+      const urlPlaceholders: Set<string> = new Set();
+      let protectedText = String(text);
+      protectedText = protectedText.replace(/\{\{[^}]+\}\}/g, (m) => { const k = `__PH_${Object.keys(placeholders).length}__`; placeholders[k]=m; return k; });
+      protectedText = protectedText.replace(/https?:\/\/[^\s]+/g, (m) => { const k = `__PH_${Object.keys(placeholders).length}__`; placeholders[k]=m; urlPlaceholders.add(k); return k; });
+
+      const clamp = (s: string) => {
+        const max = (cfg as any).rules?.targetMax || 155; const hardMax = (cfg as any).rules?.maxChars || 160;
+        let out = s.trim().replace(/\s+/g,' ');
+        if (out.length <= max) return out;
+        let cut = out.lastIndexOf(' ', max);
+        if (cut < 0) cut = max;
+        out = out.slice(0, cut).trim();
+        const trailing = out.split(/\s+/).pop()?.toLowerCase() || '';
+        if (['to','and','or','is','are','with','at','for','of','on','in'].includes(trailing)) out = out.replace(new RegExp(`${trailing}$`),'').trim();
+        if (!/[.?!]$/.test(out)) out += '.';
+        if (out.length > hardMax) out = out.slice(0, hardMax).trim();
+        return out;
+      };
+
+      const stubGen = (base: string, c: number, creative: number) => {
+        const synonyms: Record<string,string[]> = { hello: ['Hello','Hi','Hey','Hello there'], thanks: ['Thank you','Thanks','Much appreciated'], please: ['please','kindly'], good: ['great','nice','excellent'] };
+        const arr: any[] = [];
+        const endsWithQuestion = /\?\s*$/.test(base);
+        for (let i=0;i<c;i++){
+          const words = base.split(/\s+/);
+          const v = words.map(w => {
+            const key = w.replace(/[^a-zA-Z]/g,'').toLowerCase();
+            if (synonyms[key] && Math.random() < (0.2 + creative*0.6)) {
+              const opts = synonyms[key]; return opts[Math.floor(Math.random()*opts.length)];
+            }
+            return w;
+          }).join(' ');
+          let out = v.trim();
+          // Capitalize sentence start
+          out = out.charAt(0).toUpperCase() + out.slice(1);
+          // Ensure punctuation
+          if (!/[.?!]\s*$/.test(out)) out = out + (endsWithQuestion ? '?' : '.');
+          Object.keys(placeholders).forEach(k => {
+            const orig = placeholders[k];
+            if (includeLink && urlPlaceholders.has(k)) {
+              const phrase = ` here is the link ${orig} here you will find more information `;
+              // remove any leftover placeholder and insert mid-sentence
+              out = out.replace(new RegExp(k,'g'), '');
+              const mid = Math.floor(out.length/2);
+              let pos = out.indexOf(' ', mid);
+              if (pos === -1) pos = out.lastIndexOf(' ', mid);
+              if (pos === -1) pos = mid;
+              out = `${out.slice(0,pos)} ${phrase} ${out.slice(pos)}`.replace(/\s+/g,' ').trim();
+            } else {
+              out = out.replace(new RegExp(k,'g'), orig);
+            }
+          });
+          out = clamp(out);
+          const id = crypto.randomBytes(8).toString('hex');
+          arr.push({ id, text: out, score: +(0.80 + Math.random()*0.15).toFixed(2) });
+        }
+        return arr;
+      };
+
+      let variants: any[] = [];
+      let providerUsed: 'openrouter' | 'ollama' | 'remote' | 'stub' = 'stub';
+      if (cfg.provider === 'ollama') {
+        const temp = Math.max(0, Math.min(1, Number(creativity))) || 0.5;
+        for (let i=0;i<count;i++) {
+          const prompt = `Paraphrase the following SMS. Preserve any tokens like {{name}} and any URLs exactly. Output only the paraphrase.\nText: ${protectedText}`;
+          const resp = await axios.post(`${cfg.url}/api/generate`, { model: cfg.model, prompt, stream: false, options: { temperature: temp } }, { timeout: 15000 });
+          let out = String(resp.data?.response || protectedText);
+          Object.keys(placeholders).forEach(k => { out = out.replace(new RegExp(k,'g'), placeholders[k]); });
+          out = clamp(out);
+          const id = crypto.randomBytes(8).toString('hex');
+          variants.push({ id, text: out, score: +(0.8).toFixed(2) });
+        }
+        providerUsed = 'ollama';
+      } else if (cfg.provider === 'openrouter' && (cfg as any).key) {
+        const temp = Math.max(0, Math.min(1, Number(creativity))) || 0.5;
+        const minChars = (cfg as any).rules?.targetMin || 145;
+        const maxChars = (cfg as any).rules?.targetMax || 155;
+        const grammar = ((cfg as any).rules?.enforceGrammar ? 'Ensure complete, grammatically correct sentences.' : '');
+        const prompt = `Paraphrase the following SMS into ${count} variants. ${grammar} Keep each variant between ${minChars}-${maxChars} characters and strictly under ${(cfg as any).rules?.maxChars || 160}. Preserve tokens like {{name}} and any URLs exactly. Place any URL token mid-sentence using natural phrasing. Prefer responding with a JSON object {"variants":[{"text":"...","score":0.9},...]}. If you cannot respond as JSON, respond with ${count} bullet lines, one variant per line.\nText: ${protectedText}`;
+        const rawKey = String((cfg as any).key || '').trim();
+        const authHeader = rawKey.startsWith('Bearer ') ? rawKey : `Bearer ${rawKey}`;
+        const headers: Record<string,string> = { 'Content-Type': 'application/json', 'Authorization': authHeader };
+        const body = { model: (cfg as any).model || 'openrouter/auto', messages: [{ role: 'system', content: 'Paraphrase SMS while preserving placeholders and links; respond as JSON.' }, { role: 'user', content: prompt }], temperature: temp, response_format: { type: 'json_object' } };
+        try {
+          const resp = await axios.post('https://openrouter.ai/api/v1/chat/completions', body, { headers, timeout: 20000 });
+          let raw = String(resp.data?.choices?.[0]?.message?.content || '{}');
+          raw = raw.replace(/^```json\s*/i,'').replace(/\s*```$/,'');
+          let parsed: any = {};
+          try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+          let arr = Array.isArray(parsed?.variants) ? parsed.variants : [];
+          if (!Array.isArray(arr) || arr.length === 0) {
+            const lines = String(resp.data?.choices?.[0]?.message?.content || '').split(/\r?\n/).map(s => s.replace(/^[-*\d\.\)\s]+/,'').trim()).filter(s => s.length > 0);
+            arr = lines.slice(0, count).map(txt => ({ text: txt, score: 0.8 }));
+          }
+          for (const v of arr) {
+            let out = String(v?.text || protectedText);
+            Object.keys(placeholders).forEach(k => {
+              const orig = placeholders[k];
+              if (includeLink && urlPlaceholders.has(k)) {
+                if (out.includes(orig)) {
+                  out = out.replace(new RegExp(k,'g'), orig);
+                } else if (out.includes(k)) {
+                  const phrase = String((cfg as any).rules?.linkTemplate || '').replace('${url}', orig);
+                  out = out.replace(new RegExp(k,'g'), phrase);
+                } else {
+                  const phrase = String((cfg as any).rules?.linkTemplate || '').replace('${url}', orig);
+                  const mid = Math.floor(out.length/2);
+                  let pos = out.indexOf(' ', mid);
+                  if (pos === -1) pos = out.lastIndexOf(' ', mid);
+                  if (pos === -1) pos = mid;
+                  out = `${out.slice(0,pos)} ${phrase} ${out.slice(pos)}`.replace(/\s+/g,' ').trim();
+                }
+              } else {
+                out = out.replace(new RegExp(k,'g'), orig);
+              }
+            });
+            out = clamp(out);
+            const id = crypto.randomBytes(8).toString('hex');
+            const score = typeof v?.score === 'number' ? v.score : 0.8;
+            variants.push({ id, text: out, score: +Number(score).toFixed(2) });
+          }
+          {
+            const seen = new Set<string>();
+            variants = variants.filter(v => { const norm = v.text.toLowerCase().replace(/\s+/g,' ').trim(); if (seen.has(norm)) return false; seen.add(norm); return true; });
+          }
+          if (variants.length < count) {
+            const remain = count - variants.length;
+            const prompt2 = `Provide ${remain} additional distinct variants that meet the same rules.\nText: ${protectedText}`;
+            const body2 = { model: (cfg as any).model || 'openrouter/auto', messages: [{ role: 'system', content: 'Paraphrase SMS while preserving placeholders and links; respond as JSON.' }, { role: 'user', content: prompt2 }], temperature: temp, response_format: { type: 'json_object' } };
+            try {
+              const resp2 = await axios.post('https://openrouter.ai/api/v1/chat/completions', body2, { headers, timeout: 20000 });
+              let raw2 = String(resp2.data?.choices?.[0]?.message?.content || '{}');
+              raw2 = raw2.replace(/^```json\s*/i,'').replace(/\s*```$/,'');
+              let parsed2: any = {}; try { parsed2 = JSON.parse(raw2); } catch { parsed2 = {}; }
+              let arr2 = Array.isArray(parsed2?.variants) ? parsed2.variants : [];
+              if (!Array.isArray(arr2) || arr2.length === 0) {
+                const lines2 = String(resp2.data?.choices?.[0]?.message?.content || '').split(/\r?\n/).map(s => s.replace(/^[-*\d\.\)\s]+/,'').trim()).filter(s => s.length > 0);
+                arr2 = lines2.slice(0, remain).map(txt => ({ text: txt, score: 0.8 }));
+              }
+              for (const v of arr2) {
+                let out = String(v?.text || protectedText);
+                Object.keys(placeholders).forEach(k => {
+                  const orig = placeholders[k];
+                  if (includeLink && urlPlaceholders.has(k)) {
+                    if (out.includes(orig)) {
+                      out = out.replace(new RegExp(k,'g'), orig);
+                    } else if (out.includes(k)) {
+                      const phrase = String((cfg as any).rules?.linkTemplate || '').replace('${url}', orig);
+                      out = out.replace(new RegExp(k,'g'), phrase);
+                    } else {
+                      const phrase = String((cfg as any).rules?.linkTemplate || '').replace('${url}', orig);
+                      const mid = Math.floor(out.length/2);
+                      let pos = out.indexOf(' ', mid);
+                      if (pos === -1) pos = out.lastIndexOf(' ', mid);
+                      if (pos === -1) pos = mid;
+                      out = `${out.slice(0,pos)} ${phrase} ${out.slice(pos)}`.replace(/\s+/g,' ').trim();
+                    }
+                  } else {
+                    out = out.replace(new RegExp(k,'g'), orig);
+                  }
+                });
+                out = clamp(out);
+                const id = crypto.randomBytes(8).toString('hex');
+                const score = typeof v?.score === 'number' ? v.score : 0.8;
+                const norm = out.toLowerCase().replace(/\s+/g,' ').trim();
+                if (!variants.some(x => x.text.toLowerCase().replace(/\s+/g,' ').trim() === norm)) {
+                  variants.push({ id, text: out, score: +Number(score).toFixed(2) });
+                }
+              }
+            } catch {}
+          }
+          if (variants.length === 0) {
+            variants = stubGen(protectedText, count, temp);
+            providerUsed = 'stub';
+          } else {
+            providerUsed = 'openrouter';
+          }
+        } catch (err:any) {
+          variants = stubGen(protectedText, count, temp);
+          providerUsed = 'stub';
+        }
+      } else if (cfg.provider === 'remote' && cfg.url) {
+        const headers: Record<string,string> = { 'Content-Type': 'application/json' };
+        if ((cfg as any).auth) headers['Authorization'] = (cfg as any).auth;
+        try {
+          const resp = await axios.post(`${cfg.url}`, { text: protectedText, n: count, creativity, lang }, { headers, timeout: 15000 });
+          const arr = Array.isArray(resp.data?.variants) ? resp.data.variants : (Array.isArray(resp.data) ? resp.data : []);
+          for (const v of arr) {
+            let out = String(v?.text || protectedText);
+            Object.keys(placeholders).forEach(k => { const orig = placeholders[k]; if (includeLink && urlPlaceholders.has(k)) { if (out.includes(orig)) { out = out.replace(new RegExp(k,'g'), orig); } else if (out.includes(k)) { const phrase = String((cfg as any).rules?.linkTemplate || '').replace('${url}', orig); out = out.replace(new RegExp(k,'g'), phrase); } else { const phrase = String((cfg as any).rules?.linkTemplate || '').replace('${url}', orig); const mid = Math.floor(out.length/2); let pos = out.indexOf(' ', mid); if (pos === -1) pos = out.lastIndexOf(' ', mid); if (pos === -1) pos = mid; out = `${out.slice(0,pos)} ${phrase} ${out.slice(pos)}`.replace(/\s+/g,' ').trim(); } } else { out = out.replace(new RegExp(k,'g'), orig); } });
+            out = clamp(out);
+            const id = String(v?.id || crypto.randomBytes(8).toString('hex'));
+            const score = typeof v?.score === 'number' ? v.score : 0.8;
+            variants.push({ id, text: out, score: +Number(score).toFixed(2) });
+          }
+          if (variants.length === 0) {
+            variants = stubGen(protectedText, count, Number(creativity));
+            providerUsed = 'stub';
+          } else {
+            providerUsed = 'remote';
+          }
+        } catch (err:any) {
+          variants = stubGen(protectedText, count, Number(creativity));
+          providerUsed = 'stub';
+        }
+      } else {
+        variants = stubGen(protectedText, count, Number(creativity));
+        providerUsed = 'stub';
+      }
+
+      res.json({ success: true, variants, providerUsed });
+    } catch (e:any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
   async function isProtectedAccount(userId: string): Promise<boolean> {
     try {
       const u = await storage.getUser(userId);
@@ -317,6 +541,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch {
       return false;
     }
+  }
+
+  // Utility: extract variantId from payload (if provided) to embed into requestPayload
+  function attachVariantMeta(payload: any, variantId?: string) {
+    try {
+      if (variantId) payload.__variantId = String(variantId);
+    } catch {}
+    return payload;
   }
 
   // ============================================
@@ -433,7 +665,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const r = await pool.query("select table_name from information_schema.tables where table_schema='public' order by table_name");
       await pool.end();
       res.set('Cache-Control', 'no-store');
-      res.json({ success: true, tables: r.rows.map((x: any) => x.table_name) });
+      let conn: any = {};
+      try {
+        const u = new URL(url);
+        conn = {
+          protocol: u.protocol.replace(':',''),
+          host: u.hostname,
+          port: u.port || '5432',
+          database: (u.pathname || '').replace(/^\//,'') || '',
+          user: u.username || ''
+        };
+      } catch {}
+      res.json({ success: true, tables: r.rows.map((x: any) => x.table_name), connection: conn });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e?.message || String(e) });
     }
@@ -1760,6 +2003,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/admin/paraphraser/config', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { provider, remoteUrl, remoteAuth, ollamaUrl, ollamaModel, openrouterModel, openrouterKey, targetMin, targetMax, maxChars, enforceGrammar, linkTemplate } = req.body || {};
+      if (provider !== undefined) await storage.setSystemConfig('paraphraser.provider', String(provider || ''));
+      if (remoteUrl !== undefined) await storage.setSystemConfig('paraphraser.remote.url', String(remoteUrl || ''));
+      if (remoteAuth !== undefined) await storage.setSystemConfig('paraphraser.remote.auth', String(remoteAuth || ''));
+      if (ollamaUrl !== undefined) await storage.setSystemConfig('paraphraser.ollama.url', String(ollamaUrl || ''));
+      if (ollamaModel !== undefined) await storage.setSystemConfig('paraphraser.ollama.model', String(ollamaModel || ''));
+      if (openrouterModel !== undefined) await storage.setSystemConfig('paraphraser.openrouter.model', String(openrouterModel || ''));
+      if (openrouterKey !== undefined) await storage.setSystemConfig('paraphraser.openrouter.key', String(openrouterKey || ''));
+      if (targetMin !== undefined) await storage.setSystemConfig('paraphraser.rules.targetMin', String(targetMin));
+      if (targetMax !== undefined) await storage.setSystemConfig('paraphraser.rules.targetMax', String(targetMax));
+      if (maxChars !== undefined) await storage.setSystemConfig('paraphraser.rules.maxChars', String(maxChars));
+      if (enforceGrammar !== undefined) await storage.setSystemConfig('paraphraser.rules.enforceGrammar', String(enforceGrammar));
+      if (linkTemplate !== undefined) await storage.setSystemConfig('paraphraser.rules.linkTemplate', String(linkTemplate));
+      res.json({ success: true });
+    } catch (e:any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  app.all('/api/admin/paraphraser/test', authenticateToken, requireAdmin, async (_req: any, res) => {
+    try {
+      const cfg = await getParaphraserConfig();
+      let ok = false;
+      let details = '';
+      let endpoint = '';
+      const model = (cfg as any).model || '';
+      if (cfg.provider === 'openrouter') {
+        endpoint = 'https://openrouter.ai/api/v1/models';
+        const rawKey = String((cfg as any).key || '').trim();
+        const authHeader = rawKey ? (rawKey.startsWith('Bearer ') ? rawKey : `Bearer ${rawKey}`) : '';
+        const headers: Record<string, string> = authHeader ? { Authorization: authHeader } : {};
+        try {
+          const resp = await axios.get(endpoint, { headers, timeout: 10000 });
+          const models = Array.isArray(resp.data?.data) ? resp.data.data.map((m: any) => m?.id || m?.name).filter(Boolean) : [];
+          ok = models.length > 0 && (model ? models.includes(model) : true);
+          details = ok ? 'OpenRouter reachable' : 'Model not found';
+          if (ok && model) {
+            const body = { model, messages: [{ role: 'user', content: 'Paraphrase: Hello there.' }], temperature: 0.2 };
+            const chat = await axios.post('https://openrouter.ai/api/v1/chat/completions', body, { headers: { ...headers, 'Content-Type': 'application/json' }, timeout: 12000 });
+            ok = ok && !!chat.data?.choices?.[0]?.message?.content;
+            details = ok ? 'Chat completions OK' : 'Chat response empty';
+          }
+        } catch (e: any) {
+          ok = false;
+          details = e?.response?.data?.error?.message || e?.message || 'OpenRouter error';
+        }
+      } else if (cfg.provider === 'ollama') {
+        endpoint = `${cfg.url}/api/tags`;
+        try {
+          const resp = await axios.get(endpoint, { timeout: 8000 });
+          const ms = Array.isArray(resp.data?.models) ? resp.data.models.map((m: any) => m?.name).filter(Boolean) : [];
+          ok = ms.length > 0 && (cfg as any).model ? ms.includes((cfg as any).model) : ms.length > 0;
+          details = ok ? 'Ollama reachable' : 'Model not found';
+        } catch (e: any) {
+          ok = false;
+          details = e?.message || 'Ollama error';
+        }
+      } else if (cfg.provider === 'remote' && (cfg as any).url) {
+        endpoint = String((cfg as any).url);
+        try {
+          const resp = await axios.post(endpoint, { text: 'ping', n: 1, creativity: 0.1, lang: 'en' }, { timeout: 10000 });
+          ok = resp.status >= 200 && resp.status < 300;
+          details = ok ? 'Remote paraphraser reachable' : `HTTP ${resp.status}`;
+        } catch (e: any) {
+          ok = false;
+          details = e?.message || 'Remote error';
+        }
+      } else {
+        endpoint = 'stub';
+        ok = false;
+        details = 'Provider is stub';
+      }
+      res.json({ success: true, ok, provider: cfg.provider, endpoint, model, details });
+    } catch (e: any) {
+      res.status(500).json({ success: false, ok: false, details: e?.message || String(e) });
+    }
+  });
+
+  app.get('/api/admin/messages/summary', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const email = String(req.query.email || '').trim();
+      if (!email) return res.status(400).json({ success: false, error: 'email required' });
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.json({ success: true, found: false, email, count: 0, recent: [] });
+      const recent = await storage.getMessageLogsByUserId(user.id, 20);
+      const countResult = await storage.getTotalMessageCount ? await storage.getTotalMessageCount() : undefined;
+      const countUser = recent.length < 20 ? recent.length : undefined;
+      res.json({ success: true, found: true, userId: user.id, email: user.email, countEstimate: countUser, recent });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
   app.post('/api/admin/reconcile-credits', authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const logs = await storage.getAllMessageLogs(100000);
@@ -2299,7 +2637,16 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
     try {
       const p = req.body || {};
       const fromRaw = p.from || p.sender || p.msisdn;
-      const receiverRaw = p.receiver || p.to || p.recipient;
+      let receiverRaw = p.receiver || p.to || p.recipient;
+      try {
+        const aliasesCfg = await storage.getSystemConfig('routing.aliases');
+        if (aliasesCfg?.value) {
+          const aliases = JSON.parse(String(aliasesCfg.value || '{}')) || {};
+          if (aliases && typeof aliases === 'object' && receiverRaw && aliases[String(receiverRaw)]) {
+            receiverRaw = aliases[String(receiverRaw)];
+          }
+        }
+      } catch {}
       const message = p.message || p.text || '';
       const usedmodem = p.usedmodem || p.usemodem || null;
       const port = p.port || null;
@@ -2407,7 +2754,16 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
     try {
       const p = req.body || {};
       const from = p.from || p.sender || p.msisdn;
-      const receiver = p.receiver || p.to || p.recipient;
+      let receiver = p.receiver || p.to || p.recipient;
+      try {
+        const aliasesCfg = await storage.getSystemConfig('routing.aliases');
+        if (aliasesCfg?.value) {
+          const aliases = JSON.parse(String(aliasesCfg.value || '{}')) || {};
+          if (aliases && typeof aliases === 'object' && receiver && aliases[String(receiver)]) {
+            receiver = aliases[String(receiver)];
+          }
+        }
+      } catch {}
       const message = p.message || p.text || '';
       const usedmodem = p.usedmodem || p.usemodem || null;
       const port = p.port || null;
@@ -2430,7 +2786,7 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
         userId = await storage.findClientByRecipient(from);
       }
       if (!userId && looksLikePhone(receiver)) {
-        const profile = await storage.getClientProfileByPhoneNumber(receiver);
+        const profile = await storage.getClientProfileByPhoneNumber(normalizePhone(String(receiver), '+1'));
         userId = profile?.userId;
       }
       if (!userId) {
@@ -2634,6 +2990,22 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
       console.error('Webhook events fetch error:', error);
       res.status(500).json({ success: false });
     }
+  });
+
+  // Admin: Set/get number aliases for routing (maps internal codes to real MSISDN)
+  app.post('/api/admin/routing/aliases', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { aliases } = req.body || {};
+      if (!aliases || typeof aliases !== 'object') return res.status(400).json({ success: false, error: 'aliases object required' });
+      await storage.setSystemConfig('routing.aliases', JSON.stringify(aliases));
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+  app.get('/api/admin/routing/aliases', authenticateToken, requireAdmin, async (_req, res) => {
+    try {
+      const cfg = await storage.getSystemConfig('routing.aliases');
+      res.json({ success: true, aliases: cfg?.value ? JSON.parse(String(cfg.value)) : {} });
+    } catch (e: any) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
   });
 
   // Test API endpoint (admin only - uses ExtremeSMS directly, NOT client keys)
@@ -3658,13 +4030,13 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       } catch {}
       const businessByPhone = new Map<string, string>();
       clientContacts.forEach((cc: any) => {
-        const n = normalizePhoneLocal(cc.phoneNumber);
+        const n = normalizePhone(cc.phoneNumber);
         if (n && cc.business) businessByPhone.set(n, cc.business);
       });
       const enriched = contacts.map((c: any) => ({
         ...c,
-        phoneNumber: normalizePhoneLocal(c.phoneNumber),
-        business: businessByPhone.get(normalizePhoneLocal(c.phoneNumber)) || null
+        phoneNumber: normalizePhone(c.phoneNumber),
+        business: businessByPhone.get(normalizePhone(c.phoneNumber)) || null
       }));
       res.json({ success: true, contacts: enriched });
     } catch (error) {
@@ -4766,3 +5138,29 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
     }
   }
       
+async function getParaphraserConfig() {
+  const providerCfg = await storage.getSystemConfig('paraphraser.provider');
+  const provider = providerCfg?.value || 'openrouter';
+  const targetMinCfg = await storage.getSystemConfig('paraphraser.rules.targetMin');
+  const targetMaxCfg = await storage.getSystemConfig('paraphraser.rules.targetMax');
+  const maxCharsCfg = await storage.getSystemConfig('paraphraser.rules.maxChars');
+  const enforceGrammarCfg = await storage.getSystemConfig('paraphraser.rules.enforceGrammar');
+  const linkTemplateCfg = await storage.getSystemConfig('paraphraser.rules.linkTemplate');
+  const rules = {
+    targetMin: parseInt(String(targetMinCfg?.value || 145)),
+    targetMax: parseInt(String(targetMaxCfg?.value || 155)),
+    maxChars: parseInt(String(maxCharsCfg?.value || 160)),
+    enforceGrammar: String(enforceGrammarCfg?.value || 'true') === 'true',
+    linkTemplate: String(linkTemplateCfg?.value || 'Here is the link ${url} here you will find all the information you were asking for.')
+  };
+  if (provider === 'ollama') {
+    const urlCfg = await storage.getSystemConfig('paraphraser.ollama.url');
+    const modelCfg = await storage.getSystemConfig('paraphraser.ollama.model');
+    return { provider, url: urlCfg?.value || 'http://localhost:11434', model: modelCfg?.value || 'llama3', rules };
+  } else if (provider === 'openrouter') {
+    const modelCfg = await storage.getSystemConfig('paraphraser.openrouter.model');
+    const keyCfg = await storage.getSystemConfig('paraphraser.openrouter.key');
+    return { provider, model: modelCfg?.value || 'x-ai/grok-4.1-fast:free', key: keyCfg?.value || String(process.env.OPENROUTER_API_KEY || ''), rules };
+  }
+  return { provider, rules };
+}

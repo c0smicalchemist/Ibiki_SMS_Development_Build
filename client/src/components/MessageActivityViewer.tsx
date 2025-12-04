@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 
@@ -27,6 +29,8 @@ interface MessageLog {
 
 export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admin' | 'supervisor' }) {
   const [q, setQ] = useState("");
+  const [recipientsOpen, setRecipientsOpen] = useState(false);
+  const [recipients, setRecipients] = useState<string[]>([]);
   const { data } = useQuery<{ success: boolean; messages: MessageLog[] }>({
     queryKey: [mode === 'admin' ? "/api/admin/message-logs" : "/api/supervisor/message-logs", mode],
     queryFn: async () => {
@@ -73,6 +77,7 @@ export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admi
     );
   });
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Message Activity</CardTitle>
@@ -111,7 +116,15 @@ export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admi
                     <TableCell>{format(dt, "yyyy-MM-dd HH:mm:ss")}</TableCell>
                     <TableCell className="truncate max-w-[220px]">{l.userDisplay || l.userName || l.userEmail || idToDisplay(l.userId)}</TableCell>
                     <TableCell className="truncate max-w-[200px]">{l.endpoint}</TableCell>
-                    <TableCell className="truncate max-w-[240px]">{recipients}</TableCell>
+                    <TableCell className="truncate max-w-[240px]">
+                      {(l.recipients && l.recipients.length > 0) ? (
+                        <Button variant="outline" size="sm" onClick={() => { setRecipients(l.recipients || []); setRecipientsOpen(true); }}>
+                          Multiple ({l.recipients.length})
+                        </Button>
+                      ) : (
+                        recipients
+                      )}
+                    </TableCell>
                     <TableCell className="font-mono">{l.senderPhoneNumber || ""}</TableCell>
                     <TableCell>{l.status}</TableCell>
                 </TableRow>
@@ -122,5 +135,30 @@ export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admi
         </div>
       </CardContent>
     </Card>
+    <RecipientsDialog open={recipientsOpen} onOpenChange={setRecipientsOpen} numbers={recipients} />
+    </>
+  );
+}
+function RecipientsDialog({ open, onOpenChange, numbers }: { open: boolean; onOpenChange: (v: boolean) => void; numbers: string[] }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[70vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Bulk Recipients</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-semibold">Numbers ({numbers.length})</h4>
+          <Button variant="outline" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(numbers.join('\n')); } catch {} }}>Copy All</Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {numbers.map((n, i) => (
+            <div key={`rec-${i}`} className="flex items-center justify-between gap-2 border rounded p-2">
+              <Badge variant="outline" className="font-mono">{n}</Badge>
+              <Button variant="ghost" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(n); } catch {} }}>Copy</Button>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

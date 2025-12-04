@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import StatCard from "@/components/StatCard";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -167,7 +169,7 @@ export default function AdminDashboard() {
   const webhookStatusQuery = useQuery<{ success: boolean; lastEvent: any; lastEventAt: string | null; lastRoutedUser: string | null }>({
     queryKey: ['/api/admin/webhook/status']
   });
-  const dbStatusQuery = useQuery<{ success: boolean; tables: string[] }>({
+  const dbStatusQuery = useQuery<{ success: boolean; tables: string[]; connection?: { host: string; port: string; database: string } }>({
     queryKey: ['/api/admin/db/status']
   });
   const runMigrationsMutation = useMutation({
@@ -196,6 +198,39 @@ export default function AdminDashboard() {
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message || 'Failed to set webhook URL', variant: 'destructive' });
+    }
+  });
+
+  const [phraserConnStatus, setPhraserConnStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown');
+  const testPhraserMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/admin/paraphraser/test');
+    },
+    onSuccess: (data: any) => {
+      setPhraserConnStatus(data?.ok ? 'connected' : 'disconnected');
+      toast({ title: data?.ok ? 'Connection Successful' : 'Connection Failed', description: data?.details || `${data?.provider || ''} not reachable`, variant: data?.ok ? undefined : 'destructive' });
+    },
+    onError: (error: any) => {
+      setPhraserConnStatus('disconnected');
+      toast({ title: 'Connection Failed', description: error?.message || 'Test failed', variant: 'destructive' });
+    }
+  });
+
+  const [summaryEmail, setSummaryEmail] = useState('');
+  const messagesSummaryMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest(`/api/admin/messages/summary?email=${encodeURIComponent(summaryEmail)}`);
+    },
+    onSuccess: (data: any) => {
+      if (!data?.found) {
+        toast({ title: 'No user found', description: summaryEmail });
+        return;
+      }
+      const c = data?.countEstimate ?? (data?.recent?.length || 0);
+      toast({ title: `Found ${c} messages`, description: `User: ${data?.email}` });
+    },
+    onError: (error: any) => {
+      toast({ title: t('common.error'), description: error?.message || 'Summary failed', variant: 'destructive' });
     }
   });
   const rotateSecretMutation = useMutation({
@@ -557,7 +592,7 @@ export default function AdminDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   {(clients || []).map(c => c.groupId).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).map(g => (
-                    <SelectItem key={String(g)} value={String(g)}>{String(g)}</SelectItem>
+                    <SelectItem key={String(g)} value={String(g)} textValue={String(g)}>{String(g)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -609,14 +644,13 @@ export default function AdminDashboard() {
     });
   };
 
+  
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
       <div className="p-6 space-y-6">
-        <div className="rounded border p-3 bg-muted/40">
-          <p className="text-sm">1 credit = 1 SMS</p>
-          <p className="text-xs text-muted-foreground">SMS capacity shown based on credits. Rates are never displayed.</p>
-        </div>
+        
         <div className="flex items-center gap-4">
           <Link href={isSupervisor ? "/adminsup" : (profile?.user?.role === 'admin' ? "/admin" : "/dashboard")}>
             <Button size="icon" data-testid="button-back" className="bg-blue-600 text-white hover:bg-blue-700 font-bold">
@@ -798,6 +832,107 @@ export default function AdminDashboard() {
           <MessageStatusChart />
         </div>
         <MessageStatusTiles />
+        {profile?.user?.role === 'admin' && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Ibiki Phraser Settings</CardTitle>
+              <CardDescription>Configure the paraphrase provider and model.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-3">
+                <Label>Provider</Label>
+                <Select defaultValue="openrouter" onValueChange={async (v) => {
+                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ provider: v }) });
+                  toast({ title: t('common.success'), description: 'Provider updated' });
+                }}>
+                  <SelectTrigger className="w-48"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openrouter" textValue="OpenRouter">OpenRouter</SelectItem>
+                    <SelectItem value="remote" textValue="Remote HTTP">Remote HTTP</SelectItem>
+                    <SelectItem value="ollama" textValue="Local (Ollama)">Local (Ollama)</SelectItem>
+                    <SelectItem value="stub" textValue="Built-in">Built-in</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="secondary" onClick={async () => {
+                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ provider: 'openrouter', openrouterModel: 'x-ai/grok-4.1-fast:free' }) });
+                  toast({ title: t('common.success'), description: 'Set to Grok 4.1 Fast (free)' });
+                }}>Use Grok 4.1 Fast (free)</Button>
+              </div>
+              <div className="flex items-center gap-3">
+                <Label>Model</Label>
+                <Input placeholder="x-ai/grok-4.1-fast:free" defaultValue="x-ai/grok-4.1-fast:free" onBlur={async (e) => {
+                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ openrouterModel: e.target.value }) });
+                  toast({ title: t('common.success'), description: 'Model saved' });
+                }} />
+              </div>
+              <div className="flex items-center gap-3">
+                <Label>OpenRouter Key</Label>
+                <Input type="password" placeholder="Bearer sk-or-..." onBlur={async (e) => {
+                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ openrouterKey: e.target.value }) });
+                  toast({ title: t('common.success'), description: 'Key saved' });
+                }} />
+              </div>
+              <div className="text-xs text-muted-foreground">Placeholders like {'{'}{'{'}name{'}'}{'}'} and URLs are preserved automatically.</div>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={() => testPhraserMutation.mutate()} disabled={testPhraserMutation.isPending} data-testid="button-test-phraser">
+                  {testPhraserMutation.isPending ? 'Testing...' : 'Test Connection'}
+                </Button>
+                {phraserConnStatus !== 'unknown' && (
+                  <Badge variant={phraserConnStatus === 'connected' ? 'default' : 'destructive'}>
+                    {phraserConnStatus === 'connected' ? '✓ Connected' : '✗ Disconnected'}
+                  </Badge>
+                )}
+              </div>
+              <Accordion type="single" collapsible>
+                <AccordionItem value="phraser-advanced">
+                  <AccordionTrigger>Advanced Settings</AccordionTrigger>
+                  <AccordionContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                      <div className="flex items-center gap-2">
+                        <Label className="min-w-[140px]">Target Min</Label>
+                        <Input type="number" defaultValue={145} onBlur={async (e)=>{ await apiRequest('/api/admin/paraphraser/config',{ method:'POST', body: JSON.stringify({ targetMin: parseInt(e.target.value||'145') })}); toast({ title: t('common.success'), description: 'Saved' }); }} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="min-w-[140px]">Target Max</Label>
+                        <Input type="number" defaultValue={155} onBlur={async (e)=>{ await apiRequest('/api/admin/paraphraser/config',{ method:'POST', body: JSON.stringify({ targetMax: parseInt(e.target.value||'155') })}); toast({ title: t('common.success'), description: 'Saved' }); }} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="min-w-[140px]">Hard Max</Label>
+                        <Input type="number" defaultValue={160} onBlur={async (e)=>{ await apiRequest('/api/admin/paraphraser/config',{ method:'POST', body: JSON.stringify({ maxChars: parseInt(e.target.value||'160') })}); toast({ title: t('common.success'), description: 'Saved' }); }} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="min-w-[140px]">Enforce Grammar</Label>
+                        <Switch defaultChecked onCheckedChange={async (v)=>{ await apiRequest('/api/admin/paraphraser/config',{ method:'POST', body: JSON.stringify({ enforceGrammar: v })}); toast({ title: t('common.success'), description: 'Saved' }); }} />
+                      </div>
+                      <div className="col-span-1 md:col-span-2">
+                        <Label>Link Template</Label>
+                        <Input defaultValue={'Here is the link ${url} here you will find all the information you were asking for.'} onBlur={async (e)=>{ await apiRequest('/api/admin/paraphraser/config',{ method:'POST', body: JSON.stringify({ linkTemplate: e.target.value })}); toast({ title: t('common.success'), description: 'Saved' }); }} />
+                        <div className="text-xs text-muted-foreground mt-1">Use ${'url'} placeholder.</div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </CardContent>
+          </Card>
+        )}
+
+        {profile?.user?.role === 'admin' && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>User Message Summary</CardTitle>
+              <CardDescription>Resolve a user by email and view recent logs.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <Input placeholder="user@example.com" value={summaryEmail} onChange={(e)=> setSummaryEmail(e.target.value)} className="w-80" />
+                <Button onClick={()=> messagesSummaryMutation.mutate()} disabled={!summaryEmail || messagesSummaryMutation.isPending}>
+                  {messagesSummaryMutation.isPending ? 'Loading...' : 'Check'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs defaultValue="clients" data-testid="tabs-admin">
           <TabsList>
@@ -1156,7 +1291,7 @@ export default function AdminDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       {usTimezones.map((tz) => (
-                        <SelectItem key={tz.value} value={tz.value}>
+                        <SelectItem key={tz.value} value={tz.value} textValue={tz.label}>
                           {tz.label}
                         </SelectItem>
                       ))}
@@ -1233,8 +1368,8 @@ export default function AdminDashboard() {
                             <SelectValue placeholder="Select Group ID" />
                           </SelectTrigger>
                           <SelectContent>
-                            {(clients || []).map(c => c.groupId).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).map(g => (
-                              <SelectItem key={String(g)} value={String(g)}>{String(g)}</SelectItem>
+                          {(clients || []).map(c => c.groupId).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).map(g => (
+                              <SelectItem key={String(g)} value={String(g)} textValue={String(g)}>{String(g)}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -1303,6 +1438,9 @@ export default function AdminDashboard() {
                     ) : (
                       <Badge variant="destructive">Error</Badge>
                     )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Connected: {dbStatusQuery.data?.connection ? `${dbStatusQuery.data.connection.host}:${dbStatusQuery.data.connection.port}/${dbStatusQuery.data.connection.database}` : '—'}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     Tables: {dbStatusQuery.data?.tables ? dbStatusQuery.data.tables.length : 0}
@@ -1389,6 +1527,24 @@ export default function AdminDashboard() {
               <CardDescription>Simulate inbound webhook and verify routing to Ibiki inbox</CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="p-3 mb-4 rounded border bg-muted/40">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold">ExtremeSMS Webhook URL</div>
+                    <div className="text-xs text-muted-foreground">Use this URL in ExtremeSMS so Ibiki can receive replies.</div>
+                    <div className="mt-2 font-mono text-xs break-all" data-testid="text-suggested-webhook">
+                      {secretsStatusQuery.data?.suggestedWebhook || 'https://ibiki.run.place/api/webhook/extreme-sms'}
+                    </div>
+                    <div className="mt-1 text-xs">
+                      Configured: <span className="font-mono" data-testid="text-configured-webhook">{secretsStatusQuery.data?.configuredWebhook || '—'}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => navigator.clipboard.writeText(String(secretsStatusQuery.data?.suggestedWebhook || 'https://ibiki.run.place/api/webhook/extreme-sms'))} data-testid="button-copy-webhook">Copy</Button>
+                    <Button onClick={() => setWebhookUrlMutation.mutate(String(secretsStatusQuery.data?.suggestedWebhook || 'https://ibiki.run.place/api/webhook/extreme-sms'))} data-testid="button-set-webhook">Set Webhook URL</Button>
+                  </div>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <Label>From (sender phone)</Label>

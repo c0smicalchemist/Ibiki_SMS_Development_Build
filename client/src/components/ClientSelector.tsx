@@ -97,16 +97,7 @@ export function ClientSelector({ onClientChange, selectedClientId, onAdminModeCh
             onValueChange={onClientChange}
           >
             <SelectTrigger id="client-selector" data-testid="select-client">
-              <SelectValue placeholder="Select a client">
-                {selectedClient && (
-                  <span className="flex items-center justify-between w-full">
-                    <span>{selectedClient.name}</span>
-                    <span className="text-xs text-muted-foreground ml-2">
-                      ${parseFloat(selectedClient.credits).toFixed(2)} credits
-                    </span>
-                  </span>
-                )}
-              </SelectValue>
+              <SelectValue placeholder="Select a client" />
             </SelectTrigger>
             <SelectContent>
               {clients.map((client) => (
@@ -114,16 +105,9 @@ export function ClientSelector({ onClientChange, selectedClientId, onAdminModeCh
                   key={client.id} 
                   value={client.id}
                   data-testid={`option-client-${client.id}`}
+                  textValue={client.name}
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex flex-col">
-                      <span className="font-medium">{client.name}</span>
-                      <span className="text-xs text-muted-foreground">{client.email}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground ml-4">
-                      ${parseFloat(client.credits).toFixed(2)}
-                    </span>
-                  </div>
+                  {`${client.name} (${client.email}) $${parseFloat(client.credits).toFixed(2)}`}
                 </SelectItem>
               ))}
             </SelectContent>

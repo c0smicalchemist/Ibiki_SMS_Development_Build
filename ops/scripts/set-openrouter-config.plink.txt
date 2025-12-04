@@ -1,0 +1,24 @@
+set -e
+TOKEN=$(node - <<'NODE'
+const fs=require('fs');
+const path=require('path');
+const {Pool}=require('pg');
+const jwt=require('jsonwebtoken');
+(async()=>{
+  const envPath=path.resolve('/opt/ibiki-sms/.env');
+  const env=fs.existsSync(envPath)?fs.readFileSync(envPath,'utf8'):'';
+  function get(k){const m=new RegExp('^'+k+'=(.*)$','m').exec(env);return m?m[1].trim():process.env[k]||''}
+  const pool=new Pool({connectionString:get('DATABASE_URL'),ssl:{rejectUnauthorized:false}});
+  const r=await pool.query('select id from users where email=$1 limit 1',['ibiki_dash@proton.me']);
+  const id=r.rows[0] && r.rows[0].id;
+  const srec=await pool.query("select value from system_config where key='jwt_secret' limit 1");
+  const secret=(srec.rows[0] && srec.rows[0].value) || process.env.JWT_SECRET || process.env.SESSION_SECRET || 'your-secret-key-change-in-production';
+  await pool.end();
+  const token=jwt.sign({userId:id,role:'admin'},secret,{expiresIn:'15m'});
+  console.log(token);
+})();
+NODE
+)
+curl -sS -m 30 -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"provider":"openrouter","openrouterModel":"openrouter/auto","openrouterKey":"Bearer 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"}' https://ibiki.run.place/api/admin/paraphraser/config
+echo
+curl -sS -m 30 -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"text":"Hello {{name}}, please confirm at https://example.com","n":3,"creativity":0.4,"lang":"en"}' https://ibiki.run.place/api/tools/paraphrase

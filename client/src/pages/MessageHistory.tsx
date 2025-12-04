@@ -272,6 +272,19 @@ export default function MessageHistory() {
     return 'N/A';
   };
 
+  const extractRecipients = (msg: any): string[] => {
+    const arr = Array.isArray(msg.recipients) ? msg.recipients : [];
+    if (arr && arr.length > 0) return arr;
+    try {
+      const req = typeof msg.requestPayload === 'string' ? JSON.parse(msg.requestPayload) : (msg.requestPayload || {});
+      if (Array.isArray(req.normalizedRecipients) && req.normalizedRecipients.length > 0) return req.normalizedRecipients;
+      if (Array.isArray(req.recipients) && req.recipients.length > 0) return req.recipients;
+      if (Array.isArray(req.messages) && req.messages.length > 0) return req.messages.map((m: any) => m.recipient || m.to).filter(Boolean);
+      if (Array.isArray(req.transformed) && req.transformed.length > 0) return req.transformed.map((m: any) => m.recipient).filter(Boolean);
+    } catch {}
+    return [];
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />
@@ -368,14 +381,14 @@ export default function MessageHistory() {
                         <TableRow key={msg.id} data-testid={`row-message-${msg.id}`}>
                           <TableCell className="font-mono text-sm" data-testid={`recipient-${msg.id}`}>
                             {getRecipientDisplay(msg)}
-                          {msg.recipients && Array.isArray(msg.recipients) && msg.recipients.length > 0 && (
+                          {(() => { const nums = extractRecipients(msg); return nums.length > 0; })() && (
                             <Button
                               variant="outline"
                               size="sm"
                               className="ml-2 border-blue-500 text-blue-600 font-bold"
-                              onClick={() => { setBulkNumbers(msg.recipients || []); setBulkOpen(true); }}
+                              onClick={() => { const nums = extractRecipients(msg); setBulkNumbers(nums); setBulkOpen(true); }}
                             >
-                              {t('messageHistory.bulk')} ({msg.recipients.length})
+                              {(() => { const nums = extractRecipients(msg); return `Multiple (${nums.length})`; })()}
                             </Button>
                           )}
                           </TableCell>
@@ -471,7 +484,7 @@ export default function MessageHistory() {
           </CardContent>
         </Card>
         <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[70vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t('messageHistory.bulkRecipients')}</DialogTitle>
             </DialogHeader>
@@ -486,7 +499,7 @@ export default function MessageHistory() {
           </DialogContent>
         </Dialog>
         <Dialog open={idsOpen} onOpenChange={setIdsOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[70vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Bulk Message IDs</DialogTitle>
             </DialogHeader>
@@ -494,11 +507,11 @@ export default function MessageHistory() {
               <h4 className="text-sm font-semibold">IDs ({bulkIds.length})</h4>
               <Button variant="outline" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(bulkIds.join('\n')); } catch {} }}>Copy All</Button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {bulkIds.map((id, i) => (
-                <div key={`id-${i}`} className="flex items-center justify-between gap-2 border rounded p-2">
-                  <Badge variant="outline" className="font-mono">{id}</Badge>
-                  <Button variant="ghost" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(id); } catch {} }}>Copy</Button>
+                <div key={`id-${i}`} className="grid grid-cols-[1fr_auto] items-center gap-2 border rounded p-2">
+                  <div className="font-mono text-xs truncate" title={id}>{id}</div>
+                  <Button variant="ghost" size="sm" className="shrink-0 whitespace-nowrap" onClick={async () => { try { await navigator.clipboard.writeText(id); } catch {} }}>Copy</Button>
                 </div>
               ))}
             </div>

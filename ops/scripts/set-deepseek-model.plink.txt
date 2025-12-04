@@ -1,0 +1,16 @@
+set -e
+node - <<'NODE'
+const fs=require('fs');
+const path=require('path');
+const {Pool}=require('pg');
+(async()=>{
+  const envPath=path.resolve('/opt/ibiki-sms/.env');
+  const env=fs.existsSync(envPath)?fs.readFileSync(envPath,'utf8'):'';
+  function get(k){const m=new RegExp('^'+k+'=(.*)$','m').exec(env);return m?m[1].trim():process.env[k]||''}
+  const pool=new Pool({connectionString:get('DATABASE_URL'),ssl:{rejectUnauthorized:false}});
+  await pool.query("INSERT INTO system_config(key,value) VALUES('paraphraser.provider','openrouter') ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value");
+  await pool.query("INSERT INTO system_config(key,value) VALUES('paraphraser.openrouter.model','deepseek/deepseek-chat') ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value");
+  await pool.end();
+  console.log('Set model to deepseek/deepseek-chat');
+})();
+NODE
