@@ -22,7 +22,7 @@ interface ActionLog {
 
 export default function ActionLogsViewer() {
   const [q, setQ] = useState("");
-  const { data } = useQuery<{ success: boolean; logs: ActionLog[] }>({
+  const { data, isFetching } = useQuery<{ success: boolean; logs: ActionLog[] }>({
     queryKey: ["/api/admin/action-logs", "all"],
     queryFn: async () => {
       const token = localStorage.getItem("token");
@@ -32,7 +32,13 @@ export default function ActionLogsViewer() {
       if (!resp.ok) throw new Error("Failed to fetch action logs");
       return resp.json();
     },
-    refetchInterval: 10000,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+    retry: 2,
+    staleTime: 30000,
+    gcTime: 600000,
+    placeholderData: (prev) => prev as any,
+    keepPreviousData: true,
   });
   const logs = data?.logs || [];
   const filtered = logs.filter((l) => {
@@ -85,6 +91,9 @@ export default function ActionLogsViewer() {
             </TableBody>
           </Table>
         </div>
+        {isFetching && (
+          <div className="text-center py-2 text-xs text-muted-foreground">Loading…</div>
+        )}
       </CardContent>
     </Card>
   );

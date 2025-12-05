@@ -169,6 +169,18 @@ export default function AdminDashboard() {
   const webhookStatusQuery = useQuery<{ success: boolean; lastEvent: any; lastEventAt: string | null; lastRoutedUser: string | null }>({
     queryKey: ['/api/admin/webhook/status']
   });
+  const inboxRetrieveMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/web/inbox/retrieve', { method: 'POST' });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/webhook/status'] });
+      toast({ title: t('common.success'), description: `Inbox retrieved: ${data?.processedCount || 0} messages processed` });
+    },
+    onError: (error: any) => {
+      toast({ title: t('common.error'), description: error?.message || 'Inbox retrieval failed', variant: 'destructive' });
+    }
+  });
   const dbStatusQuery = useQuery<{ success: boolean; tables: string[]; connection?: { host: string; port: string; database: string } }>({
     queryKey: ['/api/admin/db/status']
   });
@@ -233,6 +245,13 @@ export default function AdminDashboard() {
       toast({ title: t('common.error'), description: error?.message || 'Summary failed', variant: 'destructive' });
     }
   });
+
+  const diagnosticsQuery = useQuery<{ success: boolean; summary: any; checks: Array<{ name: string; status: string; details: any; durationMs: number }> }>({
+    queryKey: ['/api/admin/diagnostics/run'],
+    staleTime: 0,
+    gcTime: 0,
+  });
+  const phraserConfigQuery = useQuery<{ success: boolean; provider: string; model: string; keyPresent: boolean; rules: any }>({ queryKey: ['/api/admin/paraphraser/config'] });
   const rotateSecretMutation = useMutation({
     mutationFn: async (key: string) => {
       return await apiRequest('/api/admin/secrets/rotate', { method: 'POST', body: JSON.stringify({ key }) });
@@ -661,6 +680,14 @@ export default function AdminDashboard() {
             <h1 className="text-4xl font-bold tracking-tight">{isSupervisor ? t('supervisor.title') : t('admin.title')}</h1>
             <p className="text-muted-foreground mt-2">{isSupervisor ? t('supervisor.subtitle') : t('admin.subtitle')}</p>
           </div>
+          {profile?.user?.role === 'admin' && (
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="outline" onClick={() => inboxRetrieveMutation.mutate()} disabled={inboxRetrieveMutation.isPending}>
+                {inboxRetrieveMutation.isPending ? 'Retrieving…' : 'Retrieve Inbox Now'}
+              </Button>
+              <Button variant="secondary" onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/admin/webhook/status'] })}>Refresh Webhook Status</Button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -832,7 +859,7 @@ export default function AdminDashboard() {
           <MessageStatusChart />
         </div>
         <MessageStatusTiles />
-        {profile?.user?.role === 'admin' && (
+        {false && (
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>Ibiki Phraser Settings</CardTitle>
@@ -841,7 +868,7 @@ export default function AdminDashboard() {
             <CardContent className="space-y-3">
               <div className="flex items-center gap-3">
                 <Label>Provider</Label>
-                <Select defaultValue="openrouter" onValueChange={async (v) => {
+                <Select defaultValue={phraserConfigQuery.data?.provider || 'openrouter'} onValueChange={async (v) => {
                   await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ provider: v }) });
                   toast({ title: t('common.success'), description: 'Provider updated' });
                 }}>
@@ -854,13 +881,18 @@ export default function AdminDashboard() {
                   </SelectContent>
                 </Select>
                 <Button variant="secondary" onClick={async () => {
-                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ provider: 'openrouter', openrouterModel: 'x-ai/grok-4.1-fast:free' }) });
-                  toast({ title: t('common.success'), description: 'Set to Grok 4.1 Fast (free)' });
-                }}>Use Grok 4.1 Fast (free)</Button>
+                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ provider: 'openrouter', openrouterModel: 'qwen/qwen3-coder:free' }) });
+                  phraserConfigQuery.refetch?.();
+                  toast({ title: t('common.success'), description: 'Set to Qwen3 Coder (free)' });
+                }}>Use Qwen3 Coder (free)</Button>
+                <Button variant="secondary" onClick={async () => {
+                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ provider: 'openrouter', openrouterModel: 'alibaba/tongyi-deepresearch-30b-a3b:free' }) });
+                  toast({ title: t('common.success'), description: 'Set to Tongyi DeepResearch (free)' });
+                }} className="ml-2">Use Tongyi DeepResearch (free)</Button>
               </div>
               <div className="flex items-center gap-3">
                 <Label>Model</Label>
-                <Input placeholder="x-ai/grok-4.1-fast:free" defaultValue="x-ai/grok-4.1-fast:free" onBlur={async (e) => {
+                <Input placeholder="x-ai/grok-4.1-fast:free" defaultValue={phraserConfigQuery.data?.model || 'x-ai/grok-4.1-fast:free'} onBlur={async (e) => {
                   await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ openrouterModel: e.target.value }) });
                   toast({ title: t('common.success'), description: 'Model saved' });
                 }} />
@@ -917,7 +949,7 @@ export default function AdminDashboard() {
           </Card>
         )}
 
-        {profile?.user?.role === 'admin' && (
+        {false && (
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>User Message Summary</CardTitle>
@@ -929,6 +961,39 @@ export default function AdminDashboard() {
                 <Button onClick={()=> messagesSummaryMutation.mutate()} disabled={!summaryEmail || messagesSummaryMutation.isPending}>
                   {messagesSummaryMutation.isPending ? 'Loading...' : 'Check'}
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {false && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Ibiki Diagnostics</CardTitle>
+              <CardDescription>Run system checks and view results.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2 mb-3">
+                <Button onClick={() => diagnosticsQuery.refetch?.()} data-testid="button-run-diagnostics">
+                  {diagnosticsQuery.isFetching ? 'Running…' : 'Run Diagnostics'}
+                </Button>
+                {diagnosticsQuery.data && (
+                  <Button variant="outline" onClick={() => navigator.clipboard.writeText(JSON.stringify(diagnosticsQuery.data, null, 2))}>Copy JSON</Button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {(diagnosticsQuery.data?.checks || []).map((c: any, i: number) => (
+                  <Card key={`diag-${i}`} className={c.status === 'pass' ? 'border-green-300' : 'border-red-300'}>
+                    <CardHeader>
+                      <CardTitle className="text-sm">{c.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-xs">Status: {c.status}</div>
+                      <div className="text-xs">Duration: {c.durationMs}ms</div>
+                      <pre className="mt-2 text-xs bg-muted/40 p-2 rounded overflow-auto max-h-[24vh]">{JSON.stringify(c.details, null, 2)}</pre>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -946,6 +1011,9 @@ export default function AdminDashboard() {
                 <TabsTrigger value="actionlogs" data-testid="tab-actionlogs">{t('admin.actionLogs')}</TabsTrigger>
                 <TabsTrigger value="messages" data-testid="tab-messages">Message Activity</TabsTrigger>
                 <TabsTrigger value="createuser" data-testid="tab-createuser">{t('admin.tabs.createUser') || 'User Create'}</TabsTrigger>
+                <TabsTrigger value="phraser" data-testid="tab-phraser">Ibiki Phraser</TabsTrigger>
+                <TabsTrigger value="usersummary" data-testid="tab-usersummary">User Summary</TabsTrigger>
+                <TabsTrigger value="diagnostics" data-testid="tab-diagnostics">Diagnostics</TabsTrigger>
               </>
             ) : (
               <>
@@ -1254,6 +1322,146 @@ export default function AdminDashboard() {
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="phraser" className="space-y-4">
+          <Card className="mt-2">
+            <CardHeader>
+              <CardTitle>Ibiki Phraser Settings</CardTitle>
+              <CardDescription>Configure the paraphrase provider and model.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-3">
+                <Label>Provider</Label>
+                <Select defaultValue="openrouter" onValueChange={async (v) => {
+                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ provider: v }) });
+                  toast({ title: t('common.success'), description: 'Provider updated' });
+                }}>
+                  <SelectTrigger className="w-48"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openrouter" textValue="OpenRouter">OpenRouter</SelectItem>
+                    <SelectItem value="remote" textValue="Remote HTTP">Remote HTTP</SelectItem>
+                    <SelectItem value="ollama" textValue="Local (Ollama)">Local (Ollama)</SelectItem>
+                    <SelectItem value="stub" textValue="Built-in">Built-in</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="secondary" onClick={async () => {
+                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ provider: 'openrouter', openrouterModel: 'qwen/qwen3-coder:free' }) });
+                  toast({ title: t('common.success'), description: 'Set to Qwen3 Coder (free)' });
+                }}>Use Qwen3 Coder (free)</Button>
+                <Button variant="secondary" className="ml-2" onClick={async () => {
+                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ provider: 'openrouter', openrouterModel: 'alibaba/tongyi-deepresearch-30b-a3b:free' }) });
+                  phraserConfigQuery.refetch?.();
+                  toast({ title: t('common.success'), description: 'Set to Tongyi DeepResearch (free)' });
+                }}>Use Tongyi DeepResearch (free)</Button>
+              </div>
+              <div className="flex items-center gap-3">
+                <Label>Model</Label>
+                <Input placeholder="qwen/qwen3-coder:free" defaultValue={phraserConfigQuery.data?.model || 'qwen/qwen3-coder:free'} onBlur={async (e) => {
+                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ openrouterModel: e.target.value }) });
+                  phraserConfigQuery.refetch?.();
+                  toast({ title: t('common.success'), description: 'Model saved' });
+                }} />
+              </div>
+              <div className="flex items-center gap-3">
+                <Label>OpenRouter Key</Label>
+                <Input type="password" placeholder="Bearer sk-or-..." onBlur={async (e) => {
+                  await apiRequest('/api/admin/paraphraser/config', { method: 'POST', body: JSON.stringify({ openrouterKey: e.target.value }) });
+                  toast({ title: t('common.success'), description: 'Key saved' });
+                }} />
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={() => testPhraserMutation.mutate()} disabled={testPhraserMutation.isPending} data-testid="button-test-phraser">
+                  {testPhraserMutation.isPending ? 'Testing...' : 'Test Connection'}
+                </Button>
+                {phraserConnStatus !== 'unknown' && (
+                  <Badge variant={phraserConnStatus === 'connected' ? 'default' : 'destructive'}>
+                    {phraserConnStatus === 'connected' ? '✓ Connected' : '✗ Disconnected'}
+                  </Badge>
+                )}
+              </div>
+              <Accordion type="single" collapsible>
+                <AccordionItem value="phraser-advanced">
+                  <AccordionTrigger>Advanced Settings</AccordionTrigger>
+                  <AccordionContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                      <div className="flex items-center gap-2">
+                        <Label className="min-w-[140px]">Target Min</Label>
+                        <Input type="number" defaultValue={145} onBlur={async (e)=>{ await apiRequest('/api/admin/paraphraser/config',{ method:'POST', body: JSON.stringify({ targetMin: parseInt(e.target.value||'145') })}); toast({ title: t('common.success'), description: 'Saved' }); }} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="min-w-[140px]">Target Max</Label>
+                        <Input type="number" defaultValue={155} onBlur={async (e)=>{ await apiRequest('/api/admin/paraphraser/config',{ method:'POST', body: JSON.stringify({ targetMax: parseInt(e.target.value||'155') })}); toast({ title: t('common.success'), description: 'Saved' }); }} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="min-w-[140px]">Hard Max</Label>
+                        <Input type="number" defaultValue={160} onBlur={async (e)=>{ await apiRequest('/api/admin/paraphraser/config',{ method:'POST', body: JSON.stringify({ maxChars: parseInt(e.target.value||'160') })}); toast({ title: t('common.success'), description: 'Saved' }); }} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="min-w-[140px]">Enforce Grammar</Label>
+                        <Switch defaultChecked onCheckedChange={async (v)=>{ await apiRequest('/api/admin/paraphraser/config',{ method:'POST', body: JSON.stringify({ enforceGrammar: v })}); toast({ title: t('common.success'), description: 'Saved' }); }} />
+                      </div>
+                      <div className="col-span-1 md:col-span-2">
+                        <Label>Link Template</Label>
+                        <Input defaultValue={'Here is the link ${url} here you will find all the information you were asking for.'} onBlur={async (e)=>{ await apiRequest('/api/admin/paraphraser/config',{ method:'POST', body: JSON.stringify({ linkTemplate: e.target.value })}); toast({ title: t('common.success'), description: 'Saved' }); }} />
+                        <div className="text-xs text-muted-foreground mt-1">Use ${'url'} placeholder.</div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="usersummary" className="space-y-4">
+          <Card className="mt-2">
+            <CardHeader>
+              <CardTitle>User Message Summary</CardTitle>
+              <CardDescription>Resolve a user by email and view recent logs.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <Input placeholder="user@example.com" value={summaryEmail} onChange={(e)=> setSummaryEmail(e.target.value)} className="w-80" />
+                <Button onClick={()=> messagesSummaryMutation.mutate()} disabled={!summaryEmail || messagesSummaryMutation.isPending}>
+                  {messagesSummaryMutation.isPending ? 'Loading...' : 'Check'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="diagnostics" className="space-y-4">
+          <Card className="mt-2">
+            <CardHeader>
+              <CardTitle>Ibiki Diagnostics</CardTitle>
+              <CardDescription>Run system checks and view results.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2 mb-3">
+                <Button onClick={() => diagnosticsQuery.refetch?.()} data-testid="button-run-diagnostics">
+                  {diagnosticsQuery.isFetching ? 'Running…' : 'Run Diagnostics'}
+                </Button>
+                {diagnosticsQuery.data && (
+                  <Button variant="outline" onClick={() => navigator.clipboard.writeText(JSON.stringify(diagnosticsQuery.data, null, 2))}>Copy JSON</Button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {(diagnosticsQuery.data?.checks || []).map((c: any, i: number) => (
+                  <Card key={`diag-${i}`} className={c.status === 'pass' ? 'border-green-300' : 'border-red-300'}>
+                    <CardHeader>
+                      <CardTitle className="text-sm">{c.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-xs">Status: {c.status}</div>
+                      <div className="text-xs">Duration: {c.durationMs}ms</div>
+                      <pre className="mt-2 text-xs bg-muted/40 p-2 rounded overflow-auto max-h-[24vh]">{JSON.stringify(c.details, null, 2)}</pre>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1568,6 +1776,9 @@ export default function AdminDashboard() {
                   {webhookTestMutation.isPending ? t('common.loading') : 'Send Test Webhook'}
                 </Button>
                 <Button variant="secondary" onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/admin/webhook/status'] })}>Refresh Status</Button>
+                <Button variant="outline" onClick={() => inboxRetrieveMutation.mutate()} disabled={inboxRetrieveMutation.isPending}>
+                  {inboxRetrieveMutation.isPending ? 'Retrieving…' : 'Retrieve Inbox Now'}
+                </Button>
               </div>
 
               <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1578,6 +1789,10 @@ export default function AdminDashboard() {
                   <p className="text-xs">Modem: {webhookStatusQuery.data?.lastEvent?.usedmodem || '—'} · Port: {webhookStatusQuery.data?.lastEvent?.port || '—'}</p>
                   <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">{JSON.stringify(webhookStatusQuery.data?.lastEvent || null, null, 2)}</pre>
                   <p className="text-xs mt-2">Routed User: {webhookStatusQuery.data?.lastRoutedUser || '—'}</p>
+                  <div className="mt-3 p-2 rounded bg-muted/40">
+                    <p className="text-xs">Last Inbox Pull: {String((webhookStatusQuery.data as any)?.lastInboxAt || '—')}</p>
+                    <p className="text-xs">Processed Count: {String((webhookStatusQuery.data as any)?.lastInboxCount ?? '—')}</p>
+                  </div>
                 </div>
                 <div className="p-3 border rounded">
                   <h4 className="font-semibold mb-2">Flow Check</h4>

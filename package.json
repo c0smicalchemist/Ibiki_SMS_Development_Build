@@ -15,10 +15,7 @@
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
-    "db:generate": "drizzle-kit generate",
-    "railway:build": "npm install && npm run build",
-    "railway:start": "node dist/index.js",
-    "railway:deploy": "npm run railway:build && npm run railway:start"
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

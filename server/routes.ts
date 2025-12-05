@@ -562,7 +562,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || "development",
       uptime: process.uptime(),
-      version: "1.0.0"
+      version: "1.0.1"
     });
   });
 
@@ -677,6 +677,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       } catch {}
       res.json({ success: true, tables: r.rows.map((x: any) => x.table_name), connection: conn });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // Diagnostics: run consolidated checks (admin-only)
+  app.get('/api/admin/diagnostics/run', authenticateToken, requireAdmin, async (_req: any, res) => {
+    const started = Date.now();
+    const checks: any[] = [];
+    const run = async (name: string, fn: () => Promise<any>) => {
+      const t0 = Date.now();
+      try {
+        const details = await fn();
+        checks.push({ name, status: 'pass', details, durationMs: Date.now() - t0 });
+      } catch (e: any) {
+        checks.push({ name, status: 'fail', details: e?.message || String(e), durationMs: Date.now() - t0 });
+      }
+    };
+    await run('database', async () => {
+      const url = process.env.DATABASE_URL || '';
+      const { Pool } = await import('pg');
+      const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } });
+      const r = await pool.query("select table_name from information_schema.tables where table_schema='public'");
+      await pool.end();
+      const u = new URL(url);
+      return { host: u.hostname, port: u.port || '5432', database: (u.pathname || '').replace(/^\//,'') || '', tables: r.rows.map((x: any) => x.table_name) };
+    });
+    await run('localization', async () => {
+      // Server-side sanity only; client i18n holds real translations
+      const defaultLocale = process.env.DEFAULT_LOCALE || 'en';
+      const locales = (process.env.AVAILABLE_LOCALES || 'en,es,fr').split(',').map(s => s.trim()).filter(Boolean);
+      return { defaultLocale, locales };
+    });
+    await run('webhook', async () => {
+      const suggested = `https://${process.env.HOSTNAME || 'ibiki.run.place'}/api/webhook/extreme-sms`;
+      const cfg = await storage.getSystemConfig('webhook.url');
+      const configured = cfg?.value || '';
+      const aliasesCfg = await storage.getSystemConfig('routing.aliases');
+      const aliases = aliasesCfg?.value ? JSON.parse(String(aliasesCfg.value)) : {};
+      return { suggested, configured, aliases };
+    });
+    await run('credits', async () => {
+      // Dry-run: assume 1 credit per SMS
+      const costPerSms = 1;
+      const sampleCount = 3;
+      return { costPerSms, sampleCount, expectedDebit: costPerSms * sampleCount };
+    });
+    await run('providers', async () => {
+      const pr = await getParaphraserConfig();
+      const provider = pr.provider;
+      return { paraphraserProvider: provider };
+    });
+    await run('logging', async () => {
+      const recent = await storage.getRecentMessageLogs ? await storage.getRecentMessageLogs(10) : [];
+      return { recentCount: Array.isArray(recent) ? recent.length : 0 };
+    });
+    await run('inbox', async () => {
+      const last = await storage.getLastWebhookEvent ? await storage.getLastWebhookEvent() : null;
+      return { lastEvent: last || null };
+    });
+    await run('environment', async () => {
+      return { node: process.version, hostname: process.env.HOSTNAME || '', mode: process.env.NODE_ENV || 'production' };
+    });
+    const passCount = checks.filter(c => c.status === 'pass').length;
+    const failCount = checks.filter(c => c.status === 'fail').length;
+    res.json({ success: true, summary: { passCount, failCount, durationMs: Date.now() - started }, checks });
+  });
+
+  // Admin: one-click webhook test (dry-run route resolution)
+  app.post('/api/admin/diagnostics/webhook-test', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { from: fromRaw, receiver: receiverRawIn, business: businessIn, message } = req.body || {};
+      const aliasesCfg = await storage.getSystemConfig('routing.aliases');
+      const aliases = aliasesCfg?.value ? JSON.parse(String(aliasesCfg.value)) : {};
+      const from = normalizePhone(String(fromRaw || ''), '+1');
+      let receiver = normalizePhone(String(receiverRawIn || ''), '+1');
+      if (aliases && receiver && aliases[String(receiverRawIn || receiver)]) {
+        receiver = normalizePhone(String(aliases[String(receiverRawIn || receiver)]), '+1');
+      }
+      const business = businessIn || (!looksLikePhone(receiver) ? receiver : null) || null;
+      let userId: string | null = null;
+      let strategy = '';
+      if (business) {
+        const user = await storage.getUserByBusinessName ? await storage.getUserByBusinessName(business) : null;
+        if (user) { userId = user.id; strategy = 'business'; }
+      }
+      if (!userId && receiver && looksLikePhone(receiver)) {
+        const profile = await storage.getClientProfileByPhoneNumber(receiver);
+        if (profile?.userId) { userId = profile.userId; strategy = 'receiver'; }
+      }
+      if (!userId && from && looksLikePhone(from)) {
+        const recent = await storage.findRecentConversationBySender ? await storage.findRecentConversationBySender(from) : null;
+        if (recent?.userId) { userId = recent.userId; strategy = 'recent-conversation'; }
+      }
+      res.json({ success: true, routedUserId: userId, strategy, business, receiver, from, message });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // Supervisor-scoped diagnostics
+  app.get('/api/supervisor/diagnostics/run', authenticateToken, async (req: any, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'supervisor' && req.user.role !== 'admin')) return res.status(403).json({ success: false, error: 'forbidden' });
+      const started = Date.now();
+      const checks: any[] = [];
+      const run = async (name: string, fn: () => Promise<any>) => {
+        const t0 = Date.now();
+        try { const details = await fn(); checks.push({ name, status: 'pass', details, durationMs: Date.now() - t0 }); }
+        catch (e: any) { checks.push({ name, status: 'fail', details: e?.message || String(e), durationMs: Date.now() - t0 }); }
+      };
+      await run('database', async () => {
+        const url = process.env.DATABASE_URL || '';
+        const u = new URL(url);
+        return { host: u.hostname, port: u.port || '5432', database: (u.pathname || '').replace(/^\//,'') || '' };
+      });
+      await run('providers', async () => {
+        const pr = await getParaphraserConfig();
+        return { paraphraserProvider: pr.provider };
+      });
+      await run('logging', async () => {
+        const recent = await storage.getRecentMessageLogs ? await storage.getRecentMessageLogs(10) : [];
+        return { recentCount: Array.isArray(recent) ? recent.length : 0 };
+      });
+      const passCount = checks.filter(c => c.status === 'pass').length;
+      const failCount = checks.filter(c => c.status === 'fail').length;
+      res.json({ success: true, summary: { passCount, failCount, durationMs: Date.now() - started }, checks });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e?.message || String(e) });
     }
@@ -1074,39 +1201,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Pending reply count
-  app.get("/api/web/inbox/pending-count", authenticateToken, async (req: any, res) => {
-    try {
-      const targetUserId = (req.user?.role === 'admin' && req.query.userId) ? String(req.query.userId) : req.user.userId;
-      const inbox = await storage.getInboxMessages(targetUserId, 2000);
-      const byPhone = new Map<string, number>();
-      for (const m of inbox) {
-        const key = String((m as any).from || (m as any).receiver);
-        const ts = new Date(((m as any).timestamp || (m as any).createdAt)).getTime();
-        const cur = byPhone.get(key) || 0;
-        if (ts > cur) byPhone.set(key, ts);
-      }
-      const logs = await storage.getMessageLogsByUserId(targetUserId, 5000);
-      const lastOutByPhone = new Map<string, number>();
-      for (const l of logs) {
-        const recips = Array.isArray((l as any).recipients) ? (l as any).recipients : ((l as any).recipient ? [(l as any).recipient] : []);
-        const ts = new Date((l as any).createdAt).getTime();
-        for (const r of recips) {
-          const cur = lastOutByPhone.get(String(r)) || 0;
-          if (ts > cur) lastOutByPhone.set(String(r), ts);
-        }
-      }
-      let pending = 0;
-      for (const [phone, lastInboundTs] of byPhone.entries()) {
-        const lastOutTs = lastOutByPhone.get(phone) || 0;
-        if (lastInboundTs > lastOutTs) pending++;
-      }
-      res.json({ success: true, pending });
-    } catch (error) {
-      console.error('Pending count error', error);
-      res.status(500).json({ error: 'Failed to compute pending count' });
-    }
-  });
 
   // Forgot password - send reset email
   app.post("/api/auth/forgot-password", async (req, res) => {
@@ -1374,12 +1468,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/message-status-stats", authenticateToken, async (req: any, res) => {
     try {
       // Check if userId parameter is being used by non-admin
-      if (req.query.userId && req.user.role !== 'admin') {
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
         return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
       }
       
       // Admin can check stats for another user
-      const targetUserId = (req.user.role === 'admin' && req.query.userId) 
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) 
         ? req.query.userId 
         : req.user.userId;
       
@@ -1477,7 +1571,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const limit = await resolveFetchLimit(req.user.userId, req.user.role, req.query.limit as string | undefined);
       const logs = await storage.getMessageLogsByUserId(req.user.userId, limit);
-      res.json({ success: true, messages: logs, count: logs.length, limit });
+      try { res.set('Cache-Control','no-store'); } catch {}
+      const payloadObj = { success: true, messages: logs, count: logs.length, limit };
+      try { console.log("/api/client/messages payload bytes:", Buffer.byteLength(JSON.stringify(payloadObj))); } catch {}
+      return res.json(payloadObj);
     } catch (error) {
       console.error("Message logs fetch error:", error);
       res.status(500).json({ error: "Failed to fetch messages" });
@@ -1491,7 +1588,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) return res.status(400).json({ error: "userId is required" });
       const limit = await resolveFetchLimit(userId, 'client', req.query.limit as string | undefined);
       const logs = await storage.getMessageLogsByUserId(userId, limit);
-      res.json({ success: true, messages: logs, count: logs.length, limit });
+      try { res.set('Cache-Control','no-store'); } catch {}
+      const payloadObj = { success: true, messages: logs, count: logs.length, limit };
+      try { console.log("/api/admin/messages payload bytes:", Buffer.byteLength(JSON.stringify(payloadObj))); } catch {}
+      return res.json(payloadObj);
     } catch (error) {
       console.error("Admin message logs fetch error:", error);
       res.status(500).json({ error: "Failed to fetch messages for client" });
@@ -1510,7 +1610,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const limit = await resolveFetchLimit(String(userId), 'client', req.query.limit as string | undefined);
       const logs = await storage.getMessageLogsByUserId(String(userId), limit);
-      res.json({ success: true, messages: logs, count: logs.length, limit });
+      try { res.set('Cache-Control','no-store'); } catch {}
+      const payloadObj = { success: true, messages: logs, count: logs.length, limit };
+      try { console.log("/api/supervisor/messages payload bytes:", Buffer.byteLength(JSON.stringify(payloadObj))); } catch {}
+      return res.json(payloadObj);
     } catch (error) {
       console.error("Supervisor message logs fetch error:", error);
       res.status(500).json({ error: "Failed to fetch messages for client" });
@@ -1529,7 +1632,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const limit = await resolveFetchLimit(String(userId), 'client', req.query.limit as string | undefined);
       const messages = await storage.getIncomingMessagesByUserId(String(userId), limit);
-      res.json({ success: true, messages, count: messages.length, limit });
+      try { res.set('Cache-Control','no-store'); } catch {}
+      const payloadObj = { success: true, messages, count: messages.length, limit };
+      try { console.log("/api/supervisor/inbox payload bytes:", Buffer.byteLength(JSON.stringify(payloadObj))); } catch {}
+      return res.json(payloadObj);
     } catch (error) {
       console.error("Supervisor inbox fetch error:", error);
       res.status(500).json({ error: "Failed to fetch inbox for client" });
@@ -2024,7 +2130,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.all('/api/admin/paraphraser/test', authenticateToken, requireAdmin, async (_req: any, res) => {
+  app.get('/api/admin/paraphraser/config', authenticateToken, requireAdmin, async (_req: any, res) => {
+    try {
+      const providerCfg = await storage.getSystemConfig('paraphraser.provider');
+      const modelCfg = await storage.getSystemConfig('paraphraser.openrouter.model');
+      const keyCfg = await storage.getSystemConfig('paraphraser.openrouter.key');
+      const rules = await getParaphraserConfig();
+      res.json({ success: true, provider: providerCfg?.value || 'openrouter', model: modelCfg?.value || '', keyPresent: !!(keyCfg?.value), rules: (rules as any).rules || {} });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  app.get('/api/admin/paraphraser/test', authenticateToken, requireAdmin, async (_req: any, res) => {
     try {
       const cfg = await getParaphraserConfig();
       let ok = false;
@@ -2039,13 +2157,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const resp = await axios.get(endpoint, { headers, timeout: 10000 });
           const models = Array.isArray(resp.data?.data) ? resp.data.data.map((m: any) => m?.id || m?.name).filter(Boolean) : [];
-          ok = models.length > 0 && (model ? models.includes(model) : true);
-          details = ok ? 'OpenRouter reachable' : 'Model not found';
-          if (ok && model) {
-            const body = { model, messages: [{ role: 'user', content: 'Paraphrase: Hello there.' }], temperature: 0.2 };
-            const chat = await axios.post('https://openrouter.ai/api/v1/chat/completions', body, { headers: { ...headers, 'Content-Type': 'application/json' }, timeout: 12000 });
-            ok = ok && !!chat.data?.choices?.[0]?.message?.content;
-            details = ok ? 'Chat completions OK' : 'Chat response empty';
+          const candidate = model || 'qwen/qwen3-coder:free';
+          ok = models.length > 0 ? (
+            models.includes(candidate) ||
+            models.includes('qwen/qwen3-coder:free') ||
+            models.includes('alibaba/tongyi-deepresearch-30b-a3b:free')
+          ) : true;
+          details = ok ? 'OpenRouter reachable' : 'Model not listed; attempting chat';
+          const tryModels = [candidate, 'qwen/qwen3-coder:free', 'alibaba/tongyi-deepresearch-30b-a3b:free'];
+          for (const m of tryModels) {
+            try {
+              const body = { model: m, messages: [{ role: 'user', content: 'Paraphrase: Hello there.' }], temperature: 0.2 };
+              const chat = await axios.post('https://openrouter.ai/api/v1/chat/completions', body, { headers: { ...headers, 'Content-Type': 'application/json' }, timeout: 12000 });
+              if (chat.data?.choices?.[0]?.message?.content) { ok = true; details = `Chat completions OK (${m})`; break; }
+            } catch (err: any) {
+              details = err?.response?.data?.error?.message || err?.message || details;
+            }
           }
         } catch (e: any) {
           ok = false;
@@ -2505,11 +2632,15 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
       const lastEvent = await storage.getSystemConfig('last_webhook_event');
       const lastAt = await storage.getSystemConfig('last_webhook_event_at');
       const lastUser = await storage.getSystemConfig('last_webhook_routed_user');
+      const lastInboxAt = await storage.getSystemConfig('last_inbox_retrieval_at');
+      const lastInboxCount = await storage.getSystemConfig('last_inbox_retrieval_count');
       res.json({
         success: true,
         lastEvent: lastEvent?.value ? JSON.parse(lastEvent.value) : null,
         lastEventAt: lastAt?.value || null,
         lastRoutedUser: lastUser?.value || null,
+        lastInboxAt: lastInboxAt?.value || null,
+        lastInboxCount: lastInboxCount?.value ? Number(lastInboxCount.value) : null,
       });
     } catch (error) {
       console.error('Webhook status error:', error);
@@ -2753,14 +2884,14 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
   app.post('/api/webhook/extreme-sms', async (req, res) => {
     try {
       const p = req.body || {};
-      const from = p.from || p.sender || p.msisdn;
-      let receiver = p.receiver || p.to || p.recipient;
+      const from = normalizePhone(String(p.from || p.sender || p.msisdn), '+1');
+      let receiver = normalizePhone(String(p.receiver || p.to || p.recipient), '+1');
       try {
         const aliasesCfg = await storage.getSystemConfig('routing.aliases');
         if (aliasesCfg?.value) {
           const aliases = JSON.parse(String(aliasesCfg.value || '{}')) || {};
           if (aliases && typeof aliases === 'object' && receiver && aliases[String(receiver)]) {
-            receiver = aliases[String(receiver)];
+            receiver = normalizePhone(String(aliases[String(receiver)]), '+1');
           }
         }
       } catch {}
@@ -2888,6 +3019,204 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
     }
   });
 
+  app.get('/api/webhook/extreme', async (req, res) => {
+    try {
+      const p: any = req.query || {};
+      const fromRaw = p.from || p.sender || p.msisdn;
+      let receiverRaw = p.receiver || p.to || p.recipient;
+      try {
+        const aliasesCfg = await storage.getSystemConfig('routing.aliases');
+        if (aliasesCfg?.value) {
+          const aliases = JSON.parse(String(aliasesCfg.value || '{}')) || {};
+          if (aliases && typeof aliases === 'object' && receiverRaw && aliases[String(receiverRaw)]) {
+            receiverRaw = aliases[String(receiverRaw)];
+          }
+        }
+      } catch {}
+      const message = p.message || p.text || '';
+      const usedmodem = p.usedmodem || p.usemodem || null;
+      const port = p.port || null;
+      const messageId = p.messageId || p.id || `ext-${Date.now()}`;
+      const tsRaw = p.timestamp || p.time || Date.now();
+      const timestamp = new Date(typeof tsRaw === 'string' ? tsRaw : Number(tsRaw));
+      const from = normalizePhone(String(fromRaw), '+1');
+      const receiver = normalizePhone(String(receiverRaw), '+1');
+      const looksLikePhone = (v: any) => typeof v === 'string' && /\+?\d{6,}/.test(v);
+      const business = p.business || (!looksLikePhone(receiverRaw) ? receiverRaw : null) || null;
+      if (!from || !receiver || !message) {
+        return res.status(400).json({ success: false, error: 'Invalid webhook payload' });
+      }
+      let userId: string | undefined = undefined;
+      if (business && String(business).trim() !== '') {
+        const profileByBiz = await storage.getClientProfileByBusinessName(String(business));
+        userId = profileByBiz?.userId;
+      }
+      if (!userId) {
+        userId = await storage.findClientByRecipient(from);
+      }
+      if (!userId && looksLikePhone(receiver)) {
+        const profile = await storage.getClientProfileByPhoneNumber(receiver);
+        userId = profile?.userId;
+      }
+      if (!userId) {
+        const fallbackBiz = await getAdminDefaultBusinessId();
+        const fallbackProfile = await storage.getClientProfileByBusinessName(fallbackBiz);
+        userId = fallbackProfile?.userId;
+      }
+      let created;
+      try {
+        created = await storage.createIncomingMessage({
+          userId,
+          from,
+          firstname: null,
+          lastname: null,
+          business,
+          message,
+          status: 'received',
+          matchedBlockWord: null,
+          receiver,
+          usedmodem,
+          port,
+          timestamp,
+          messageId,
+        } as any);
+      } catch {
+        created = await storage.createIncomingMessage({
+          userId,
+          from,
+          firstname: null,
+          lastname: null,
+          business,
+          message,
+          status: 'received',
+          matchedBlockWord: null,
+          receiver,
+          usedmodem,
+          port,
+          timestamp,
+          messageId,
+        } as any);
+      }
+      await storage.setSystemConfig('last_webhook_event', JSON.stringify({ from, business, receiver, message, usedmodem, port }));
+      await storage.setSystemConfig('last_webhook_event_at', new Date().toISOString());
+      await storage.setSystemConfig('last_webhook_routed_user', created.userId || 'unassigned');
+      if (created.userId) {
+        const existing = await storage.getClientContactsByUserId(created.userId);
+        if (!existing.find(c => c.phoneNumber === from)) {
+          const clientProfile = await storage.getClientProfileByUserId(created.userId);
+          await storage.createClientContact({
+            userId: created.userId,
+            phoneNumber: from,
+            firstname: null,
+            lastname: null,
+            business: clientProfile?.businessName || business || null,
+          });
+        }
+      }
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ success: false });
+    }
+  });
+
+  app.get('/api/webhook/extreme-sms', async (req, res) => {
+    try {
+      const p: any = req.query || {};
+      const from = normalizePhone(String(p.from || p.sender || p.msisdn), '+1');
+      let receiver = normalizePhone(String(p.receiver || p.to || p.recipient), '+1');
+      try {
+        const aliasesCfg = await storage.getSystemConfig('routing.aliases');
+        if (aliasesCfg?.value) {
+          const aliases = JSON.parse(String(aliasesCfg.value || '{}')) || {};
+          if (aliases && typeof aliases === 'object' && receiver && aliases[String(receiver)]) {
+            receiver = normalizePhone(String(aliases[String(receiver)]), '+1');
+          }
+        }
+      } catch {}
+      const message = p.message || p.text || '';
+      const usedmodem = p.usedmodem || p.usemodem || null;
+      const port = p.port || null;
+      const messageId = p.messageId || p.id || `ext-${Date.now()}`;
+      const tsRaw = p.timestamp || p.time || Date.now();
+      const timestamp = new Date(typeof tsRaw === 'string' ? tsRaw : Number(tsRaw));
+      const looksLikePhone = (v: any) => typeof v === 'string' && /\+?\d{6,}/.test(v);
+      const business = p.business || (!looksLikePhone(p.to) ? p.to : null) || (!looksLikePhone(p.receiver) ? p.receiver : null) || null;
+      if (!from || !receiver || !message) {
+        return res.status(400).json({ success: false, error: 'Invalid webhook payload' });
+      }
+      let userId: string | undefined = undefined;
+      if (business && String(business).trim() !== '') {
+        const profileByBiz = await storage.getClientProfileByBusinessName(String(business));
+        userId = profileByBiz?.userId;
+      }
+      if (!userId) {
+        userId = await storage.findClientByRecipient(from);
+      }
+      if (!userId && typeof receiver === 'string' && /\+?\d{6,}/.test(receiver)) {
+        const profile = await storage.getClientProfileByPhoneNumber(normalizePhone(String(receiver), '+1'));
+        userId = profile?.userId;
+      }
+      if (!userId) {
+        const fallbackBiz = await getAdminDefaultBusinessId();
+        const fallbackProfile = await storage.getClientProfileByBusinessName(fallbackBiz);
+        userId = fallbackProfile?.userId;
+      }
+      let created;
+      try {
+        created = await storage.createIncomingMessage({
+          userId,
+          from,
+          firstname: null,
+          lastname: null,
+          business,
+          message,
+          status: 'received',
+          matchedBlockWord: null,
+          receiver,
+          usedmodem,
+          port,
+          timestamp,
+          messageId,
+        } as any);
+      } catch {
+        created = await storage.createIncomingMessage({
+          userId,
+          from,
+          firstname: null,
+          lastname: null,
+          business,
+          message,
+          status: 'received',
+          matchedBlockWord: null,
+          receiver,
+          usedmodem,
+          port,
+          timestamp,
+          messageId,
+        } as any);
+      }
+      await storage.setSystemConfig('last_webhook_event', JSON.stringify({ from, business, receiver, message, usedmodem, port }));
+      await storage.setSystemConfig('last_webhook_event_at', new Date().toISOString());
+      await storage.setSystemConfig('last_webhook_routed_user', created.userId || 'unassigned');
+      if (created.userId) {
+        const existing = await storage.getClientContactsByUserId(created.userId);
+        if (!existing.find(c => c.phoneNumber === from)) {
+          const clientProfile = await storage.getClientProfileByUserId(created.userId);
+          await storage.createClientContact({
+            userId: created.userId,
+            phoneNumber: from,
+            firstname: null,
+            lastname: null,
+            business: clientProfile?.businessName || business || null,
+          });
+        }
+      }
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ success: false });
+    }
+  });
+
   // Client: initial send (omit modem/port)
   app.post('/api/sms/send', authenticateToken, async (req: any, res) => {
     try {
@@ -2940,7 +3269,7 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
   // Client: reply (normalize + deduct)
   app.post('/api/web/inbox/reply', authenticateToken, async (req: any, res) => {
     try {
-      const { to, message, userId, defaultDial } = req.body || {};
+      const { to, message, userId, defaultDial, usemodem: overrideModem, port: overridePort } = req.body || {};
       if (!to || !message) return res.status(400).json({ error: 'to and message required' });
       const effectiveUserId = req.user.role === 'admin' && userId ? userId : req.user.userId;
 
@@ -2949,8 +3278,8 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
 
       const history = await storage.getConversationHistory(effectiveUserId, normalizedTo);
       const lastInbound = [...(history.incoming || [])].reverse().find(m => !!m.port || !!m.usedmodem) || (history.incoming || []).slice(-1)[0];
-      const usemodem = lastInbound?.usedmodem || null;
-      const port = lastInbound?.port || null;
+      const usemodem = overrideModem || lastInbound?.usedmodem || null;
+      const port = overridePort || lastInbound?.port || null;
 
       const extremeApiKey = await storage.getSystemConfig('extreme_api_key');
       if (!extremeApiKey?.value) return res.status(400).json({ error: 'ExtremeSMS API key not configured' });
@@ -3914,12 +4243,12 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   app.get("/api/contact-groups", authenticateToken, async (req: any, res) => {
     try {
       // Check if userId parameter is being used by non-admin
-      if (req.query.userId && req.user.role !== 'admin') {
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
         return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
       }
       
       // Admin can query on behalf of another user
-      const targetUserId = (req.user.role === 'admin' && req.query.userId) 
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) 
         ? req.query.userId 
         : req.user.userId;
       const groups = await storage.getContactGroupsByUserId(targetUserId);
@@ -3935,7 +4264,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       const { name, description, businessUnitPrefix, userId } = req.body;
       
       // Check if userId parameter is being used by non-admin
-      if (userId && req.user.role !== 'admin') {
+      if (userId && !['admin','supervisor'].includes(req.user.role)) {
         return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
       }
       
@@ -3943,7 +4272,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         return res.status(400).json({ error: "Group name is required" });
       }
       // Admin can create on behalf of another user
-      const targetUserId = (req.user.role === 'admin' && userId) 
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && userId) 
         ? userId 
         : req.user.userId;
       const group = await storage.createContactGroup({
@@ -4013,32 +4342,47 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   // Contacts API
   app.get("/api/contacts", authenticateToken, async (req: any, res) => {
     try {
-      // Check if userId parameter is being used by non-admin
       if (req.query.userId && req.user.role !== 'admin') {
         return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
       }
-      
-      // Admin can query on behalf of another user
-      const targetUserId = (req.user.role === 'admin' && req.query.userId) 
-        ? req.query.userId 
+
+      const targetUserId = (req.user.role === 'admin' && req.query.userId)
+        ? req.query.userId
         : req.user.userId;
+
       const contacts = await storage.getContactsByUserId(targetUserId);
       const normalizePhone = (v: any) => String(v || '').replace(/[^+\d]/g, '').replace(/^00/, '+');
       let clientContacts: any[] = [];
       try {
         clientContacts = await storage.getClientContactsByUserId(targetUserId);
       } catch {}
+
       const businessByPhone = new Map<string, string>();
       clientContacts.forEach((cc: any) => {
         const n = normalizePhone(cc.phoneNumber);
         if (n && cc.business) businessByPhone.set(n, cc.business);
       });
+
       const enriched = contacts.map((c: any) => ({
         ...c,
         phoneNumber: normalizePhone(c.phoneNumber),
         business: businessByPhone.get(normalizePhone(c.phoneNumber)) || null
       }));
-      res.json({ success: true, contacts: enriched });
+
+      try { res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); } catch {}
+      try { res.set('X-Accel-Buffering', 'no'); } catch {}
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      try { (res as any).flushHeaders?.(); } catch {}
+
+      try { console.log("/api/contacts count:", enriched.length); } catch {}
+
+      res.write('{"success":true,"contacts":[');
+      for (let i = 0; i < enriched.length; i++) {
+        if (i > 0) res.write(',');
+        res.write(JSON.stringify(enriched[i]));
+      }
+      res.write(']}');
+      res.end();
     } catch (error) {
       console.error("Get contacts error:", error);
       res.status(500).json({ error: "Failed to retrieve contacts" });
@@ -4116,7 +4460,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       const { contacts, groupId, userId } = req.body;
       
       // Check if userId parameter is being used by non-admin
-      if (userId && req.user.role !== 'admin') {
+      if (userId && !['admin','supervisor'].includes(req.user.role)) {
         return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
       }
       
@@ -4125,7 +4469,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       }
 
       // Admin can import on behalf of another user
-      const targetUserId = (req.user.role === 'admin' && userId) 
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && userId) 
         ? userId 
         : req.user.userId;
 
@@ -4266,11 +4610,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       
       const csvContent = csvRows.join('\n');
       
-      // Mark all exported contacts as synced to ExtremeSMS
-      const contactIds = contacts.map((c: any) => c.id);
-      if (contactIds.length > 0) {
-        await storage.markContactsAsExported(contactIds);
-      }
+      // Do not mark contacts as synced during export; require explicit confirmation after upload
       
       // Set headers for CSV download
       res.setHeader('Content-Type', 'text/csv');
@@ -4300,6 +4640,24 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
     } catch (error) {
       console.error("Get sync stats error:", error);
       res.status(500).json({ error: "Failed to get sync statistics" });
+    }
+  });
+
+  // Confirm upload completed: mark all contacts for the user as synced
+  app.post("/api/contacts/confirm-upload", authenticateToken, async (req: any, res) => {
+    try {
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized: Only admins or supervisors can act on behalf of other users" });
+      }
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) 
+        ? String(req.query.userId) 
+        : req.user.userId;
+      await storage.markAllContactsSyncedByUserId(targetUserId);
+      const stats = await storage.getSyncStats(targetUserId);
+      res.json({ success: true, stats });
+    } catch (error) {
+      console.error("Confirm upload error:", error);
+      res.status(500).json({ error: "Failed to confirm upload" });
     }
   });
 
@@ -4657,6 +5015,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
     messages = messages.filter((m: any) => !m.isDeleted);
       // No auto-seed; empty inbox is expected for new accounts
       
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       res.json({
         success: true,
         messages,
@@ -4745,6 +5106,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   app.get("/api/web/inbox/conversation/:phoneNumber", authenticateToken, async (req: any, res) => {
     try {
       const { phoneNumber } = req.params;
+      const normalizedParam = String(phoneNumber);
       
       // Check if userId parameter is being used by non-admin
       if (req.query.userId && req.user.role !== 'admin') {
@@ -4756,7 +5118,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         ? req.query.userId 
         : req.user.userId;
       
-      let conversation = await storage.getConversationHistory(targetUserId, phoneNumber);
+      const isPriv = req.user.role === 'admin' || req.user.role === 'supervisor';
+      let conversation = isPriv ? { incoming: [], outgoing: [] } as any : await storage.getConversationHistory(targetUserId, normalizedParam);
+      let usedFallback = false;
       try {
         const outgoing = (conversation.outgoing || []).map((msg: any) => {
           let body = '';
@@ -4778,18 +5142,104 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         });
         conversation = { ...conversation, outgoing };
       } catch {}
-      if (req.user.role !== 'admin' && (conversation.incoming.length === 0 && conversation.outgoing.length === 0)) {
-        await storage.seedExampleData(targetUserId);
-        conversation = await storage.getConversationHistory(targetUserId, phoneNumber);
-      }
+      // Always merge with global digits-only queries to include legacy/unassigned and any formatting variants
+      try {
+        const digits = String(phoneNumber).replace(/[^0-9]/g, '');
+        const { Pool } = await import('pg');
+        const connectionString = process.env.DATABASE_URL!;
+        const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
+        const pool = new Pool(useSSL ? { connectionString, ssl: { rejectUnauthorized: false } } : { connectionString });
+        const incSql = `
+          SELECT id, user_id AS "userId", "from" AS "from", firstname, lastname, business, message, status, receiver, timestamp, message_id AS "messageId", is_read AS "isRead", usedmodem, port
+          FROM incoming_messages
+          WHERE (
+            regexp_replace("from", '[^0-9]', '', 'g') = $1
+            OR regexp_replace(receiver, '[^0-9]', '', 'g') = $1
+            OR regexp_replace("from", '[^0-9]', '', 'g') = ('1' || $1)
+            OR regexp_replace(receiver, '[^0-9]', '', 'g') = ('1' || $1)
+            OR ('1' || regexp_replace("from", '[^0-9]', '', 'g')) = $1
+            OR ('1' || regexp_replace(receiver, '[^0-9]', '', 'g')) = $1
+          )
+          ORDER BY timestamp ASC`;
+          const outSql = `
+            SELECT id, user_id AS "userId", recipient, recipients, request_payload AS "requestPayload", response_payload AS "responsePayload", created_at AS "createdAt", status, message_id AS "messageId", sender_phone_number AS "senderPhoneNumber", endpoint
+            FROM message_logs
+            WHERE (
+              regexp_replace(recipient, '[^0-9]', '', 'g') = $1
+              OR regexp_replace(recipient, '[^0-9]', '', 'g') = ('1' || $1)
+              OR ('1' || regexp_replace(recipient, '[^0-9]', '', 'g')) = $1
+              OR EXISTS (
+                SELECT 1 FROM unnest(COALESCE(recipients, '{}'::text[])) r WHERE regexp_replace(r, '[^0-9]', '', 'g') = $1 OR regexp_replace(r, '[^0-9]', '', 'g') = ('1' || $1) OR ('1' || regexp_replace(r, '[^0-9]', '', 'g')) = $1
+              )
+            )
+            ORDER BY created_at ASC`;
+        const incR = await pool.query(incSql, [digits]);
+        const outR = await pool.query(outSql, [digits]);
+        const incomingGlobal = incR.rows || [];
+        const outgoingGlobal = outR.rows || [];
+        const seenIds = new Set<string>();
+        const incoming = [...(conversation.incoming || []), ...incomingGlobal].filter((m: any) => { const k = String(m.id||m.messageId); if (seenIds.has(k)) return false; seenIds.add(k); return true; });
+        const outgoingSeen = new Set<string>();
+        const outgoing = [...(conversation.outgoing || []), ...outgoingGlobal].filter((m: any) => { const k = String(m.id||m.messageId); if (outgoingSeen.has(k)) return false; outgoingSeen.add(k); return true; });
+        conversation = { incoming, outgoing } as any;
+        usedFallback = usedFallback || (incomingGlobal.length > 0 || outgoingGlobal.length > 0);
+        // Persist assignment for Admin/Supervisor to restore inbox threads
+        try {
+          if ((req.user.role === 'admin' || req.user.role === 'supervisor') && targetUserId) {
+            const variants = [digits, '1' + digits];
+            await pool.query(`UPDATE incoming_messages SET user_id=$1 WHERE user_id IS NULL AND (regexp_replace("from", '[^0-9]', '', 'g') = ANY($2) OR regexp_replace(receiver, '[^0-9]', '', 'g') = ANY($2))`, [targetUserId, variants]);
+          }
+        } catch {}
+        await pool.end();
+      } catch {}
       
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       res.json({
         success: true,
-        conversation
+        conversation,
+        meta: {
+          incomingCount: conversation?.incoming?.length || 0,
+          outgoingCount: conversation?.outgoing?.length || 0,
+          usedFallback,
+          queryPhone: String(phoneNumber)
+        }
       });
     } catch (error) {
       console.error('Error fetching conversation:', error);
       res.status(500).json({ error: 'Failed to fetch conversation' });
+    }
+  });
+
+  app.get("/api/web/inbox/conversation/debug/:phoneNumber", authenticateToken, async (req: any, res) => {
+    try {
+      const { phoneNumber } = req.params;
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) ? String(req.query.userId) : req.user.userId;
+      const digits = String(phoneNumber).replace(/[^0-9]/g, '');
+      const { Pool } = await import('pg');
+      const connectionString = process.env.DATABASE_URL!;
+      const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
+      const pool = new Pool(useSSL ? { connectionString, ssl: { rejectUnauthorized: false } } : { connectionString });
+      const q = async (sqlText: string, params: any[]) => { try { const r = await pool.query(sqlText, params); return r.rows?.[0]?.count ? Number(r.rows[0].count) : (r.rowCount ?? 0); } catch { return -1; } };
+      const c_user_in_from = await q(`SELECT COUNT(*) AS count FROM incoming_messages WHERE user_id=$1 AND regexp_replace("from", '[^0-9]','', 'g')=$2`, [targetUserId, digits]);
+      const c_user_in_receiver = await q(`SELECT COUNT(*) AS count FROM incoming_messages WHERE user_id=$1 AND regexp_replace(receiver, '[^0-9]','', 'g')=$2`, [targetUserId, digits]);
+      const c_unassigned_business = await q(`SELECT COUNT(*) AS count FROM incoming_messages i WHERE i.user_id IS NULL AND EXISTS (SELECT 1 FROM client_profiles cp WHERE cp.user_id=$1 AND LOWER(i.business)=LOWER(cp.business_name)) AND regexp_replace("from", '[^0-9]','', 'g')=$2`, [targetUserId, digits]);
+      const c_unassigned_receiver_any = await q(`SELECT COUNT(*) AS count FROM incoming_messages i WHERE i.user_id IS NULL AND EXISTS (SELECT 1 FROM client_profiles cp WHERE cp.user_id=$1 AND i.receiver = ANY(cp.assigned_phone_numbers)) AND regexp_replace("from", '[^0-9]','', 'g')=$2`, [targetUserId, digits]);
+      const c_user_out_recipient = await q(`SELECT COUNT(*) AS count FROM message_logs WHERE user_id=$1 AND regexp_replace(recipient, '[^0-9]','', 'g')=$2`, [targetUserId, digits]);
+      const c_user_out_recipients_any = await q(`SELECT COUNT(*) AS count FROM message_logs WHERE user_id=$1 AND EXISTS (SELECT 1 FROM unnest(recipients) r WHERE regexp_replace(r, '[^0-9]','', 'g')=$2)`, [targetUserId, digits]);
+      const c_global_in = await q(`SELECT COUNT(*) AS count FROM incoming_messages WHERE regexp_replace("from", '[^0-9]','', 'g')=$1 OR regexp_replace(receiver, '[^0-9]','', 'g')=$1`, [digits]);
+      const c_global_out = await q(`SELECT COUNT(*) AS count FROM message_logs WHERE regexp_replace(recipient, '[^0-9]','', 'g')=$1 OR EXISTS (SELECT 1 FROM unnest(recipients) r WHERE regexp_replace(r, '[^0-9]','', 'g')=$1)`, [digits]);
+      await pool.end();
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      res.json({ success: true, counts: { c_user_in_from, c_user_in_receiver, c_unassigned_business, c_unassigned_receiver_any, c_user_out_recipient, c_user_out_recipients_any, c_global_in, c_global_out }, userId: targetUserId, phone: String(phoneNumber) });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed' });
     }
   });
 
@@ -4894,9 +5344,31 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       const targetUserId = req.user.role === 'admin' && req.query.userId ? req.query.userId : req.user.userId;
       const all = await storage.getIncomingMessagesByUserId(targetUserId, parseInt((req.query.limit as string) || '200'));
       const deleted = all.filter((m: any) => !!m.isDeleted);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       res.json({ success: true, messages: deleted, count: deleted.length });
     } catch (e) {
       res.status(500).json({ error: 'Failed to load deleted messages' });
+    }
+  });
+
+  app.get("/api/web/inbox/pending-count", authenticateToken, async (req: any, res) => {
+    try {
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) ? String(req.query.userId) : req.user.userId;
+      const { Pool } = await import('pg');
+      const connectionString = process.env.DATABASE_URL!;
+      const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
+      const pool = new Pool(useSSL ? { connectionString, ssl: { rejectUnauthorized: false } } : { connectionString });
+      const r = await pool.query(`SELECT COUNT(*) AS c FROM incoming_messages WHERE (user_id=$1 OR user_id IS NULL) AND is_read=false`, [targetUserId]);
+      await pool.end();
+      const pending = Number(r.rows?.[0]?.c || 0);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      res.json({ success: true, pending });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to load pending count' });
     }
   });
 
@@ -5160,7 +5632,7 @@ async function getParaphraserConfig() {
   } else if (provider === 'openrouter') {
     const modelCfg = await storage.getSystemConfig('paraphraser.openrouter.model');
     const keyCfg = await storage.getSystemConfig('paraphraser.openrouter.key');
-    return { provider, model: modelCfg?.value || 'x-ai/grok-4.1-fast:free', key: keyCfg?.value || String(process.env.OPENROUTER_API_KEY || ''), rules };
+    return { provider, model: modelCfg?.value || 'qwen/qwen3-coder:free', key: keyCfg?.value || String(process.env.OPENROUTER_API_KEY || ''), rules };
   }
   return { provider, rules };
 }

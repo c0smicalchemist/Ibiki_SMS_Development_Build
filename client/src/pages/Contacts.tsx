@@ -92,7 +92,8 @@ export default function Contacts() {
   });
 
   const isAdmin = profile?.user?.role === 'admin' || profile?.user?.email === 'ibiki_dash@proton.me';
-  const effectiveUserId = isAdmin && !isAdminMode && selectedClientId ? selectedClientId : undefined;
+  const isSupervisor = profile?.user?.role === 'supervisor';
+  const effectiveUserId = (isAdmin || isSupervisor) && selectedClientId ? selectedClientId : undefined;
   const [includeBusiness, setIncludeBusiness] = useState(false);
 
   // Fetch contact groups
@@ -108,7 +109,9 @@ export default function Contacts() {
       });
       if (!response.ok) throw new Error(t('contacts.error.fetchGroupsFailed'));
       return response.json();
-    }
+    },
+    enabled: !!localStorage.getItem('token'),
+    retry: false
   });
 
   // Fetch contacts
@@ -124,7 +127,9 @@ export default function Contacts() {
       });
       if (!response.ok) throw new Error(t('contacts.error.fetchFailed'));
       return response.json();
-    }
+    },
+    enabled: !!localStorage.getItem('token'),
+    retry: false
   });
 
   const groups: ContactGroup[] = (groupsData as any)?.groups || [];
@@ -143,7 +148,9 @@ export default function Contacts() {
       });
       if (!response.ok) throw new Error('Failed to fetch sync stats');
       return response.json();
-    }
+    },
+    enabled: !!localStorage.getItem('token'),
+    retry: false
   });
 
   const syncStats = syncStatsData || { total: 0, synced: 0, unsynced: 0 };
@@ -300,6 +307,27 @@ export default function Contacts() {
     reader.readAsText(file);
   };
 
+  const handleConfirmUpload = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const url = effectiveUserId 
+        ? `/api/contacts/confirm-upload?userId=${effectiveUserId}`
+        : '/api/contacts/confirm-upload';
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      if (!response.ok) throw new Error('Failed to confirm upload');
+      await queryClient.invalidateQueries({ queryKey: ['/api/contacts/sync-stats', effectiveUserId] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/contacts', effectiveUserId] });
+      await queryClient.refetchQueries({ queryKey: ['/api/contacts/sync-stats', effectiveUserId] });
+      await queryClient.refetchQueries({ queryKey: ['/api/contacts', effectiveUserId] });
+      toast({ title: t('common.success'), description: 'Upload confirmed. Contacts marked as synced.' });
+    } catch (error: any) {
+      toast({ title: t('common.error'), description: error.message || 'Failed to confirm upload', variant: 'destructive' });
+    }
+  };
+
   const handleImport = () => {
     const norm = (s: any) => String(s || '').trim();
     const keys = csvData.length > 0 ? Object.keys(csvData[0]) : [];
@@ -357,9 +385,8 @@ export default function Contacts() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
-      // Invalidate sync stats after export
-      queryClient.invalidateQueries({ queryKey: ['/api/contacts/sync-stats', effectiveUserId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/contacts', effectiveUserId] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/contacts/sync-stats', effectiveUserId] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/contacts', effectiveUserId] });
       
       toast({ title: t('common.success'), description: t('contacts.success.exported') });
     } catch (error) {
@@ -412,16 +439,27 @@ export default function Contacts() {
                   Export as CSV, then upload to enable incoming message routing
                 </p>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleExportCSV}
-                className="border-yellow-300 dark:border-yellow-700 hover-elevate"
-                data-testid="button-export-warning"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Export CSV
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleExportCSV}
+                  className="border-yellow-300 dark:border-yellow-700 hover-elevate"
+                  data-testid="button-export-warning"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  onClick={handleConfirmUpload}
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                  data-testid="button-confirm-upload"
+                >
+                  Confirm Upload Completed
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}

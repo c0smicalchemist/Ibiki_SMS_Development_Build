@@ -18,13 +18,13 @@ interface Message {
   createdAt?: string;
 }
 
-export default function ConversationInline({ phoneNumber, userId, isAdmin }: { phoneNumber: string; userId?: string; isAdmin?: boolean }) {
+export default function ConversationInline({ phoneNumber, userId, isAdmin, inboxGroup }: { phoneNumber: string; userId?: string; isAdmin?: boolean; inboxGroup?: any[] }) {
   const { toast } = useToast();
   const { t } = useLanguage();
   const [replyText, setReplyText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { data: conversationData, isLoading } = useQuery({
+  const { data: conversationData, isLoading, isFetching } = useQuery({
     queryKey: ['/api/web/inbox/conversation', phoneNumber, userId],
     queryFn: async () => {
       const token = localStorage.getItem('token');
@@ -36,6 +36,13 @@ export default function ConversationInline({ phoneNumber, userId, isAdmin }: { p
       return response.json();
     },
     enabled: !!phoneNumber,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+    retry: 2,
+    staleTime: 30000,
+    gcTime: 600000,
+    placeholderData: (prev) => prev,
+    keepPreviousData: true,
   });
 
   const lastInbound = (() => {
@@ -94,9 +101,8 @@ export default function ConversationInline({ phoneNumber, userId, isAdmin }: { p
   }, [conversationData]);
 
   const messages: Message[] = [];
-  if (conversationData?.conversation) {
-    const incoming = (conversationData.conversation.incoming || []).map((msg: any) => ({ ...msg, type: 'incoming' as const, timestamp: msg.timestamp }));
-    const outgoing = (conversationData.conversation.outgoing || []).map((msg: any) => {
+  const conversationIncoming = (conversationData?.conversation?.incoming || []).map((msg: any) => ({ ...msg, type: 'incoming' as const, timestamp: msg.timestamp }));
+  const conversationOutgoing = (conversationData?.conversation?.outgoing || []).map((msg: any) => {
       const safeParse = (v: any) => { try { return typeof v === 'string' ? JSON.parse(v || '') : v; } catch { return null; } };
       const findMessage = (obj: any): string | null => {
         if (!obj || typeof obj !== 'object') return null;
@@ -114,9 +120,12 @@ export default function ConversationInline({ phoneNumber, userId, isAdmin }: { p
       }
       return { ...msg, message: body, type: 'outgoing' as const, timestamp: msg.createdAt };
     });
-    messages.push(...incoming, ...outgoing);
-    messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  messages.push(...conversationIncoming, ...conversationOutgoing);
+  if ((!conversationIncoming.length && !conversationOutgoing.length) && Array.isArray(inboxGroup) && inboxGroup.length) {
+    const fallbackIncoming = inboxGroup.map((m: any) => ({ ...m, type: 'incoming' as const, timestamp: m.timestamp }));
+    messages.push(...fallbackIncoming);
   }
+  messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
   const getStatusBadge = (status: string) => {
     const statusMap: { [key: string]: { variant: 'default' | 'secondary' | 'destructive' | 'outline', className: string } } = {
@@ -145,7 +154,7 @@ export default function ConversationInline({ phoneNumber, userId, isAdmin }: { p
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-2 space-y-3">
-        {isLoading ? (
+        {isLoading && !messages.length ? (
           <div className="text-center text-muted-foreground py-8">{t('common.loading')}...</div>
         ) : messages.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">{t('inbox.noMessages')}</div>
@@ -164,6 +173,9 @@ export default function ConversationInline({ phoneNumber, userId, isAdmin }: { p
             </div>
           ))
         )}
+        {isFetching && (
+          <div className="text-center py-1 text-xs text-muted-foreground">{t('common.loading')}…</div>
+        )}
       </div>
 
       <div className="border-t pt-2">
@@ -173,9 +185,9 @@ export default function ConversationInline({ phoneNumber, userId, isAdmin }: { p
             onChange={(e) => setReplyText(e.target.value)}
             placeholder={t('inbox.typeReply')}
             className="flex-1 min-h-[60px] max-h-[120px] resize-none"
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (replyText.trim()) replyMutation.mutate({ to: phoneNumber, message: replyText, userId }); } }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (replyText.trim()) replyMutation.mutate({ to: phoneNumber, message: replyText, userId, ...(lastInbound?.usedmodem ? { usemodem: String(lastInbound.usedmodem) } : {}), ...(lastInbound?.port ? { port: String(lastInbound.port) } : {}) }); } }}
           />
-          <Button onClick={() => replyText.trim() && replyMutation.mutate({ to: phoneNumber, message: replyText, userId })} disabled={replyMutation.isPending || !replyText.trim()} size="icon" className="h-[60px] w-[60px]">
+          <Button onClick={() => replyText.trim() && replyMutation.mutate({ to: phoneNumber, message: replyText, userId, ...(lastInbound?.usedmodem ? { usemodem: String(lastInbound.usedmodem) } : {}), ...(lastInbound?.port ? { port: String(lastInbound.port) } : {}) })} disabled={replyMutation.isPending || !replyText.trim()} size="icon" className="h-[60px] w-[60px]">
             <Send className="h-4 w-4" />
           </Button>
         </div>

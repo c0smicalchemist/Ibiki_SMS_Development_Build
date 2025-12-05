@@ -48,6 +48,7 @@ export default function Inbox() {
   useEffect(() => {
     if (selectedClientId) {
       localStorage.setItem('selectedClientId', selectedClientId);
+      setIsAdminMode(false);
     } else {
       localStorage.removeItem('selectedClientId');
     }
@@ -67,10 +68,10 @@ export default function Inbox() {
 
   const isAdmin = profile?.user?.role === 'admin' || profile?.user?.email === 'ibiki_dash@proton.me';
   const isSupervisor = profile?.user?.role === 'supervisor';
-  const effectiveUserId = isAdmin && !isAdminMode && selectedClientId ? selectedClientId : undefined;
+  const effectiveUserId = (isAdmin || isSupervisor) && !isAdminMode && selectedClientId ? selectedClientId : undefined;
 
   // Fetch inbox messages
-  const { data: inboxData, isLoading } = useQuery({
+  const { data: inboxData, isLoading, isFetching } = useQuery({
     queryKey: [showDeleted ? "/api/web/inbox/deleted" : "/api/web/inbox", effectiveUserId],
     queryFn: async () => {
       const token = localStorage.getItem('token');
@@ -84,7 +85,13 @@ export default function Inbox() {
       if (!response.ok) throw new Error(t('inbox.error.fetchFailed'));
       return response.json();
     },
-    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+    retry: 2,
+    staleTime: 30000,
+    gcTime: 600000,
+    placeholderData: (prev) => prev,
+    keepPreviousData: true,
   });
 
   const messages: IncomingMessage[] = (inboxData as any)?.messages || [];
@@ -132,6 +139,8 @@ export default function Inbox() {
       if (!resp.ok) throw new Error('Failed to fetch logs');
       return resp.json();
     },
+    enabled: !!localStorage.getItem('token'),
+    retry: false,
     refetchInterval: 10000,
   });
   const lastOutByPhone: Record<string, number> = {};
@@ -347,7 +356,7 @@ export default function Inbox() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4">
-          {isLoading ? (
+          {isLoading && !messages.length ? (
             <Card className={viewFavorites ? 'border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 ring-1 ring-yellow-300' : ''}>
               <CardContent className="p-6 text-center">
                 {t('inbox.loading')}
@@ -462,7 +471,11 @@ export default function Inbox() {
                           <div className="text-xs mt-1">{format(dt, 'yyyy-MM-dd HH:mm')}</div>
                         </div>
                       );
-                    })}
+                    })
+                    }
+                    {isFetching && (
+                      <div className="text-center py-2 text-xs text-muted-foreground">{t('inbox.loading')}</div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -514,7 +527,8 @@ export default function Inbox() {
                     <ConversationInline
                       phoneNumber={selectedPhoneNumber}
                       userId={effectiveUserId}
-                      isAdmin={isAdmin}
+                      isAdmin={isAdmin || isSupervisor}
+                      inboxGroup={(groupedMessages as any)[selectedPhoneNumber] || []}
                     />
                   ) : (
                     <div className="text-center py-12 text-muted-foreground">Select a conversation on the left</div>
@@ -537,10 +551,13 @@ function PendingReplyIndicator({ userId, isAdmin }: { userId?: string; isAdmin?:
   const { data } = useQuery<{ success: boolean; pending: number }>({
     queryKey: ['/api/web/inbox/pending-count', userId || 'me'],
     queryFn: async () => {
-      const r = await fetch(`/api/web/inbox/pending-count${params.toString() ? `?${params.toString()}` : ''}`);
+      const token = localStorage.getItem('token');
+      const r = await fetch(`/api/web/inbox/pending-count${params.toString() ? `?${params.toString()}` : ''}`, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
       if (!r.ok) throw new Error('Failed');
       return r.json();
     },
+    enabled: !!localStorage.getItem('token'),
+    retry: false,
     refetchInterval: 10000,
   });
   const count = data?.pending ?? 0;

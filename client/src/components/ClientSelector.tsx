@@ -38,12 +38,10 @@ export function ClientSelector({ onClientChange, selectedClientId, onAdminModeCh
     }
   }, [clients, selectedClientId, onClientChange, isAdminMode]);
 
-  // Clear selected client when switching to admin mode
+  // Preserve selected client across admin mode toggles
   useEffect(() => {
-    if (isAdminMode && selectedClientId) {
-      onClientChange(null);
-    }
-  }, [isAdminMode, selectedClientId, onClientChange]);
+    // No-op: keep selection so refresh retains context
+  }, [isAdminMode]);
 
   if (isLoading) {
     return (
@@ -93,8 +91,8 @@ export function ClientSelector({ onClientChange, selectedClientId, onAdminModeCh
         <div className="space-y-2">
           <Label htmlFor="client-selector">Acting as Client</Label>
           <Select 
-            value={selectedClientId || undefined} 
-            onValueChange={onClientChange}
+            value={selectedClientId ?? ''}
+            onValueChange={(val) => onClientChange(val === '' ? null : val)}
           >
             <SelectTrigger id="client-selector" data-testid="select-client">
               <SelectValue placeholder="Select a client" />

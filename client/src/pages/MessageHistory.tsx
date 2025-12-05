@@ -78,7 +78,7 @@ export default function MessageHistory() {
   });
 
   // Fetch message logs
-  const { data: messagesData, isLoading } = useQuery<{ 
+  const { data: messagesData, isLoading, isFetching } = useQuery<{ 
     success: boolean; 
     messages: MessageLog[];
     count: number;
@@ -98,7 +98,13 @@ export default function MessageHistory() {
       if (!response.ok) throw new Error('Failed to fetch messages');
       return response.json();
     },
-    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+    retry: 2,
+    staleTime: 30000,
+    gcTime: 600000,
+    placeholderData: (prev) => prev as any,
+    keepPreviousData: true,
   });
 
   // Mutation to refresh status
@@ -350,7 +356,7 @@ export default function MessageHistory() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoading && paginatedMessages.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">{t('messageHistory.loading')}</p>
               </div>
@@ -449,6 +455,9 @@ export default function MessageHistory() {
                     </TableBody>
                   </Table>
                 </div>
+                {isFetching && (
+                  <div className="text-center py-2 text-xs text-muted-foreground">{t('messageHistory.loading')}</div>
+                )}
 
                 {/* Pagination */}
                 <div className="flex items-center justify-between mt-4">

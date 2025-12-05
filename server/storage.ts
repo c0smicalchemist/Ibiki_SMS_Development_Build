@@ -124,6 +124,7 @@ export interface IStorage {
   deleteContactsByGroupId(groupId: string): Promise<void>;
   deleteAllContactsByUserId(userId: string): Promise<void>;
   markContactsAsExported(contactIds: string[]): Promise<void>; // Mark contacts as synced to ExtremeSMS
+  markAllContactsSyncedByUserId(userId: string): Promise<void>; // Mark all contacts for a user as synced
   getSyncStats(userId: string): Promise<{ total: number; synced: number; unsynced: number }>; // Get sync statistics
   
   // Error logging methods
@@ -842,6 +843,20 @@ export class MemStorage implements IStorage {
     }
   }
 
+  async markAllContactsSyncedByUserId(userId: string): Promise<void> {
+    const now = new Date();
+    for (const [id, contact] of this.contacts.entries()) {
+      if (contact.userId === userId) {
+        this.contacts.set(id, {
+          ...contact,
+          syncedToExtremeSMS: true,
+          lastExportedAt: now,
+          updatedAt: now
+        });
+      }
+    }
+  }
+
   async getSyncStats(userId: string): Promise<{ total: number; synced: number; unsynced: number }> {
     const userContacts = Array.from(this.contacts.values()).filter(c => c.userId === userId);
     const total = userContacts.length;
@@ -1378,7 +1393,15 @@ export class DbStorage implements IStorage {
     await this.db.update(incomingMessages)
       .set({ isRead: true })
       .where(
-        sql`${incomingMessages.userId} = ${userId} AND ${incomingMessages.from} = ${phoneNumber}`
+        sql`
+          ${incomingMessages.userId} = ${userId}
+          AND (
+            ${incomingMessages.from} = ${phoneNumber}
+            OR regexp_replace(${incomingMessages.from}, '[^0-9]', '', 'g') = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+            OR regexp_replace(${incomingMessages.from}, '[^0-9]', '', 'g') = ('1' || regexp_replace(${phoneNumber}, '[^0-9]', '', 'g'))
+            OR ('1' || regexp_replace(${incomingMessages.from}, '[^0-9]', '', 'g')) = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+          )
+        `
       );
   }
 
@@ -1400,17 +1423,98 @@ export class DbStorage implements IStorage {
     const incoming = await this.db.select()
       .from(incomingMessages)
       .where(
-        sql`${incomingMessages.userId} = ${userId} AND ${incomingMessages.from} = ${phoneNumber}`
+        sql`
+          (
+            ${incomingMessages.userId} = ${userId}
+            AND (
+              ${incomingMessages.from} = ${phoneNumber}
+              OR regexp_replace(${incomingMessages.from}, '[^0-9]', '', 'g') = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+              OR regexp_replace(${incomingMessages.receiver}, '[^0-9]', '', 'g') = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+              OR regexp_replace(${incomingMessages.from}, '[^0-9]', '', 'g') = ('1' || regexp_replace(${phoneNumber}, '[^0-9]', '', 'g'))
+              OR regexp_replace(${incomingMessages.receiver}, '[^0-9]', '', 'g') = ('1' || regexp_replace(${phoneNumber}, '[^0-9]', '', 'g'))
+              OR ('1' || regexp_replace(${incomingMessages.from}, '[^0-9]', '', 'g')) = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+              OR ('1' || regexp_replace(${incomingMessages.receiver}, '[^0-9]', '', 'g')) = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+            )
+          )
+          OR (
+            ${incomingMessages.userId} IS NULL
+            AND (
+              ${incomingMessages.from} = ${phoneNumber}
+              OR regexp_replace(${incomingMessages.from}, '[^0-9]', '', 'g') = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+              OR regexp_replace(${incomingMessages.receiver}, '[^0-9]', '', 'g') = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+              OR regexp_replace(${incomingMessages.from}, '[^0-9]', '', 'g') = ('1' || regexp_replace(${phoneNumber}, '[^0-9]', '', 'g'))
+              OR regexp_replace(${incomingMessages.receiver}, '[^0-9]', '', 'g') = ('1' || regexp_replace(${phoneNumber}, '[^0-9]', '', 'g'))
+              OR ('1' || regexp_replace(${incomingMessages.from}, '[^0-9]', '', 'g')) = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+              OR ('1' || regexp_replace(${incomingMessages.receiver}, '[^0-9]', '', 'g')) = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+            )
+            AND EXISTS (
+              SELECT 1 FROM client_profiles cp
+              WHERE cp.user_id = ${userId}
+              AND incoming_messages.receiver = ANY(cp.assigned_phone_numbers)
+            )
+          )
+          OR (
+            ${incomingMessages.userId} IS NULL
+            AND EXISTS (
+              SELECT 1 FROM client_profiles cp
+              WHERE cp.user_id = ${userId}
+              AND LOWER(incoming_messages.business) = LOWER(cp.business_name)
+            )
+          )
+        `
       )
       .orderBy(incomingMessages.timestamp);
     
     const outgoing = await this.db.select()
       .from(messageLogs)
       .where(
-        sql`${messageLogs.userId} = ${userId} AND ${messageLogs.recipient} = ${phoneNumber}`
+        sql`
+          ${messageLogs.userId} = ${userId}
+          AND (
+            ${messageLogs.recipient} = ${phoneNumber}
+            OR regexp_replace(${messageLogs.recipient}, '[^0-9]', '', 'g') = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+            OR regexp_replace(${messageLogs.recipient}, '[^0-9]', '', 'g') = ('1' || regexp_replace(${phoneNumber}, '[^0-9]', '', 'g'))
+            OR ('1' || regexp_replace(${messageLogs.recipient}, '[^0-9]', '', 'g')) = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+            OR ${phoneNumber} = ANY(${messageLogs.recipients})
+            OR EXISTS (
+              SELECT 1 FROM unnest(COALESCE(${messageLogs.recipients}, '{}'::text[])) r
+              WHERE regexp_replace(r, '[^0-9]', '', 'g') = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+              OR regexp_replace(r, '[^0-9]', '', 'g') = ('1' || regexp_replace(${phoneNumber}, '[^0-9]', '', 'g'))
+              OR ('1' || regexp_replace(r, '[^0-9]', '', 'g')) = regexp_replace(${phoneNumber}, '[^0-9]', '', 'g')
+            )
+          )
+        `
       )
       .orderBy(messageLogs.createdAt);
     
+    if (incoming.length === 0 && outgoing.length === 0) {
+      try {
+        const digits = String(phoneNumber).replace(/[^0-9]/g, '');
+        const incR = await poolInstance!.query(
+          `SELECT id, user_id AS "userId", "from" AS "from", firstname, lastname, business, message, status, receiver, timestamp, message_id AS "messageId", is_read AS "isRead", usedmodem, port
+           FROM incoming_messages
+           WHERE (
+             regexp_replace("from", '[^0-9]', '', 'g') = $1
+             OR regexp_replace(receiver, '[^0-9]', '', 'g') = $1
+           )
+           ORDER BY timestamp ASC`,
+          [digits]
+        );
+        const outR = await poolInstance!.query(
+          `SELECT id, user_id AS "userId", recipient, recipients, request_payload AS "requestPayload", response_payload AS "responsePayload", created_at AS "createdAt", status, message_id AS "messageId", sender_phone_number AS "senderPhoneNumber", endpoint
+           FROM message_logs
+           WHERE (
+             regexp_replace(recipient, '[^0-9]', '', 'g') = $1
+             OR EXISTS (SELECT 1 FROM unnest(COALESCE(recipients, '{}'::text[])) r WHERE regexp_replace(r, '[^0-9]', '', 'g') = $1)
+           )
+           ORDER BY created_at ASC`,
+          [digits]
+        );
+        const incF = incR.rows as any as IncomingMessage[];
+        const outF = outR.rows as any as MessageLog[];
+        return { incoming: incF, outgoing: outF };
+      } catch {}
+    }
     return { incoming, outgoing };
   }
 
@@ -1549,6 +1653,16 @@ export class DbStorage implements IStorage {
         updatedAt: new Date()
       })
       .where(sql`${contacts.id} IN (${sql.join(contactIds.map(id => sql`${id}`), sql`, `)})`);
+  }
+
+  async markAllContactsSyncedByUserId(userId: string): Promise<void> {
+    await this.db.update(contacts)
+      .set({
+        syncedToExtremeSMS: true,
+        lastExportedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(contacts.userId, userId));
   }
 
   async deleteUser(userId: string): Promise<void> {

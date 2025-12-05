@@ -1,9 +1,5 @@
 import dotenv from "dotenv";
 
-// Load environment-specific config
-// IMPORTANT: Don't load .env.production on Railway - it contains localhost database URL
-
-// First, log what environment variables we have
 if (process.env.LOG_LEVEL === 'debug') {
   console.log('🔧 Initial environment check:');
   console.log('NODE_ENV:', process.env.NODE_ENV);
@@ -11,63 +7,10 @@ if (process.env.LOG_LEVEL === 'debug') {
   console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
 }
 
-// Railway detection: Check for multiple Railway-specific environment variables
-const railwayVars = Object.keys(process.env).filter(key => key.startsWith('RAILWAY'));
-const isRailway = railwayVars.length > 0;
-
-if (process.env.LOG_LEVEL === 'debug') {
-  console.log('🔍 Railway detection:');
-  console.log('Railway env vars found:', railwayVars);
-  console.log('Railway detected:', isRailway);
-}
-
-// CRITICAL: If we're on Railway, don't load any .env files that might override Railway vars
-// Railway provides all environment variables directly
-if (isRailway) {
-  if (process.env.LOG_LEVEL === 'debug') {
-    console.log('🚄 Railway detected: Skipping .env files to preserve Railway environment variables');
-    console.log('🚄 Using Railway-provided environment variables only');
-  }
-} else {
-  const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development';
-  dotenv.config({ path: envFile });
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development';
+dotenv.config({ path: envFile });
+if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
-}
-
-// Debug: Log environment info for Railway
-if (process.env.LOG_LEVEL === 'debug') {
-  console.log('🔍 Environment Debug Info:');
-  console.log('NODE_ENV:', process.env.NODE_ENV);
-  console.log('RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT);
-  console.log('RAILWAY_PROJECT_ID:', process.env.RAILWAY_PROJECT_ID);
-  console.log('RAILWAY_SERVICE_ID:', process.env.RAILWAY_SERVICE_ID);
-  console.log('PORT:', process.env.PORT);
-  console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
-  console.log('DATABASE_URL value:', process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]*@/, ':***@') : 'NOT SET');
-}
-
-// Check for Railway-specific database variables
-const railwayDbVars = Object.keys(process.env).filter(key => 
-  key.includes('DATABASE') || key.includes('POSTGRES') || key.includes('DB')
-);
-if (process.env.LOG_LEVEL === 'debug') {
-  console.log('🔍 Database-related env vars:', railwayDbVars);
-  console.log('🚄 Railway env vars:', railwayVars);
-}
-
-// Railway-specific: Use private network connection to avoid egress fees
-if (isRailway) {
-  if (process.env.DATABASE_PRIVATE_URL) {
-    console.log('🚄 Railway detected: Using private database connection (no egress fees)');
-    process.env.DATABASE_URL = process.env.DATABASE_PRIVATE_URL;
-  } else if (process.env.DATABASE_PUBLIC_URL) {
-    console.log('⚠️  Railway detected: Using public database connection (egress fees apply)');
-    process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
-  } else if (process.env.DATABASE_URL) {
-    console.log('🚄 Railway detected: Using standard DATABASE_URL');
-  } else {
-    console.log('⚠️  Railway detected but no database URL found');
-  }
 }
 
 // CRITICAL: Verify DATABASE_URL is set
@@ -86,22 +29,10 @@ if (!process.env.DATABASE_URL) {
   
   console.error('❌ First 20 env vars:', Object.keys(process.env).slice(0, 20).join(', '));
   
-  // In Railway, DATABASE_URL is provided by the PostgreSQL addon
-  if (isRailway) {
-    console.error('❌ Railway detected: Make sure you have added a PostgreSQL database addon');
-    console.error('❌ Go to your Railway project → Add Service → Database → PostgreSQL');
-    console.error('❌ The PostgreSQL addon should automatically set DATABASE_URL');
-    console.error('❌ Check your Railway project settings and ensure the database is connected');
-  } else {
-    console.error('❌ Please set DATABASE_URL in your environment variables or .env file.');
-    console.error('❌ Example: DATABASE_URL=postgresql://user:password@host:port/database');
-  }
-  
-  // Production consistency: always require a real database
-  if (!process.env.DATABASE_URL && !process.env.DATABASE_PRIVATE_URL && !process.env.POSTGRES_URL && !process.env.POSTGRESQL_URL && !process.env.DATABASE_PUBLIC_URL) {
-    console.error('❌ Exiting: A consistent PostgreSQL database is required in production');
-    process.exit(1);
-  }
+  console.error('❌ Please set DATABASE_URL in your environment variables or .env file.');
+  console.error('❌ Example: DATABASE_URL=postgresql://user:password@host:port/database');
+  console.error('❌ Exiting: A consistent PostgreSQL database is required');
+  process.exit(1);
 }
 
 // CRITICAL: Validate DATABASE_URL format (if present)
@@ -133,6 +64,7 @@ import { registerRoutes } from "./routes";
 import { storage } from "./storage";
 
 const app = express();
+app.disable('etag');
 
 function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -182,42 +114,17 @@ app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+    if (req.path.startsWith("/api")) {
+      log(`${req.method} ${req.path} ${res.statusCode} in ${duration}ms`);
     }
   });
-
   next();
 });
 
 (async () => {
-  const resolvedDbUrl =
-    process.env.DATABASE_URL ||
-    process.env.DATABASE_PRIVATE_URL ||
-    process.env.POSTGRES_URL ||
-    process.env.POSTGRESQL_URL ||
-    process.env.DATABASE_PUBLIC_URL ||
-    "";
+  const resolvedDbUrl = process.env.DATABASE_URL || "";
   if (!process.env.DATABASE_URL && resolvedDbUrl) {
     process.env.DATABASE_URL = resolvedDbUrl;
   }
@@ -497,15 +404,12 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (process.env.LOG_LEVEL === 'debug') {
-    console.log('🔧 Environment check for Vite/Static serving:');
+    console.log('🔧 Environment check for static serving:');
     console.log('process.env.NODE_ENV:', process.env.NODE_ENV);
     console.log('app.get("env"):', app.get("env"));
-    console.log('isRailway:', isRailway);
-    console.log('Railway vars count:', railwayVars.length);
   }
-  
-  // FORCE production mode on Railway regardless of NODE_ENV
-  console.log('🔧 Setting up static file serving (Railway or production)...');
+
+  console.log('🔧 Setting up static file serving...');
   serveStatic(app);
 
   // ALWAYS serve the app on the port specified in the environment variable PORT

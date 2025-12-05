@@ -31,18 +31,24 @@ export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admi
   const [q, setQ] = useState("");
   const [recipientsOpen, setRecipientsOpen] = useState(false);
   const [recipients, setRecipients] = useState<string[]>([]);
-  const { data } = useQuery<{ success: boolean; messages: MessageLog[] }>({
+  const { data, isFetching } = useQuery<{ success: boolean; messages: MessageLog[] }>({
     queryKey: [mode === 'admin' ? "/api/admin/message-logs" : "/api/supervisor/message-logs", mode],
     queryFn: async () => {
       const token = localStorage.getItem("token");
-      const url = mode === 'admin' ? "/api/admin/message-logs?limit=500" : "/api/supervisor/message-logs?limit=500";
+      const url = mode === 'admin' ? "/api/admin/message-logs?limit=200" : "/api/supervisor/message-logs?limit=200";
       const resp = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!resp.ok) throw new Error("Failed to fetch message logs");
       return resp.json();
     },
-    refetchInterval: 10000,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+    retry: 2,
+    staleTime: 30000,
+    gcTime: 600000,
+    placeholderData: (prev) => prev as any,
+    keepPreviousData: true,
   });
   const logs = data?.messages || [];
   // Best-effort mapping: if display fields missing, try to map via /api/admin/clients
@@ -133,6 +139,9 @@ export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admi
             </TableBody>
           </Table>
         </div>
+        {isFetching && (
+          <div className="text-center py-2 text-xs text-muted-foreground">Loading…</div>
+        )}
       </CardContent>
     </Card>
     <RecipientsDialog open={recipientsOpen} onOpenChange={setRecipientsOpen} numbers={recipients} />
