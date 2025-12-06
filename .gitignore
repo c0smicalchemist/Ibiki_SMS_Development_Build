@@ -16,6 +16,11 @@ build/
 .env.production.local
 .env.production
 
+# Additional env patterns
+.env*
+!.env.example
+!.env.sample
+
 # Logs
 logs/
 *.log
@@ -123,6 +128,10 @@ vite.config.ts.*
 *.bak
 Backups/
 *.bundle
+
+# Deployment archives
+release/*.zip
+release/*.tar.gz
 
 # Development artifacts (production cleanup)
 design_guidelines.md
