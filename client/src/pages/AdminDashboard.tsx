@@ -200,6 +200,47 @@ export default function AdminDashboard() {
   const secretsStatusQuery = useQuery<{ success: boolean; configured: Record<string, boolean> }>({
     queryKey: ['/api/admin/secrets/status']
   });
+  const [groupReportDate, setGroupReportDate] = useState<string>('');
+  const [groupReportTrigger, setGroupReportTrigger] = useState<number>(0);
+  const exportGroupCsv = async (params: { groupId?: string; date?: string }) => {
+    const q: string[] = [];
+    if (params.groupId) q.push(`groupId=${encodeURIComponent(params.groupId)}`);
+    if (params.date) q.push(`date=${encodeURIComponent(params.date)}`);
+    const url = `/api/group/message-status-today.csv${q.length ? `?${q.join('&')}` : ''}`;
+    const token = localStorage.getItem('token');
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Accept: 'text/csv'
+      }
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `${res.status}`);
+    }
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = `group-message-status-${params.date || 'today'}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(href);
+  };
+  const groupStatsQuery = useQuery<{ success: boolean; groupId: string | null; results: Array<{ user_id: string; user_name: string; email: string; sent_today: number; received_today: number }> }>({
+    queryKey: ['/api/group/message-status-today', (profile?.user?.role === 'admin' ? (groupIdPricing || '' ) : 'me'), groupReportDate || '', groupReportTrigger],
+    queryFn: async () => {
+      const url = (profile?.user?.role === 'admin')
+        ? (groupIdPricing ? `/api/group/message-status-today?groupId=${encodeURIComponent(groupIdPricing)}${groupReportDate ? `&date=${encodeURIComponent(groupReportDate)}` : ''}` : '')
+        : `/api/group/message-status-today${groupReportDate ? `?date=${encodeURIComponent(groupReportDate)}` : ''}`;
+      if (!url) return { success: false, groupId: null, results: [] } as any;
+      const r = await apiRequest(url);
+      return r.json();
+    },
+    enabled: groupReportTrigger > 0 && (profile?.user?.role === 'admin' ? !!groupIdPricing : !!profile?.user?.role),
+  });
   const setWebhookUrlMutation = useMutation({
     mutationFn: async (url: string) => {
       return await apiRequest('/api/admin/webhook/set-url', { method: 'POST', body: JSON.stringify({ url }) });
@@ -1013,6 +1054,7 @@ export default function AdminDashboard() {
                 <TabsTrigger value="createuser" data-testid="tab-createuser">{t('admin.tabs.createUser') || 'User Create'}</TabsTrigger>
                 <TabsTrigger value="phraser" data-testid="tab-phraser">Ibiki Phraser</TabsTrigger>
                 <TabsTrigger value="usersummary" data-testid="tab-usersummary">User Summary</TabsTrigger>
+                <TabsTrigger value="groupreport" data-testid="tab-groupreport">Group Report</TabsTrigger>
                 <TabsTrigger value="diagnostics" data-testid="tab-diagnostics">Diagnostics</TabsTrigger>
               </>
             ) : (
@@ -1020,6 +1062,7 @@ export default function AdminDashboard() {
                 <TabsTrigger value="actionlogs" data-testid="tab-actionlogs">{t('admin.actionLogs')}</TabsTrigger>
                 <TabsTrigger value="messages" data-testid="tab-messages">Message Activity</TabsTrigger>
                 <TabsTrigger value="createuser" data-testid="tab-createuser">{t('admin.tabs.createUser') || 'User Create'}</TabsTrigger>
+                <TabsTrigger value="groupreport" data-testid="tab-groupreport">Group Report</TabsTrigger>
               </>
             )}
           </TabsList>
@@ -1809,6 +1852,54 @@ export default function AdminDashboard() {
 
         <TabsContent value="testing" className="space-y-4">
           <ApiTestUtility />
+        </TabsContent>
+
+        <TabsContent value="groupreport" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Group Message Status (Today)</CardTitle>
+              <CardDescription>Sent and first-time received counts per user</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {profile?.user?.role === 'admin' && (
+                <div className="flex items-center gap-2 mb-3">
+                  <Input placeholder="Group ID" value={groupIdPricing} onChange={e => setGroupIdPricing(e.target.value)} className="w-64" />
+                  <Input type="date" value={groupReportDate} onChange={e => setGroupReportDate(e.target.value)} />
+                  <Button variant="secondary" onClick={() => setGroupReportTrigger((n) => n + 1)}>Load</Button>
+                  {groupIdPricing && (
+                    <Button onClick={() => exportGroupCsv({ groupId: groupIdPricing, date: groupReportDate || undefined })}>Export CSV</Button>
+                  )}
+                </div>
+              )}
+              {profile?.user?.role === 'supervisor' && (
+                <div className="flex items-center gap-2 mb-3">
+                  <Input type="date" value={groupReportDate} onChange={e => setGroupReportDate(e.target.value)} />
+                  <Button variant="secondary" onClick={() => setGroupReportTrigger((n) => n + 1)}>Load</Button>
+                  <Button onClick={() => exportGroupCsv({ date: groupReportDate || undefined })}>Export CSV</Button>
+                </div>
+              )}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead className="text-right">Sent Today</TableHead>
+                    <TableHead className="text-right">Received (First-Time)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(groupStatsQuery.data?.results || []).map((row) => (
+                    <TableRow key={row.user_id}>
+                      <TableCell>{row.user_name}</TableCell>
+                      <TableCell>{row.email}</TableCell>
+                      <TableCell className="text-right">{row.sent_today}</TableCell>
+                      <TableCell className="text-right">{row.received_today}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {profile?.user?.role !== 'admin' ? (

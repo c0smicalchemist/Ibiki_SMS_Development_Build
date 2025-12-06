@@ -131,13 +131,33 @@ export default function Inbox() {
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
   const { data: logsData } = useQuery<{ success: boolean; messages: Array<any> }>({
-    queryKey: [effectiveUserId ? '/api/admin/messages' : '/api/client/messages', effectiveUserId],
+    queryKey: [
+      (isAdmin ? '/api/admin/messages' : (isSupervisor ? '/api/supervisor/messages' : '/api/client/messages')),
+      effectiveUserId
+    ],
     queryFn: async () => {
       const token = localStorage.getItem('token');
-      const url = effectiveUserId ? `/api/admin/messages?userId=${effectiveUserId}` : '/api/client/messages';
-      const resp = await fetch(url, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
-      if (!resp.ok) throw new Error('Failed to fetch logs');
-      return resp.json();
+      let url = '/api/client/messages';
+      if (isAdmin) {
+        url = effectiveUserId ? `/api/admin/messages?userId=${effectiveUserId}` : '/api/admin/messages';
+      } else if (isSupervisor) {
+        url = effectiveUserId ? `/api/supervisor/messages?userId=${effectiveUserId}` : '/api/supervisor/messages';
+      }
+      const headers: Record<string,string> = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      try {
+        const resp = await fetch(url, { headers, cache: 'no-store' });
+        if (!resp.ok) throw new Error('Failed to fetch logs');
+        return await resp.json();
+      } catch (e) {
+        let altUrl = url;
+        if (isSupervisor && effectiveUserId) {
+          altUrl = `/api/admin/messages?userId=${effectiveUserId}`;
+        }
+        const resp2 = await fetch(altUrl, { headers, cache: 'no-store' });
+        if (!resp2.ok) throw new Error('Failed to fetch logs');
+        return await resp2.json();
+      }
     },
     enabled: !!localStorage.getItem('token'),
     retry: false,
@@ -331,26 +351,16 @@ export default function Inbox() {
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3 justify-end">
             <Button
-              variant="default"
+              variant="outline"
               size="sm"
-              className="h-9 px-3 min-w-[4rem] flex flex-col items-center justify-center"
+              className="h-9 px-3 min-w-[4rem] flex flex-col items-center justify-center bg-gray-500 text-white border-none"
               title="All"
               disabled
             >
               <span className="text-sm font-bold leading-none">{messages.length.toLocaleString()}</span>
               <span className="text-[11px] opacity-80 leading-none mt-0.5">{t('inbox.indicator.all')}</span>
             </Button>
-            <Button
-              variant="default"
-              size="sm"
-              className="h-9 px-3 min-w-[4rem] flex flex-col items-center justify-center bg-primary text-primary-foreground disabled:opacity-100"
-              title="Unread"
-              disabled
-            >
-              <span className="text-sm font-bold leading-none">{messages.filter(m => !m.isRead).length.toLocaleString()}</span>
-              <span className="text-[11px] opacity-80 leading-none mt-0.5">{t('inbox.unreadIndicator')}</span>
-            </Button>
-            <PendingReplyIndicator userId={effectiveUserId} isAdmin={isAdmin} />
+            <UnreadIndicator userId={effectiveUserId} isAdmin={isAdmin} />
             {/* Deleted toggle moved below near favourites */}
           </div>
         </div>
@@ -404,7 +414,7 @@ export default function Inbox() {
                       className={`h-7 px-3 ${showDeleted ? 'bg-red-100 text-red-800 border border-red-500 hover:bg-red-200' : ''}`}
                       variant={showDeleted ? 'outline' : 'outline'}
                     >
-                      <span>{t('inbox.deleted') || 'Deleted'}</span>
+                      <span className="inline-flex items-center gap-1"><Trash2 className="h-3 w-3" /> Deleted</span>
                     </Button>
                     {showDeleted && (
                       <Button
@@ -464,7 +474,7 @@ export default function Inbox() {
                           <div className="text-sm font-semibold flex items-center gap-2">
                             {t('inbox.from')}: <span className="font-mono">{String(phone)}</span>
                             {hasUnread && <span className="inline-block w-2 h-2 rounded-full bg-blue-600" title="Unread" />}
-                            {pendingReply && <span className="inline-block w-2 h-2 rounded-full bg-blue-400" title={t('inbox.pendingReply')} />}
+                            {/* pending reply indicator removed per request */}
                           </div>
                           <div className="text-xs text-muted-foreground">{t('inbox.to')}: {(latest as any).receiver}</div>
                           <div className="text-xs truncate mt-1">{(latest as any).message}</div>
@@ -508,10 +518,16 @@ export default function Inbox() {
                         disabled={!selectedPhoneNumber}
                         onClick={async () => {
                           if (!selectedPhoneNumber) return;
-                          const msgs = (groupedMessages as any)[selectedPhoneNumber] || [];
-                          for (const m of msgs) {
-                            try { await deleteMutation.mutateAsync((m as any).id); } catch {}
-                          }
+                          try {
+                            const token = localStorage.getItem('token');
+                            const body: any = { phoneNumber: selectedPhoneNumber };
+                            if (effectiveUserId) body.userId = effectiveUserId;
+                            await fetch('/api/web/inbox/delete-conversation', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                              body: JSON.stringify(body)
+                            });
+                          } catch {}
                           await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox", effectiveUserId] });
                           await queryClient.invalidateQueries({ queryKey: ["/api/web/inbox/deleted", effectiveUserId] });
                           setSelectedPhoneNumber(null);
@@ -545,32 +561,33 @@ export default function Inbox() {
   );
 }
 
-function PendingReplyIndicator({ userId, isAdmin }: { userId?: string; isAdmin?: boolean }) {
+function UnreadIndicator({ userId, isAdmin }: { userId?: string; isAdmin?: boolean }) {
   const { t } = useLanguage();
-  const params = new URLSearchParams(isAdmin && userId ? { userId } : {});
-  const { data } = useQuery<{ success: boolean; pending: number }>({
-    queryKey: ['/api/web/inbox/pending-count', userId || 'me'],
+  const params = new URLSearchParams(userId ? { userId } : {});
+  const { data } = useQuery<{ success: boolean; unread: number }>({
+    queryKey: ['/api/web/inbox/unread-count', userId || 'me'],
     queryFn: async () => {
       const token = localStorage.getItem('token');
-      const r = await fetch(`/api/web/inbox/pending-count${params.toString() ? `?${params.toString()}` : ''}`, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
-      if (!r.ok) throw new Error('Failed');
+      const r = await fetch(`/api/web/inbox/unread-count${params.toString() ? `?${params.toString()}` : ''}`, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+      if (r.status === 401) return { success: false, pending: 0 } as any;
+      if (!r.ok) return { success: false, pending: 0 } as any;
       return r.json();
     },
     enabled: !!localStorage.getItem('token'),
     retry: false,
     refetchInterval: 10000,
   });
-  const count = data?.pending ?? 0;
+  const count = data?.unread ?? 0;
   return (
     <Button
       variant="default"
       size="sm"
       className="h-9 px-3 min-w-[4rem] flex flex-col items-center justify-center bg-blue-600 text-white disabled:opacity-100"
-      title={t('inbox.pendingReply')}
+      title={t('inbox.unreadIndicator')}
       disabled
     >
       <span className="text-sm font-bold leading-none">{count.toLocaleString()}</span>
-      <span className="text-[11px] opacity-80 leading-none mt-0.5">{t('inbox.pendingReply')}</span>
+      <span className="text-[11px] opacity-80 leading-none mt-0.5">{t('inbox.unreadIndicator')}</span>
     </Button>
   );
 }

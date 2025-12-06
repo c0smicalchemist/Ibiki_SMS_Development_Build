@@ -1361,15 +1361,33 @@ export class DbStorage implements IStorage {
   }
 
   async getIncomingMessagesByUserId(userId: string, limit?: number): Promise<IncomingMessage[]> {
-    let query = this.db.select().from(incomingMessages)
+    // Primary: owned messages
+    const owned = await this.db.select().from(incomingMessages)
       .where(eq(incomingMessages.userId, userId))
-      .orderBy(desc(incomingMessages.timestamp));
-    
-    if (limit) {
-      query = query.limit(limit) as any;
-    }
-    
-    return query;
+      .orderBy(desc(incomingMessages.timestamp))
+      .limit(limit || 100);
+    const fallbackEnabled = String(process.env.INBOX_FALLBACK || 'true') !== 'false';
+    if (!fallbackEnabled || owned.length > 0) return owned as any;
+    // Fallback: un-attributed messages matched to acting user via client_profiles
+    const fallback = await this.db.select().from(incomingMessages)
+      .where(sql`
+        ${incomingMessages.userId} IS NULL
+        AND (
+          EXISTS (
+            SELECT 1 FROM client_profiles cp
+            WHERE cp.user_id = ${userId}
+            AND incoming_messages.receiver = ANY(cp.assigned_phone_numbers)
+          )
+          OR EXISTS (
+            SELECT 1 FROM client_profiles cp
+            WHERE cp.user_id = ${userId}
+            AND LOWER(incoming_messages.business) = LOWER(cp.business_name)
+          )
+        )
+      `)
+      .orderBy(desc(incomingMessages.timestamp))
+      .limit(limit || 100);
+    return fallback as any;
   }
 
   async getAllIncomingMessages(limit?: number): Promise<IncomingMessage[]> {

@@ -29,11 +29,28 @@ async function authenticateToken(req: any, res: any, next: any) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
-    req.user = decoded;
+    const decodedAny = jwt.verify(token, JWT_SECRET) as any;
+    req.user = { userId: decodedAny.userId, role: String(decodedAny.role || '').toLowerCase() };
+    const iatMs = decodedAny?.iat ? Number(decodedAny.iat) * 1000 : Date.now();
+    try {
+      const globalInv = await storage.getSystemConfig('jwt.invalidate_after');
+      const userInv = await storage.getSystemConfig(`jwt.invalidate_after.user.${req.user.userId}`);
+      const globalCutoff = globalInv?.value ? Number(globalInv.value) : 0;
+      const userCutoff = userInv?.value ? Number(userInv.value) : 0;
+      if ((globalCutoff && iatMs && iatMs < globalCutoff) || (userCutoff && iatMs && iatMs < userCutoff)) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+    } catch {}
+    try {
+      const fresh = await storage.getUser(req.user.userId);
+      const dbRole = String((fresh as any)?.role || '').toLowerCase();
+      if (dbRole && dbRole !== req.user.role) {
+        req.user.role = dbRole as any;
+      }
+    } catch {}
     next();
   } catch (error) {
-    return res.status(403).json({ error: "Invalid or expired token" });
+    return res.status(401).json({ error: "Authentication required" });
   }
 }
 
@@ -48,7 +65,9 @@ function requireAdmin(req: any, res: any, next: any) {
 // Role gate: allow any of the provided roles
 function requireRole(roles: string[]) {
   return (req: any, res: any, next: any) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    const role = String(req.user?.role || '').toLowerCase();
+    const allowed = roles.map(r => String(r).toLowerCase());
+    if (!req.user || !allowed.includes(role)) {
       return res.status(403).json({ error: "Insufficient privileges" });
     }
     next();
@@ -338,48 +357,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return out;
       };
 
-      const stubGen = (base: string, c: number, creative: number) => {
-        const synonyms: Record<string,string[]> = { hello: ['Hello','Hi','Hey','Hello there'], thanks: ['Thank you','Thanks','Much appreciated'], please: ['please','kindly'], good: ['great','nice','excellent'] };
-        const arr: any[] = [];
-        const endsWithQuestion = /\?\s*$/.test(base);
-        for (let i=0;i<c;i++){
-          const words = base.split(/\s+/);
-          const v = words.map(w => {
-            const key = w.replace(/[^a-zA-Z]/g,'').toLowerCase();
-            if (synonyms[key] && Math.random() < (0.2 + creative*0.6)) {
-              const opts = synonyms[key]; return opts[Math.floor(Math.random()*opts.length)];
-            }
-            return w;
-          }).join(' ');
-          let out = v.trim();
-          // Capitalize sentence start
-          out = out.charAt(0).toUpperCase() + out.slice(1);
-          // Ensure punctuation
-          if (!/[.?!]\s*$/.test(out)) out = out + (endsWithQuestion ? '?' : '.');
-          Object.keys(placeholders).forEach(k => {
-            const orig = placeholders[k];
-            if (includeLink && urlPlaceholders.has(k)) {
-              const phrase = ` here is the link ${orig} here you will find more information `;
-              // remove any leftover placeholder and insert mid-sentence
-              out = out.replace(new RegExp(k,'g'), '');
-              const mid = Math.floor(out.length/2);
-              let pos = out.indexOf(' ', mid);
-              if (pos === -1) pos = out.lastIndexOf(' ', mid);
-              if (pos === -1) pos = mid;
-              out = `${out.slice(0,pos)} ${phrase} ${out.slice(pos)}`.replace(/\s+/g,' ').trim();
-            } else {
-              out = out.replace(new RegExp(k,'g'), orig);
-            }
-          });
-          out = clamp(out);
-          const id = crypto.randomBytes(8).toString('hex');
-          arr.push({ id, text: out, score: +(0.80 + Math.random()*0.15).toFixed(2) });
-        }
-        return arr;
-      };
+      const noVariants = () => [];
 
       let variants: any[] = [];
-      let providerUsed: 'openrouter' | 'ollama' | 'remote' | 'stub' = 'stub';
+      let providerUsed: 'openrouter' | 'ollama' | 'remote' | 'none' = 'none';
       if (cfg.provider === 'ollama') {
         const temp = Math.max(0, Math.min(1, Number(creativity))) || 0.5;
         for (let i=0;i<count;i++) {
@@ -491,14 +472,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } catch {}
           }
           if (variants.length === 0) {
-            variants = stubGen(protectedText, count, temp);
-            providerUsed = 'stub';
+            variants = noVariants();
+            providerUsed = 'none';
           } else {
             providerUsed = 'openrouter';
           }
         } catch (err:any) {
-          variants = stubGen(protectedText, count, temp);
-          providerUsed = 'stub';
+          variants = noVariants();
+          providerUsed = 'none';
         }
       } else if (cfg.provider === 'remote' && cfg.url) {
         const headers: Record<string,string> = { 'Content-Type': 'application/json' };
@@ -515,20 +496,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             variants.push({ id, text: out, score: +Number(score).toFixed(2) });
           }
           if (variants.length === 0) {
-            variants = stubGen(protectedText, count, Number(creativity));
-            providerUsed = 'stub';
+            variants = noVariants();
+            providerUsed = 'none';
           } else {
             providerUsed = 'remote';
           }
         } catch (err:any) {
-          variants = stubGen(protectedText, count, Number(creativity));
-          providerUsed = 'stub';
+          variants = noVariants();
+          providerUsed = 'none';
         }
       } else {
-        variants = stubGen(protectedText, count, Number(creativity));
-        providerUsed = 'stub';
+        variants = noVariants();
+        providerUsed = 'none';
       }
 
+      if (providerUsed === 'none' && variants.length === 0) {
+        return res.status(400).json({ success: false, error: 'Ibiki Phraser not configured', variants, providerUsed });
+      }
       res.json({ success: true, variants, providerUsed });
     } catch (e:any) {
       res.status(500).json({ success: false, error: e?.message || String(e) });
@@ -597,7 +581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Secrets status
-  app.get('/api/admin/secrets/status', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/secrets/status', authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
     try {
       const keys = ['jwt_secret','session_secret','webhook_secret','resend_api_key','captcha_secret','turnstile_site_key','turnstile_secret'];
       const out: Record<string, boolean> = {};
@@ -656,7 +640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/admin/db/status", authenticateToken, requireAdmin, async (_req, res) => {
+app.get("/api/admin/db/status", authenticateToken, requireRole(['admin','supervisor']), async (_req, res) => {
     try {
       const url = process.env.DATABASE_URL;
       if (!url) return res.status(400).json({ success: false, error: "DATABASE_URL not set" });
@@ -683,7 +667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Diagnostics: run consolidated checks (admin-only)
-  app.get('/api/admin/diagnostics/run', authenticateToken, requireAdmin, async (_req: any, res) => {
+app.get('/api/admin/diagnostics/run', authenticateToken, requireRole(['admin','supervisor']), async (_req: any, res) => {
     const started = Date.now();
     const checks: any[] = [];
     const run = async (name: string, fn: () => Promise<any>) => {
@@ -1378,10 +1362,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Favorites: Get favorites for inbox (by phone number)
   app.get('/api/web/inbox/favorites', authenticateToken, async (req: any, res) => {
     try {
-      if (req.query.userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Unauthorized: Only admins can act on behalf of other users' });
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Unauthorized: Only admins or supervisors can act on behalf of other users' });
       }
-      const targetUserId = (req.user.role === 'admin' && req.query.userId) ? req.query.userId : req.user.userId;
+      let targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) ? String(req.query.userId) : req.user.userId;
+      if (req.user.role === 'supervisor' && req.query.userId && String(req.query.userId) !== req.user.userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (!relaxed) {
+          try {
+            const sup = await storage.getClientProfileByUserId(req.user.userId);
+            const tgt = await storage.getClientProfileByUserId(String(req.query.userId));
+            if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+              return res.status(403).json({ error: 'Unauthorized: Supervisor can only access users within their group' });
+            }
+          } catch {
+            return res.status(403).json({ error: 'Unauthorized: Group check failed' });
+          }
+        }
+      }
       const rec = await storage.getSystemConfig(`favorites_user_${targetUserId}`);
       let list: string[] = [];
       try { list = rec?.value ? JSON.parse(rec.value) : []; } catch {}
@@ -1396,10 +1394,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { phoneNumber, favorite, userId } = req.body || {};
       if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber required' });
-      if (userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Unauthorized: Only admins can act on behalf of other users' });
+      if (userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Unauthorized: Only admins or supervisors can act on behalf of other users' });
       }
-      const targetUserId = (req.user.role === 'admin' && userId) ? userId : req.user.userId;
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && userId) ? String(userId) : req.user.userId;
+      if (req.user.role === 'supervisor' && userId && String(userId) !== req.user.userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (!relaxed) {
+          try {
+            const sup = await storage.getClientProfileByUserId(req.user.userId);
+            const tgt = await storage.getClientProfileByUserId(String(userId));
+            if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+              return res.status(403).json({ error: 'Unauthorized: Supervisor can only access users within their group' });
+            }
+          } catch {
+            return res.status(403).json({ error: 'Unauthorized: Group check failed' });
+          }
+        }
+      }
       const normalizePhoneLocal = (v: any) => normalizePhone(String(v || ''), '+1') || '';
       const key = `favorites_user_${targetUserId}`;
       const rec = await storage.getSystemConfig(key);
@@ -1467,21 +1479,206 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get message status statistics
   app.get("/api/message-status-stats", authenticateToken, async (req: any, res) => {
     try {
-      // Check if userId parameter is being used by non-admin
       if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
-        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+        return res.status(403).json({ error: "Unauthorized: Only admins or supervisors can act on behalf of other users" });
       }
-      
-      // Admin can check stats for another user
-      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) 
-        ? req.query.userId 
+
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId)
+        ? String(req.query.userId)
         : req.user.userId;
-      
+      if (req.user.role === 'supervisor' && req.query.userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (!relaxed && String(req.query.userId) !== req.user.userId) {
+          try {
+            const sup = await storage.getClientProfileByUserId(req.user.userId);
+            const tgt = await storage.getClientProfileByUserId(String(req.query.userId));
+            if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+              return res.status(403).json({ error: "Unauthorized: Supervisor can only access users within their group" });
+            }
+          } catch {
+            return res.status(403).json({ error: "Unauthorized: Group check failed" });
+          }
+        }
+      }
+
       const stats = await storage.getMessageStatusStats(targetUserId);
-      res.json({ success: true, stats });
+      const base = new Date();
+      const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0, 0);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      const { Pool } = await import('pg');
+      const connectionString = process.env.DATABASE_URL!;
+      const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
+      const pool = new Pool(useSSL ? { connectionString, ssl: { rejectUnauthorized: false } } : { connectionString });
+      const sent = await pool.query(
+        `SELECT COALESCE(SUM(COALESCE(message_count,
+                 CASE WHEN recipients IS NOT NULL THEN array_length(recipients,1)
+                      WHEN recipient IS NOT NULL THEN 1 ELSE 0 END,
+                 1)),0) AS c
+         FROM message_logs
+         WHERE user_id = $1 AND created_at >= $2 AND created_at < $3 AND is_example = false`,
+        [targetUserId, start.toISOString(), end.toISOString()]
+      );
+      const received = await pool.query(
+        `WITH firsts AS (
+           SELECT user_id,
+                  regexp_replace("from", '[^0-9]', '', 'g') AS digits,
+                  MIN(timestamp) AS first_ts
+           FROM incoming_messages
+           WHERE user_id = $1
+           GROUP BY user_id, digits
+         )
+         SELECT COUNT(*)::int AS c
+         FROM firsts
+         WHERE first_ts >= $2 AND first_ts < $3`,
+        [targetUserId, start.toISOString(), end.toISOString()]
+      );
+      await pool.end();
+      const todaySent = Number(sent.rows?.[0]?.c || 0);
+      const todayReceivedUnique = Number(received.rows?.[0]?.c || 0);
+      res.json({ success: true, stats: { ...stats, todaySent, todayReceivedUnique } });
     } catch (error) {
       console.error("Get message status stats error:", error);
       res.status(500).json({ error: "Failed to get message status statistics" });
+    }
+  });
+
+  app.get('/api/group/message-status-today', authenticateToken, requireRole(['admin','supervisor']), async (req: any, res) => {
+    try {
+      const q = req.query || {};
+      const { Pool } = await import('pg');
+      const connectionString = process.env.DATABASE_URL!;
+      const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
+      const pool = new Pool(useSSL ? { connectionString, ssl: { rejectUnauthorized: false } } : { connectionString });
+      let groupId: string | null = null;
+      if (req.user.role === 'supervisor') {
+        const me = await storage.getUser(req.user.userId);
+        groupId = (me as any)?.groupId || null;
+        if (!groupId) {
+          const prof = await storage.getClientProfileByUserId(req.user.userId).catch(() => undefined);
+          groupId = (prof as any)?.groupId || null;
+        }
+      } else {
+        groupId = q.groupId ? String(q.groupId) : null;
+      }
+      if (!groupId) {
+        await pool.end();
+        return res.json({ success: true, groupId: null, results: [] });
+      }
+      const base = q.date ? new Date(String(q.date)) : new Date();
+      const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0, 0);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      const rows = await pool.query(
+        `WITH sent AS (
+           SELECT user_id,
+                  COALESCE(SUM(COALESCE(message_count,
+                    CASE WHEN recipients IS NOT NULL THEN array_length(recipients,1)
+                         WHEN recipient IS NOT NULL THEN 1 ELSE 0 END,
+                    1)),0) AS sent_today
+           FROM message_logs
+           WHERE created_at >= $2 AND created_at < $3 AND is_example = false
+           GROUP BY user_id
+         ),
+         firsts AS (
+           SELECT user_id,
+                  regexp_replace("from", '[^0-9]', '', 'g') AS digits,
+                  MIN(timestamp) AS first_ts
+           FROM incoming_messages
+           GROUP BY user_id, digits
+         ),
+         received AS (
+           SELECT user_id, COUNT(*)::int AS received_today
+           FROM firsts
+           WHERE first_ts >= $2 AND first_ts < $3
+           GROUP BY user_id
+         )
+        SELECT u.id AS user_id, u.name AS user_name, u.email,
+               COALESCE(s.sent_today,0) AS sent_today,
+               COALESCE(r.received_today,0) AS received_today
+        FROM users u
+        LEFT JOIN sent s ON s.user_id = u.id
+        LEFT JOIN received r ON r.user_id = u.id
+        WHERE u.group_id = $1 AND LOWER(u.role) IN ('client','supervisor')
+       ORDER BY u.name ASC`,
+       [groupId, start.toISOString(), end.toISOString()]
+      );
+      await pool.end();
+      res.json({ success: true, groupId, results: rows.rows });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to load group stats' });
+    }
+  });
+
+  app.get('/api/group/message-status-today.csv', authenticateToken, requireRole(['admin','supervisor']), async (req: any, res) => {
+    try {
+      const q = req.query || {};
+      const { Pool } = await import('pg');
+      const connectionString = process.env.DATABASE_URL!;
+      const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
+      const pool = new Pool(useSSL ? { connectionString, ssl: { rejectUnauthorized: false } } : { connectionString });
+      let groupId: string | null = null;
+      if (req.user.role === 'supervisor') {
+        const me = await storage.getUser(req.user.userId);
+        groupId = (me as any)?.groupId || null;
+        if (!groupId) {
+          const prof = await storage.getClientProfileByUserId(req.user.userId).catch(() => undefined);
+          groupId = (prof as any)?.groupId || null;
+        }
+      } else {
+        groupId = q.groupId ? String(q.groupId) : null;
+      }
+      if (!groupId) {
+        await pool.end();
+        return res.status(400).json({ error: 'groupId required for admin' });
+      }
+      const base = q.date ? new Date(String(q.date)) : new Date();
+      const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0, 0);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      const rows = await pool.query(
+        `WITH sent AS (
+           SELECT user_id,
+                  COALESCE(SUM(COALESCE(message_count,
+                    CASE WHEN recipients IS NOT NULL THEN array_length(recipients,1)
+                         WHEN recipient IS NOT NULL THEN 1 ELSE 0 END,
+                    1)),0) AS sent_today
+           FROM message_logs
+           WHERE created_at >= $2 AND created_at < $3 AND is_example = false
+           GROUP BY user_id
+         ),
+         firsts AS (
+           SELECT user_id,
+                  regexp_replace("from", '[^0-9]', '', 'g') AS digits,
+                  MIN(timestamp) AS first_ts
+           FROM incoming_messages
+           GROUP BY user_id, digits
+         ),
+         received AS (
+           SELECT user_id, COUNT(*)::int AS received_today
+           FROM firsts
+           WHERE first_ts >= $2 AND first_ts < $3
+           GROUP BY user_id
+         )
+        SELECT u.id AS user_id, u.name AS user_name, u.email,
+               COALESCE(s.sent_today,0) AS sent_today,
+               COALESCE(r.received_today,0) AS received_today
+        FROM users u
+        LEFT JOIN sent s ON s.user_id = u.id
+        LEFT JOIN received r ON r.user_id = u.id
+        WHERE u.group_id = $1 AND LOWER(u.role) IN ('client','supervisor')
+       ORDER BY u.name ASC`,
+       [groupId, start.toISOString(), end.toISOString()]
+      );
+      await pool.end();
+      const lines = ['user_id,user_name,email,sent_today,received_today'];
+      rows.rows.forEach((r: any) => {
+        const row = [r.user_id, r.user_name, r.email, String(r.sent_today||0), String(r.received_today||0)].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
+        lines.push(row);
+      });
+      const csv = lines.join('\n');
+      res.setHeader('Content-Type','text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=group-message-status-${start.toISOString().slice(0,10)}-${groupId}.csv`);
+      return res.send(csv);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to export group CSV' });
     }
   });
 
@@ -1574,26 +1771,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try { res.set('Cache-Control','no-store'); } catch {}
       const payloadObj = { success: true, messages: logs, count: logs.length, limit };
       try { console.log("/api/client/messages payload bytes:", Buffer.byteLength(JSON.stringify(payloadObj))); } catch {}
-      return res.json(payloadObj);
+      try { res.set('Connection','close'); res.type('application/json'); } catch {}
+      return res.send(JSON.stringify(payloadObj));
     } catch (error) {
       console.error("Message logs fetch error:", error);
       res.status(500).json({ error: "Failed to fetch messages" });
     }
   });
 
-  // Admin: Get message logs for a specific client
-  app.get("/api/admin/messages", authenticateToken, requireAdmin, async (req: any, res) => {
+  // Admin/Supervisor: Get message logs for a specific client
+  app.get("/api/admin/messages", authenticateToken, requireRole(['admin','supervisor']), async (req: any, res) => {
     try {
       const { userId } = req.query as { userId?: string };
       if (!userId) return res.status(400).json({ error: "userId is required" });
-      const limit = await resolveFetchLimit(userId, 'client', req.query.limit as string | undefined);
-      const logs = await storage.getMessageLogsByUserId(userId, limit);
+      const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+      if (req.user.role === 'supervisor' && !relaxed) {
+        const sup = await storage.getClientProfileByUserId(req.user.userId);
+        const tgt = await storage.getClientProfileByUserId(String(userId));
+        if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+          return res.status(403).json({ error: 'Unauthorized: client not in your group' });
+        }
+      }
+      const limit = await resolveFetchLimit(String(userId), 'client', req.query.limit as string | undefined);
+      const logs = await storage.getMessageLogsByUserId(String(userId), limit);
       try { res.set('Cache-Control','no-store'); } catch {}
       const payloadObj = { success: true, messages: logs, count: logs.length, limit };
       try { console.log("/api/admin/messages payload bytes:", Buffer.byteLength(JSON.stringify(payloadObj))); } catch {}
-      return res.json(payloadObj);
+      try { res.set('Connection','close'); res.type('application/json'); } catch {}
+      return res.send(JSON.stringify(payloadObj));
     } catch (error) {
-      console.error("Admin message logs fetch error:", error);
+      console.error("Admin/Supervisor message logs fetch error:", error);
       res.status(500).json({ error: "Failed to fetch messages for client" });
     }
   });
@@ -1603,17 +1810,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.query as { userId?: string };
       if (!userId) return res.status(400).json({ error: "userId is required" });
-      const me = await storage.getUser(req.user.userId);
-      const target = await storage.getUser(String(userId));
-      if (((me as any)?.groupId || null) !== ((target as any)?.groupId || null)) {
-        return res.status(403).json({ error: 'Unauthorized: client not in your group' });
+      const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+      if (!relaxed) {
+        const sup = await storage.getClientProfileByUserId(req.user.userId);
+        const tgt = await storage.getClientProfileByUserId(String(userId));
+        if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+          return res.status(403).json({ error: 'Unauthorized: client not in your group' });
+        }
       }
       const limit = await resolveFetchLimit(String(userId), 'client', req.query.limit as string | undefined);
       const logs = await storage.getMessageLogsByUserId(String(userId), limit);
       try { res.set('Cache-Control','no-store'); } catch {}
       const payloadObj = { success: true, messages: logs, count: logs.length, limit };
       try { console.log("/api/supervisor/messages payload bytes:", Buffer.byteLength(JSON.stringify(payloadObj))); } catch {}
-      return res.json(payloadObj);
+      try { res.set('Connection','close'); res.type('application/json'); } catch {}
+      return res.send(JSON.stringify(payloadObj));
     } catch (error) {
       console.error("Supervisor message logs fetch error:", error);
       res.status(500).json({ error: "Failed to fetch messages for client" });
@@ -1625,10 +1836,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.query as { userId?: string };
       if (!userId) return res.status(400).json({ error: "userId is required" });
-      const me = await storage.getUser(req.user.userId);
-      const target = await storage.getUser(String(userId));
-      if (((me as any)?.groupId || null) !== ((target as any)?.groupId || null)) {
-        return res.status(403).json({ error: 'Unauthorized: client not in your group' });
+      const relaxed2 = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+      if (!relaxed2) {
+        const sup = await storage.getClientProfileByUserId(req.user.userId);
+        const tgt = await storage.getClientProfileByUserId(String(userId));
+        if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+          return res.status(403).json({ error: 'Unauthorized: client not in your group' });
+        }
       }
       const limit = await resolveFetchLimit(String(userId), 'client', req.query.limit as string | undefined);
       const messages = await storage.getIncomingMessagesByUserId(String(userId), limit);
@@ -1845,17 +2059,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
 
   // Get admin stats
-  app.get("/api/admin/stats", authenticateToken, requireAdmin, async (req, res) => {
+app.get("/api/admin/stats", authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
     try {
-      const totalMessages = await storage.getTotalMessageCount();
-      const allUsers = await storage.getAllUsers();
-      const totalClients = allUsers.filter(u => u.role === 'client').length;
-
-      res.json({ 
-        success: true, 
-        totalMessages,
-        totalClients
-      });
+      if (req.user.role === 'admin') {
+        const totalMessages = await storage.getTotalMessageCount();
+        const allUsers = await storage.getAllUsers();
+        const totalClients = allUsers.filter((u: any) => u.role === 'client').length;
+        return res.json({ success: true, totalMessages, totalClients });
+      } else {
+        const me = await storage.getUser(req.user.userId);
+        const myGroup = (me as any)?.groupId || null;
+        const allUsers = await storage.getAllUsers();
+        const groupClients = allUsers.filter((u: any) => u.role === 'client' && (u.groupId || null) === myGroup);
+        let totalMessages = 0;
+        for (const u of groupClients) {
+          const logs = await storage.getMessageLogsByUserId(u.id, 500);
+          totalMessages += logs.length;
+        }
+        const totalClients = groupClients.length;
+        return res.json({ success: true, totalMessages, totalClients });
+      }
     } catch (error) {
       console.error("Admin stats fetch error:", error);
       res.status(500).json({ error: "Failed to fetch stats" });
@@ -1863,12 +2086,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get recent API activity
-  app.get("/api/admin/recent-activity", authenticateToken, requireAdmin, async (req, res) => {
+app.get("/api/admin/recent-activity", authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
     try {
       const recentLogs = await storage.getAllMessageLogs(10); // Get last 10 logs
       
       // Enrich logs with user information
-      const enrichedLogs = await Promise.all(
+      let enrichedLogs = await Promise.all(
         recentLogs.map(async (log) => {
           const user = await storage.getUser(log.userId);
           return {
@@ -1878,9 +2101,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timestamp: log.createdAt,
             status: log.status,
             recipient: log.recipient || (log.recipients && log.recipients.length > 0 ? `${log.recipients.length} recipients` : 'N/A'),
+            groupId: (user as any)?.groupId || null
           };
         })
       );
+      if (req.user.role === 'supervisor') {
+        const me = await storage.getUser(req.user.userId);
+        const myGroup = (me as any)?.groupId || null;
+        enrichedLogs = enrichedLogs.filter((l: any) => (l.groupId || null) === myGroup).map((l: any) => ({ id: l.id, endpoint: l.endpoint, clientName: l.clientName, timestamp: l.timestamp, status: l.status, recipient: l.recipient }));
+      }
 
       res.json({ success: true, logs: enrichedLogs });
     } catch (error) {
@@ -1935,6 +2164,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Admin clients fetch error:", error);
       res.status(500).json({ error: "Failed to fetch clients" });
+    }
+  });
+
+  app.get('/api/messages/report', authenticateToken, async (req: any, res) => {
+    try {
+      const q = req.query as any;
+      const dateStr = String(q.date || '').trim();
+      const base = dateStr ? new Date(dateStr) : new Date();
+      const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0, 0);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      if (q.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && q.userId) ? String(q.userId) : req.user.userId;
+      if (req.user.role === 'supervisor' && q.userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (!relaxed && String(q.userId) !== req.user.userId) {
+          const sup = await storage.getClientProfileByUserId(req.user.userId).catch(() => undefined);
+          const tgt = await storage.getClientProfileByUserId(String(q.userId)).catch(() => undefined);
+          if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+          }
+        }
+      }
+      const out = await pool.query(
+        'SELECT status, COUNT(*)::int AS count FROM message_logs WHERE user_id = $1 AND created_at >= $2 AND created_at < $3 GROUP BY status',
+        [targetUserId, start.toISOString(), end.toISOString()]
+      );
+      const inboundTotal = await pool.query(
+        'SELECT COUNT(*)::int AS count FROM incoming_messages WHERE user_id = $1 AND timestamp >= $2 AND timestamp < $3',
+        [targetUserId, start.toISOString(), end.toISOString()]
+      );
+      const byStatus: Record<string, number> = {};
+      out.rows.forEach((r: any) => { byStatus[String(r.status || 'unknown')] = Number(r.count || 0); });
+      const payload = {
+        success: true,
+        userId: targetUserId,
+        date: start.toISOString().slice(0,10),
+        outbound: { total: Object.values(byStatus).reduce((a,b)=>a+b,0), byStatus },
+        inbound: { total: Number(inboundTotal.rows[0]?.count || 0) }
+      };
+      try { res.set('Cache-Control','no-store'); } catch {}
+      return res.json(payload);
+    } catch (e: any) {
+      console.error('Messages report error:', e);
+      res.status(500).json({ error: 'Failed to build report' });
     }
   });
 
@@ -2130,13 +2405,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/admin/paraphraser/config', authenticateToken, requireAdmin, async (_req: any, res) => {
+app.get('/api/admin/paraphraser/config', authenticateToken, requireRole(['admin','supervisor']), async (_req: any, res) => {
     try {
       const providerCfg = await storage.getSystemConfig('paraphraser.provider');
       const modelCfg = await storage.getSystemConfig('paraphraser.openrouter.model');
       const keyCfg = await storage.getSystemConfig('paraphraser.openrouter.key');
       const rules = await getParaphraserConfig();
-      res.json({ success: true, provider: providerCfg?.value || 'openrouter', model: modelCfg?.value || '', keyPresent: !!(keyCfg?.value), rules: (rules as any).rules || {} });
+      const envKey = String(process.env.OPENROUTER_API_KEY || '').trim();
+      const keyPresent = !!(keyCfg?.value) || envKey.length > 0;
+      const provider = providerCfg?.value || (keyPresent ? 'openrouter' : 'openrouter');
+      const model = modelCfg?.value || 'qwen/qwen3-coder:free';
+      res.json({ success: true, provider, model, keyPresent, rules: (rules as any).rules || {} });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e?.message || String(e) });
     }
@@ -2209,6 +2488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ success: false, ok: false, details: e?.message || String(e) });
     }
   });
+
 
   app.get('/api/admin/messages/summary', authenticateToken, requireAdmin, async (req: any, res) => {
     try {
@@ -2497,16 +2777,20 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
   });
 
   // Get system configuration
-  app.get("/api/admin/config", authenticateToken, requireAdmin, async (req, res) => {
-    try {
+app.get("/api/admin/config", authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
+  try {
       const configs = await storage.getAllSystemConfig();
       const configMap: Record<string, string> = {};
+      const allowedForSupervisor = new Set([
+        'client_rate_per_sms','timezone','default_admin_messages_limit','default_client_messages_limit'
+      ]);
       configs.forEach(config => {
-        configMap[config.key] = config.value;
+        if (req.user.role === 'admin' || allowedForSupervisor.has(config.key)) {
+          configMap[config.key] = config.value;
+        }
       });
-
       res.json({ success: true, config: configMap });
-    } catch (error) {
+  } catch (error) {
       res.status(500).json({ error: "Failed to fetch configuration" });
     }
   });
@@ -2557,14 +2841,17 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
   }
 
   // Get ExtremeSMS account balance
-  app.get("/api/admin/extremesms-balance", authenticateToken, requireAdmin, async (req, res) => {
-    try {
+app.get("/api/admin/extremesms-balance", authenticateToken, requireRole(['admin','supervisor']), async (req, res) => {
+  try {
       const extremeApiKey = await storage.getSystemConfig("extreme_api_key");
       
       if (!extremeApiKey || !extremeApiKey.value) {
         return res.status(400).json({ error: "ExtremeSMS API key not configured" });
       }
 
+      if (req.user.role === 'supervisor') {
+        return res.json({ success: true, balance: null, message: 'restricted' });
+      }
       const response = await axios.get(`${EXTREMESMS_BASE_URL}/api/v2/account/balance`, {
         headers: {
           "Authorization": `Bearer ${extremeApiKey.value}`,
@@ -2627,7 +2914,7 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
   });
 
   // Admin: Webhook diagnostics status
-  app.get('/api/admin/webhook/status', authenticateToken, requireAdmin, async (_req, res) => {
+app.get('/api/admin/webhook/status', authenticateToken, requireRole(['admin','supervisor']), async (_req, res) => {
     try {
       const lastEvent = await storage.getSystemConfig('last_webhook_event');
       const lastAt = await storage.getSystemConfig('last_webhook_event_at');
@@ -3262,6 +3549,29 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
       res.json({ success: true });
     } catch (error: any) {
       console.error('Initial send error:', error.response?.data || error.message);
+      try {
+        const { recipient, message, defaultDial } = req.body || {};
+        const normalizedRecipient = normalizePhone(String(recipient || ''), String(defaultDial || '+1'));
+        const responsePayload = error?.response?.data ? error.response.data : { error: String(error?.message || 'unknown_error') };
+        const requestPayload = { recipient: normalizedRecipient || recipient, message };
+        const statusText = (/blacklist|blocked/i.test(JSON.stringify(responsePayload)) || /blacklist|blocked/i.test(String(error?.message || ''))) ? 'blacklisted' : 'failed';
+        await storage.createMessageLog({
+          userId: req.user.userId,
+          messageId: `error-${Date.now()}`,
+          endpoint: 'send-single:error',
+          recipient: (normalizedRecipient || recipient || null) as any,
+          recipients: null as any,
+          senderPhoneNumber: null as any,
+          status: statusText,
+          costPerMessage: '0.0000',
+          chargePerMessage: '0.0000',
+          totalCost: '0.00',
+          totalCharge: '0.00',
+          messageCount: 1,
+          requestPayload: JSON.stringify(requestPayload),
+          responsePayload: JSON.stringify(responsePayload)
+        });
+      } catch {}
       res.status(500).json({ error: 'Failed to send message' });
     }
   });
@@ -3305,6 +3615,29 @@ app.post("/api/admin/users/:userId/revoke-keys", authenticateToken, requireRole(
       res.json({ success: true });
     } catch (error: any) {
       console.error('Reply send error:', error.response?.data || error.message);
+      try {
+        const { to, message, defaultDial } = req.body || {};
+        const normalizedTo = normalizePhone(String(to || ''), String(defaultDial || '+1'));
+        const responsePayload = error?.response?.data ? error.response.data : { error: String(error?.message || 'unknown_error') };
+        const requestPayload = { recipient: normalizedTo || to, message };
+        const statusText = (/blacklist|blocked/i.test(JSON.stringify(responsePayload)) || /blacklist|blocked/i.test(String(error?.message || ''))) ? 'blacklisted' : 'failed';
+        await storage.createMessageLog({
+          userId: (req.user.role === 'admin' && req.body?.userId) ? req.body.userId : req.user.userId,
+          messageId: `error-${Date.now()}`,
+          endpoint: 'web-ui-reply:error',
+          recipient: (normalizedTo || to || null) as any,
+          recipients: null as any,
+          senderPhoneNumber: null as any,
+          status: statusText,
+          costPerMessage: '0.0000',
+          chargePerMessage: '0.0000',
+          totalCost: '0.00',
+          totalCharge: '0.00',
+          messageCount: 1,
+          requestPayload: JSON.stringify(requestPayload),
+          responsePayload: JSON.stringify(responsePayload)
+        });
+      } catch {}
       res.status(500).json({ error: 'Failed to send reply' });
     }
   });
@@ -4342,13 +4675,27 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   // Contacts API
   app.get("/api/contacts", authenticateToken, async (req: any, res) => {
     try {
-      if (req.query.userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized: Only admins or supervisors can act on behalf of other users" });
       }
 
-      const targetUserId = (req.user.role === 'admin' && req.query.userId)
-        ? req.query.userId
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId)
+        ? String(req.query.userId)
         : req.user.userId;
+      if (req.user.role === 'supervisor' && req.query.userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (!relaxed && String(req.query.userId) !== req.user.userId) {
+          try {
+            const sup = await storage.getClientProfileByUserId(req.user.userId);
+            const tgt = await storage.getClientProfileByUserId(String(req.query.userId));
+            if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+              return res.status(403).json({ error: "Unauthorized: Supervisor can only access users within their group" });
+            }
+          } catch {
+            return res.status(403).json({ error: "Unauthorized: Group check failed" });
+          }
+        }
+      }
 
       const contacts = await storage.getContactsByUserId(targetUserId);
       const normalizePhone = (v: any) => String(v || '').replace(/[^+\d]/g, '').replace(/^00/, '+');
@@ -4533,14 +4880,14 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
     try {
       const { id } = req.params;
       
-      // Check if userId parameter is being used by non-admin
-      if (req.query.userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      // Allow admin or supervisor to act on behalf of a user
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized: Only admins or supervisors can act on behalf of other users" });
       }
       
       // Admin can delete on behalf of another user
-      const targetUserId = (req.user.role === 'admin' && req.query.userId) 
-        ? req.query.userId 
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) 
+        ? String(req.query.userId) 
         : req.user.userId;
       
       // Verify ownership against effective user
@@ -4563,9 +4910,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   // Export contacts as CSV without sequential Business IDs
   app.get("/api/contacts/export/csv", authenticateToken, async (req: any, res) => {
     try {
-      // Check if userId parameter is being used by non-admin
-      if (req.query.userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      // Allow admin or supervisor to act on behalf of another user
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized: Only admins or supervisors can act on behalf of other users" });
       }
       
       // Admin can export on behalf of another user
@@ -4625,9 +4972,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   // Get contact sync statistics
   app.get("/api/contacts/sync-stats", authenticateToken, async (req: any, res) => {
     try {
-      // Check if userId parameter is being used by non-admin
-      if (req.query.userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      // Allow admin or supervisor to act on behalf of another user
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized: Only admins or supervisors can act on behalf of other users" });
       }
       
       // Admin can check stats for another user
@@ -4954,20 +5301,37 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   // Web UI Inbox
   app.get("/api/web/inbox", authenticateToken, async (req: any, res) => {
     try {
-      // Check if userId parameter is being used by non-admin
-      if (req.query.userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized: Only admins or supervisors can act on behalf of other users" });
       }
       
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
       
-      // Admin can query on behalf of another user
-      const targetUserId = (req.user.role === 'admin' && req.query.userId) 
-        ? req.query.userId 
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) 
+        ? String(req.query.userId) 
         : req.user.userId;
+      if (req.user.role === 'supervisor' && req.query.userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (String(req.query.userId) === req.user.userId || relaxed) {
+          // Supervisor accessing own inbox or relaxed mode enabled: allow
+        } else {
+          try {
+            const profile = await storage.getClientProfileByUserId(req.user.userId);
+            const targetProfile = await storage.getClientProfileByUserId(String(req.query.userId));
+            if (!profile?.groupId || !targetProfile?.groupId || String(profile.groupId) !== String(targetProfile.groupId)) {
+              return res.status(403).json({ error: "Unauthorized: Supervisor can only access users within their group" });
+            }
+          } catch {
+            return res.status(403).json({ error: "Unauthorized: Group check failed" });
+          }
+        }
+      }
       // Do not auto-seed example inbox for clients
       let messages: any[] = [];
       try {
+        if (process.env.LOG_LEVEL === 'debug') {
+          console.log('WEB INBOX QUERY', { actor: req.user?.userId, role: req.user?.role, targetUserId, limit });
+        }
         messages = await storage.getIncomingMessagesByUserId(targetUserId, limit);
       } catch (err: any) {
         // If table is missing, bootstrap schema and retry once
@@ -5012,7 +5376,10 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       await pool.query('ALTER TABLE client_profiles ADD COLUMN IF NOT EXISTS webhook_secret text');
       await pool.end();
     } catch {}
-    messages = messages.filter((m: any) => !m.isDeleted);
+      messages = messages.filter((m: any) => !(m?.isDeleted || (m as any)?.is_deleted));
+      if (process.env.LOG_LEVEL === 'debug') {
+        console.log('WEB INBOX RESULT', { actor: req.user?.userId, role: req.user?.role, targetUserId, count: messages.length });
+      }
       // No auto-seed; empty inbox is expected for new accounts
       
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -5037,10 +5404,55 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
     return app._router.handle({ ...req, url: '/api/web/inbox' } as any, res, () => {});
   });
 
+  app.get("/api/web/inbox/unread-count", authenticateToken, async (req: any, res) => {
+    try {
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) ? String(req.query.userId) : req.user.userId;
+      if (req.user.role === 'supervisor' && req.query.userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (!relaxed && String(req.query.userId) !== req.user.userId) {
+          const sup = await storage.getClientProfileByUserId(req.user.userId).catch(() => undefined);
+          const tgt = await storage.getClientProfileByUserId(String(req.query.userId)).catch(() => undefined);
+          if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+          }
+        }
+      }
+      const { Pool } = await import('pg');
+      const connectionString = process.env.DATABASE_URL!;
+      const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
+      const pool = new Pool(useSSL ? { connectionString, ssl: { rejectUnauthorized: false } } : { connectionString });
+      const r = await pool.query(`SELECT COUNT(*) AS c FROM incoming_messages WHERE user_id=$1 AND is_read=false`, [targetUserId]);
+      await pool.end();
+      res.json({ success: true, unread: Number(r.rows?.[0]?.c || 0) });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to load unread count' });
+    }
+  });
+
+  app.get("/api/web/inbox/pending-count", authenticateToken, async (req: any, res) => {
+    return app._router.handle({ ...req, url: '/api/web/inbox/unread-count' } as any, res, () => {});
+  });
+
   // Web API: account balance for acting user
   app.get("/api/web/account/balance", authenticateToken, async (req: any, res) => {
     try {
-      const targetUserId = req.user.role === 'admin' && req.query.userId ? String(req.query.userId) : req.user.userId;
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) ? String(req.query.userId) : req.user.userId;
+      if (req.user.role === 'supervisor' && req.query.userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (!relaxed && String(req.query.userId) !== req.user.userId) {
+          const sup = await storage.getClientProfileByUserId(req.user.userId).catch(() => undefined);
+          const tgt = await storage.getClientProfileByUserId(String(req.query.userId)).catch(() => undefined);
+          if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+          }
+        }
+      }
       const profile = await storage.getClientProfileByUserId(targetUserId);
       const credits = profile?.credits ?? '0.00';
       const currency = profile?.currency ?? 'USD';
@@ -5059,6 +5471,22 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       res.json({ success: true, messages: logs, count: logs.length, limit });
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'Failed to fetch messages' });
+    }
+  });
+
+  app.post('/api/admin/auth/invalidate', authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.body || {};
+      const now = Date.now();
+      if (userId) {
+        await storage.setSystemConfig(`jwt.invalidate_after.user.${String(userId)}`, String(now));
+        return res.json({ success: true, scope: 'user', userId, invalidateAfter: now });
+      } else {
+        await storage.setSystemConfig('jwt.invalidate_after', String(now));
+        return res.json({ success: true, scope: 'global', invalidateAfter: now });
+      }
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to invalidate tokens' });
     }
   });
 
@@ -5108,18 +5536,34 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       const { phoneNumber } = req.params;
       const normalizedParam = String(phoneNumber);
       
-      // Check if userId parameter is being used by non-admin
-      if (req.query.userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized" });
       }
       
-      // Admin can query on behalf of another user
-      const targetUserId = (req.user.role === 'admin' && req.query.userId) 
-        ? req.query.userId 
+      // Admin/Supervisor can query on behalf of another user
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) 
+        ? String(req.query.userId) 
         : req.user.userId;
+      if (req.user.role === 'supervisor' && req.query.userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (!relaxed && String(req.query.userId) !== req.user.userId) {
+          try {
+            const sup = await storage.getClientProfileByUserId(req.user.userId);
+            const tgt = await storage.getClientProfileByUserId(String(req.query.userId));
+            if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+              return res.status(403).json({ error: "Unauthorized" });
+            }
+          } catch {
+            return res.status(403).json({ error: "Unauthorized" });
+          }
+        }
+      }
       
       const isPriv = req.user.role === 'admin' || req.user.role === 'supervisor';
-      let conversation = isPriv ? { incoming: [], outgoing: [] } as any : await storage.getConversationHistory(targetUserId, normalizedParam);
+      let conversation = await storage.getConversationHistory(targetUserId, normalizedParam);
+      if (!conversation || (!conversation.incoming?.length && !conversation.outgoing?.length)) {
+        conversation = { incoming: [], outgoing: [] } as any;
+      }
       let usedFallback = false;
       try {
         const outgoing = (conversation.outgoing || []).map((msg: any) => {
@@ -5145,6 +5589,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       // Always merge with global digits-only queries to include legacy/unassigned and any formatting variants
       try {
         const digits = String(phoneNumber).replace(/[^0-9]/g, '');
+        const digitsNo1 = digits.startsWith('1') && digits.length === 11 ? digits.slice(1) : digits;
         const { Pool } = await import('pg');
         const connectionString = process.env.DATABASE_URL!;
         const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
@@ -5186,8 +5631,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
         // Persist assignment for Admin/Supervisor to restore inbox threads
         try {
           if ((req.user.role === 'admin' || req.user.role === 'supervisor') && targetUserId) {
-            const variants = [digits, '1' + digits];
+            const variants = Array.from(new Set([digits, digitsNo1, (digitsNo1.length === 10 ? ('1' + digitsNo1) : digits)]));
             await pool.query(`UPDATE incoming_messages SET user_id=$1 WHERE user_id IS NULL AND (regexp_replace("from", '[^0-9]', '', 'g') = ANY($2) OR regexp_replace(receiver, '[^0-9]', '', 'g') = ANY($2))`, [targetUserId, variants]);
+            await pool.query(`UPDATE message_logs SET user_id=$1 WHERE user_id IS NULL AND (regexp_replace(recipient, '[^0-9]', '', 'g') = ANY($2) OR EXISTS (SELECT 1 FROM unnest(COALESCE(recipients, '{}'::text[])) r WHERE regexp_replace(r, '[^0-9]', '', 'g') = ANY($2)))`, [targetUserId, variants]);
           }
         } catch {}
         await pool.end();
@@ -5248,19 +5694,28 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
     try {
       const { phoneNumber, userId } = req.body;
       
-      // Check if userId parameter is being used by non-admin
-      if (userId && req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Unauthorized: Only admins can act on behalf of other users" });
+      if (userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Unauthorized" });
       }
       
       if (!phoneNumber) {
         return res.status(400).json({ error: "Phone number is required" });
       }
       
-      // Admin can mark read on behalf of another user
-      const targetUserId = (req.user.role === 'admin' && userId) 
-        ? userId 
+      // Admin/Supervisor can mark read on behalf
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && userId) 
+        ? String(userId) 
         : req.user.userId;
+      if (req.user.role === 'supervisor' && userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (!relaxed && String(userId) !== req.user.userId) {
+          const sup = await storage.getClientProfileByUserId(req.user.userId).catch(() => undefined);
+          const tgt = await storage.getClientProfileByUserId(String(userId)).catch(() => undefined);
+          if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+          }
+        }
+      }
       
       await storage.markConversationAsRead(targetUserId, phoneNumber);
       
@@ -5268,6 +5723,56 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
     } catch (error) {
       console.error('Error marking conversation as read:', error);
       res.status(500).json({ error: 'Failed to mark conversation as read' });
+    }
+  });
+
+  app.post("/api/web/inbox/delete-conversation", authenticateToken, async (req: any, res) => {
+    try {
+      const { phoneNumber, userId } = req.body || {};
+      if (!phoneNumber) return res.status(400).json({ error: 'Phone number is required' });
+      if (userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+      const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && userId) ? String(userId) : req.user.userId;
+      if (req.user.role === 'supervisor' && userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (!relaxed && String(userId) !== req.user.userId) {
+          const sup = await storage.getClientProfileByUserId(req.user.userId).catch(() => undefined);
+          const tgt = await storage.getClientProfileByUserId(String(userId)).catch(() => undefined);
+          if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+          }
+        }
+      }
+      const digits = String(phoneNumber).replace(/[^0-9]/g, '');
+      const { Pool } = await import('pg');
+      const connectionString = process.env.DATABASE_URL!;
+      const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
+      const pool = new Pool(useSSL ? { connectionString, ssl: { rejectUnauthorized: false } } : { connectionString });
+      await pool.query(
+        `UPDATE incoming_messages SET is_deleted = true
+         WHERE (
+           user_id = $1 AND (
+             regexp_replace("from", '[^0-9]', '', 'g') = $2 OR regexp_replace(receiver, '[^0-9]', '', 'g') = $2 OR
+             regexp_replace("from", '[^0-9]', '', 'g') = ('1' || $2) OR regexp_replace(receiver, '[^0-9]', '', 'g') = ('1' || $2) OR
+             ('1' || regexp_replace("from", '[^0-9]', '', 'g')) = $2 OR ('1' || regexp_replace(receiver, '[^0-9]', '', 'g')) = $2
+           )
+         )
+         OR (
+           user_id IS NULL AND EXISTS (
+             SELECT 1 FROM client_profiles cp WHERE cp.user_id = $1 AND (
+               $2 = ANY(cp.assigned_phone_numbers) OR LOWER(incoming_messages.business) = LOWER(cp.business_name)
+             )
+           ) AND (
+             regexp_replace(receiver, '[^0-9]', '', 'g') = $2 OR regexp_replace(receiver, '[^0-9]', '', 'g') = ('1' || $2)
+           )
+        `,
+        [targetUserId, digits]
+      );
+      await pool.end();
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to delete conversation' });
     }
   });
 
@@ -5342,11 +5847,9 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
   app.get("/api/web/inbox/deleted", authenticateToken, async (req: any, res) => {
     try {
       const targetUserId = req.user.role === 'admin' && req.query.userId ? req.query.userId : req.user.userId;
-      const all = await storage.getIncomingMessagesByUserId(targetUserId, parseInt((req.query.limit as string) || '200'));
-      const deleted = all.filter((m: any) => !!m.isDeleted);
-      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      res.set('Pragma', 'no-cache');
-      res.set('Expires', '0');
+      const all = await storage.getIncomingMessagesByUserId(String(targetUserId), parseInt((req.query.limit as string) || '200'));
+      const deleted = all.filter((m: any) => !!(m.isDeleted || (m as any).is_deleted));
+      try { res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); res.set('Pragma', 'no-cache'); res.set('Expires', '0'); } catch {}
       res.json({ success: true, messages: deleted, count: deleted.length });
     } catch (e) {
       res.status(500).json({ error: 'Failed to load deleted messages' });
@@ -5355,7 +5858,20 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
 
   app.get("/api/web/inbox/pending-count", authenticateToken, async (req: any, res) => {
     try {
+      if (req.query.userId && !['admin','supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
       const targetUserId = ((req.user.role === 'admin' || req.user.role === 'supervisor') && req.query.userId) ? String(req.query.userId) : req.user.userId;
+      if (req.user.role === 'supervisor' && req.query.userId) {
+        const relaxed = String(process.env.SUPERVISOR_RELAXED || 'true') !== 'false';
+        if (!relaxed && String(req.query.userId) !== req.user.userId) {
+          const sup = await storage.getClientProfileByUserId(req.user.userId).catch(() => undefined);
+          const tgt = await storage.getClientProfileByUserId(String(req.query.userId)).catch(() => undefined);
+          if (!sup?.groupId || !tgt?.groupId || String(sup.groupId) !== String(tgt.groupId)) {
+            return res.status(403).json({ error: 'Unauthorized' });
+          }
+        }
+      }
       const { Pool } = await import('pg');
       const connectionString = process.env.DATABASE_URL!;
       const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
@@ -5385,7 +5901,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       } catch {}
       const { Pool } = await import('pg');
       const pool2 = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-      await pool2.query('UPDATE incoming_messages SET is_deleted = true WHERE id = $1 AND (user_id IS NULL OR user_id = $2)', [id, targetUserId]);
+      await pool2.query('UPDATE incoming_messages SET is_deleted = true WHERE id = $1', [id]);
       await pool2.end();
       res.json({ success: true });
     } catch (e) {
@@ -5415,7 +5931,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       const targetUserId = req.user.role === 'admin' && userId ? userId : req.user.userId;
       const { Pool } = await import('pg');
       const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-      await pool.query('DELETE FROM incoming_messages WHERE id = $1 AND is_deleted = true AND (user_id = $2 OR ($2 IS NULL AND user_id IS NULL))', [id, targetUserId || null]);
+      await pool.query('DELETE FROM incoming_messages WHERE id = $1 AND is_deleted = true', [id]);
       await pool.end();
       res.json({ success: true });
     } catch (e) {
@@ -5429,7 +5945,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       const targetUserId = req.user.role === 'admin' && userId ? userId : req.user.userId;
       const { Pool } = await import('pg');
       const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-      await pool.query('DELETE FROM incoming_messages WHERE is_deleted = true AND (user_id = $1 OR ($1 IS NULL AND user_id IS NULL))', [targetUserId || null]);
+      await pool.query('DELETE FROM incoming_messages WHERE is_deleted = true');
       await pool.end();
       res.json({ success: true });
     } catch (e) {
@@ -5612,7 +6128,7 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
       
 async function getParaphraserConfig() {
   const providerCfg = await storage.getSystemConfig('paraphraser.provider');
-  const provider = providerCfg?.value || 'openrouter';
+  let provider = providerCfg?.value || 'openrouter';
   const targetMinCfg = await storage.getSystemConfig('paraphraser.rules.targetMin');
   const targetMaxCfg = await storage.getSystemConfig('paraphraser.rules.targetMax');
   const maxCharsCfg = await storage.getSystemConfig('paraphraser.rules.maxChars');
@@ -5632,7 +6148,26 @@ async function getParaphraserConfig() {
   } else if (provider === 'openrouter') {
     const modelCfg = await storage.getSystemConfig('paraphraser.openrouter.model');
     const keyCfg = await storage.getSystemConfig('paraphraser.openrouter.key');
+    if (!keyCfg?.value && process.env.OPENROUTER_API_KEY) {
+      await storage.setSystemConfig('paraphraser.openrouter.key', String(process.env.OPENROUTER_API_KEY));
+    }
+    if (!providerCfg?.value) {
+      await storage.setSystemConfig('paraphraser.provider', 'openrouter');
+    }
+    return { provider, model: modelCfg?.value || 'qwen/qwen3-coder:free', key: keyCfg?.value || String(process.env.OPENROUTER_API_KEY || ''), rules };
+  }
+  // Auto-switch to OpenRouter if a key is available but provider is not set to openrouter
+  const keyAvailable = String(process.env.OPENROUTER_API_KEY || '').trim().length > 0 || !!(await storage.getSystemConfig('paraphraser.openrouter.key'))?.value;
+  if (provider !== 'openrouter' && keyAvailable) {
+    provider = 'openrouter';
+    await storage.setSystemConfig('paraphraser.provider', 'openrouter');
+    const modelCfg = await storage.getSystemConfig('paraphraser.openrouter.model');
+    const keyCfg = await storage.getSystemConfig('paraphraser.openrouter.key');
+    if (!keyCfg?.value && process.env.OPENROUTER_API_KEY) {
+      await storage.setSystemConfig('paraphraser.openrouter.key', String(process.env.OPENROUTER_API_KEY));
+    }
     return { provider, model: modelCfg?.value || 'qwen/qwen3-coder:free', key: keyCfg?.value || String(process.env.OPENROUTER_API_KEY || ''), rules };
   }
   return { provider, rules };
 }
+  

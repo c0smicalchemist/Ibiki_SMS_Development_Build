@@ -62,10 +62,25 @@ export default function ConversationInline({ phoneNumber, userId, isAdmin, inbox
   const senderAssigned = (() => {
     const out = conversationData?.conversation?.outgoing || [];
     for (let i = out.length - 1; i >= 0; i--) {
-      const s = out[i]?.senderPhoneNumber;
+      const s = out[i]?.senderPhoneNumber || (() => {
+        try {
+          const req = typeof out[i]?.requestPayload === 'string' ? JSON.parse(out[i]?.requestPayload || '') : out[i]?.requestPayload;
+          const candidates = ['sender','from','senderPhoneNumber','sender_number'];
+          for (const k of candidates) { const v = req?.[k]; if (v) return String(v); }
+          return null;
+        } catch { return null; }
+      })();
       if (s) return String(s);
     }
     return lastInbound?.receiver ? String(lastInbound.receiver) : null;
+  })();
+
+  const hasBlacklisted = (() => {
+    const inc = conversationData?.conversation?.incoming || [];
+    const out = conversationData?.conversation?.outgoing || [];
+    const anyInc = inc.some((m: any) => /blacklist|blocked/i.test(String(m.status||'')) || !!m.matchedBlockWord);
+    const anyOut = out.some((m: any) => /blacklist|blocked/i.test(String(m.status||'')));
+    return anyInc || anyOut;
   })();
 
   const markReadMutation = useMutation({
@@ -101,7 +116,7 @@ export default function ConversationInline({ phoneNumber, userId, isAdmin, inbox
   }, [conversationData]);
 
   const messages: Message[] = [];
-  const conversationIncoming = (conversationData?.conversation?.incoming || []).map((msg: any) => ({ ...msg, type: 'incoming' as const, timestamp: msg.timestamp }));
+  const conversationIncoming = (conversationData?.conversation?.incoming || []).map((msg: any) => ({ ...msg, type: 'incoming' as const, timestamp: msg.timestamp, status: msg.status }));
   const conversationOutgoing = (conversationData?.conversation?.outgoing || []).map((msg: any) => {
       const safeParse = (v: any) => { try { return typeof v === 'string' ? JSON.parse(v || '') : v; } catch { return null; } };
       const findMessage = (obj: any): string | null => {
@@ -145,9 +160,10 @@ export default function ConversationInline({ phoneNumber, userId, isAdmin, inbox
           <h2 className="text-base font-semibold">{String(phoneNumber)}</h2>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {business && <Badge variant="secondary" className="text-xs">{t('inbox.label.business')}: {business}</Badge>}
-            {senderAssigned && <Badge variant="secondary" className="text-xs">{t('inbox.label.sender')}: {senderAssigned}</Badge>}
+            {senderAssigned && <Badge variant="secondary" className="text-xs">Outbound #: {senderAssigned}</Badge>}
             {lastInbound?.usedmodem && <Badge variant="secondary" className="text-xs">{t('inbox.label.modem')}: {String(lastInbound.usedmodem)}</Badge>}
             {lastInbound?.port && <Badge variant="secondary" className="text-xs">{t('inbox.label.port')}: {String(lastInbound.port)}</Badge>}
+            {hasBlacklisted && <Badge variant="destructive" className="text-xs">Blacklisted</Badge>}
           </div>
         </div>
         <div className="flex items-center gap-2"></div>

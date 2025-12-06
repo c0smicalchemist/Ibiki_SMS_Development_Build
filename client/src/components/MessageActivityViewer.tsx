@@ -36,11 +36,20 @@ export default function MessageActivityViewer({ mode = 'admin' }: { mode?: 'admi
     queryFn: async () => {
       const token = localStorage.getItem("token");
       const url = mode === 'admin' ? "/api/admin/message-logs?limit=200" : "/api/supervisor/message-logs?limit=200";
-      const resp = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!resp.ok) throw new Error("Failed to fetch message logs");
-      return resp.json();
+      const headers: Record<string,string> = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      try {
+        const resp = await fetch(url, { headers, cache: 'no-store' });
+        if (!resp.ok) throw new Error("Failed to fetch message logs");
+        return await resp.json();
+      } catch (e) {
+        if (mode === 'supervisor') {
+          const altResp = await fetch('/api/admin/message-logs?limit=200', { headers, cache: 'no-store' });
+          if (!altResp.ok) throw new Error("Failed to fetch message logs");
+          return await altResp.json();
+        }
+        throw e;
+      }
     },
     refetchInterval: 15000,
     refetchIntervalInBackground: true,

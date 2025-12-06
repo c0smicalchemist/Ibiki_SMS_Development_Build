@@ -22,6 +22,11 @@ export function DashboardHeader() {
     user: { id: string; email: string; name: string; company: string | null; role: string };
   }>({ queryKey: ['/api/client/profile'] });
 
+  const { data: balanceData } = useQuery<{ success: boolean; balance: number; currency: string }>({
+    queryKey: ['/api/web/account/balance'],
+    staleTime: 10000,
+  });
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     setLocation('/');
@@ -94,7 +99,10 @@ export function DashboardHeader() {
         </Link>
         <div className="flex items-center gap-3">
           {profile?.user?.name && (
-            <Badge variant="secondary" data-testid="badge-username">{profile.user.name}</Badge>
+            <Badge variant="secondary" data-testid="badge-username">
+              {profile.user.name}
+              {typeof balanceData?.balance === 'number' ? ` · Credits ${balanceData.balance.toFixed(2)}` : ''}
+            </Badge>
           )}
           {profile?.user?.role && (
             <Badge variant="outline" data-testid="badge-role">
@@ -113,6 +121,24 @@ export function DashboardHeader() {
             <RefreshCcw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </Button>
+          {profile?.user?.role === 'admin' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token');
+                  const r = await fetch('/api/admin/auth/invalidate', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) } });
+                  if (!r.ok) throw new Error('Failed');
+                  toast({ title: t('common.success'), description: 'All sessions invalidated' });
+                } catch {
+                  toast({ title: t('common.error'), description: 'Failed to invalidate tokens', variant: 'destructive' });
+                }
+              }}
+            >
+              Force Refresh Tokens
+            </Button>
+          )}
           <Button 
             variant="ghost" 
             size="sm" 

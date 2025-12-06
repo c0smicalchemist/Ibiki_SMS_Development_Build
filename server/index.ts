@@ -83,7 +83,7 @@ function serveStatic(app: express.Express) {
     console.warn(`Skipping static file serving; missing ${distPath}`);
     return;
   }
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, { setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); } }));
   app.get(/^(?!\/api).*/, (_req, res) => {
     const indexPath = path.resolve(distPath, "index.html");
     try {
