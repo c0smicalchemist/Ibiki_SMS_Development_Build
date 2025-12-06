@@ -360,7 +360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const noVariants = () => [];
 
       let variants: any[] = [];
-      let providerUsed: 'openrouter' | 'ollama' | 'remote' | 'none' = 'none';
+      let providerUsed: 'openrouter' | 'ollama' | 'remote' | 'deepseek' | 'none' = 'none';
       if (cfg.provider === 'ollama') {
         const temp = Math.max(0, Math.min(1, Number(creativity))) || 0.5;
         for (let i=0;i<count;i++) {
@@ -477,6 +477,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             providerUsed = 'openrouter';
           }
+        } catch (err:any) {
+          variants = noVariants();
+          providerUsed = 'none';
+        }
+      } else if (cfg.provider === 'deepseek' && (cfg as any).key) {
+        const temp = Math.max(0, Math.min(1, Number(creativity))) || 0.5;
+        const minChars = (cfg as any).rules?.targetMin || 145;
+        const maxChars = (cfg as any).rules?.targetMax || 155;
+        const grammar = ((cfg as any).rules?.enforceGrammar ? 'Ensure complete, grammatically correct sentences.' : '');
+        const prompt = `Paraphrase the following SMS into ${count} variants. ${grammar} Keep each variant between ${minChars}-${maxChars} characters and strictly under ${(cfg as any).rules?.maxChars || 160}. Preserve tokens like {{name}} and any URLs exactly. Prefer responding with a JSON object {"variants":[{"text":"...","score":0.9},...]}. If you cannot respond as JSON, respond with ${count} bullet lines, one variant per line.\nText: ${protectedText}`;
+        const rawKey = String((cfg as any).key || '').trim();
+        const headers: Record<string,string> = { 'Content-Type': 'application/json', 'Authorization': rawKey.startsWith('Bearer ') ? rawKey : `Bearer ${rawKey}` };
+        const model = (cfg as any).model || 'deepseek-chat';
+        try {
+          const resp = await axios.post('https://api.deepseek.com/v1/chat/completions', { model, messages: [{ role: 'system', content: 'Paraphrase SMS while preserving placeholders and links; respond as JSON.' }, { role: 'user', content: prompt }], temperature: temp }, { headers, timeout: 20000 });
+          let raw = String(resp.data?.choices?.[0]?.message?.content || '{}');
+          raw = raw.replace(/^```json\s*/i,'').replace(/\s*```$/,'');
+          let parsed: any = {}; try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+          let arr = Array.isArray(parsed?.variants) ? parsed.variants : [];
+          if (!Array.isArray(arr) || arr.length === 0) {
+            const lines = String(resp.data?.choices?.[0]?.message?.content || '').split(/\r?\n/).map(s => s.replace(/^[-*\d\.\)\s]+/,'').trim()).filter(s => s.length > 0);
+            arr = lines.slice(0, count).map(txt => ({ text: txt, score: 0.8 }));
+          }
+          for (const v of arr) {
+            let out = String(v?.text || protectedText);
+            Object.keys(placeholders).forEach(k => { const orig = placeholders[k]; if (includeLink && urlPlaceholders.has(k)) { if (out.includes(orig)) { out = out.replace(new RegExp(k,'g'), orig); } else if (out.includes(k)) { const phrase = String((cfg as any).rules?.linkTemplate || '').replace('${url}', orig); out = out.replace(new RegExp(k,'g'), phrase); } else { const phrase = String((cfg as any).rules?.linkTemplate || '').replace('${url}', orig); const mid = Math.floor(out.length/2); let pos = out.indexOf(' ', mid); if (pos === -1) pos = out.lastIndexOf(' ', mid); if (pos === -1) pos = mid; out = `${out.slice(0,pos)} ${phrase} ${out.slice(pos)}`.replace(/\s+/g,' ').trim(); } } else { out = out.replace(new RegExp(k,'g'), orig); } });
+            out = clamp(out);
+            const id = crypto.randomBytes(8).toString('hex');
+            const score = typeof v?.score === 'number' ? v.score : 0.8;
+            variants.push({ id, text: out, score: +Number(score).toFixed(2) });
+          }
+          {
+            const seen = new Set<string>();
+            variants = variants.filter(v => { const norm = v.text.toLowerCase().replace(/\s+/g,' ').trim(); if (seen.has(norm)) return false; seen.add(norm); return true; });
+          }
+          providerUsed = variants.length === 0 ? 'none' : 'deepseek';
         } catch (err:any) {
           variants = noVariants();
           providerUsed = 'none';
@@ -2386,7 +2422,7 @@ app.get("/api/admin/recent-activity", authenticateToken, requireRole(['admin','s
 
   app.post('/api/admin/paraphraser/config', authenticateToken, requireAdmin, async (req: any, res) => {
     try {
-      const { provider, remoteUrl, remoteAuth, ollamaUrl, ollamaModel, openrouterModel, openrouterKey, targetMin, targetMax, maxChars, enforceGrammar, linkTemplate } = req.body || {};
+      const { provider, remoteUrl, remoteAuth, ollamaUrl, ollamaModel, openrouterModel, openrouterKey, deepseekModel, deepseekKey, targetMin, targetMax, maxChars, enforceGrammar, linkTemplate } = req.body || {};
       if (provider !== undefined) await storage.setSystemConfig('paraphraser.provider', String(provider || ''));
       if (remoteUrl !== undefined) await storage.setSystemConfig('paraphraser.remote.url', String(remoteUrl || ''));
       if (remoteAuth !== undefined) await storage.setSystemConfig('paraphraser.remote.auth', String(remoteAuth || ''));
@@ -2394,6 +2430,8 @@ app.get("/api/admin/recent-activity", authenticateToken, requireRole(['admin','s
       if (ollamaModel !== undefined) await storage.setSystemConfig('paraphraser.ollama.model', String(ollamaModel || ''));
       if (openrouterModel !== undefined) await storage.setSystemConfig('paraphraser.openrouter.model', String(openrouterModel || ''));
       if (openrouterKey !== undefined) await storage.setSystemConfig('paraphraser.openrouter.key', String(openrouterKey || ''));
+      if (deepseekModel !== undefined) await storage.setSystemConfig('paraphraser.deepseek.model', String(deepseekModel || ''));
+      if (deepseekKey !== undefined) await storage.setSystemConfig('paraphraser.deepseek.key', String(deepseekKey || ''));
       if (targetMin !== undefined) await storage.setSystemConfig('paraphraser.rules.targetMin', String(targetMin));
       if (targetMax !== undefined) await storage.setSystemConfig('paraphraser.rules.targetMax', String(targetMax));
       if (maxChars !== undefined) await storage.setSystemConfig('paraphraser.rules.maxChars', String(maxChars));
@@ -2467,6 +2505,19 @@ app.get('/api/admin/paraphraser/config', authenticateToken, requireRole(['admin'
         } catch (e: any) {
           ok = false;
           details = e?.message || 'Ollama error';
+        }
+      } else if (cfg.provider === 'deepseek') {
+        endpoint = 'https://api.deepseek.com/v1/chat/completions';
+        const rawKey = String((cfg as any).key || '').trim();
+        const headers: Record<string, string> = rawKey ? { Authorization: rawKey.startsWith('Bearer ') ? rawKey : `Bearer ${rawKey}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+        try {
+          const body = { model: model || 'deepseek-chat', messages: [{ role: 'user', content: 'Paraphrase: Hello there.' }], temperature: 0.2 };
+          const chat = await axios.post(endpoint, body, { headers, timeout: 12000 });
+          ok = !!chat.data?.choices?.[0]?.message?.content;
+          details = ok ? 'DeepSeek reachable' : 'No content';
+        } catch (e: any) {
+          ok = false;
+          details = e?.response?.data?.error?.message || e?.message || 'DeepSeek error';
         }
       } else if (cfg.provider === 'remote' && (cfg as any).url) {
         endpoint = String((cfg as any).url);
@@ -5744,12 +5795,20 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
           }
         }
       }
+      try {
+        const { Pool } = await import('pg');
+        const connectionString = process.env.DATABASE_URL!;
+        const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
+        const pool = new Pool(useSSL ? { connectionString, ssl: { rejectUnauthorized: false } } : { connectionString });
+        await pool.query('ALTER TABLE incoming_messages ADD COLUMN IF NOT EXISTS is_deleted boolean NOT NULL DEFAULT false');
+        await pool.end();
+      } catch {}
       const digits = String(phoneNumber).replace(/[^0-9]/g, '');
       const { Pool } = await import('pg');
       const connectionString = process.env.DATABASE_URL!;
       const useSSL = connectionString.includes('sslmode=require') || process.env.POSTGRES_SSL === 'true';
       const pool = new Pool(useSSL ? { connectionString, ssl: { rejectUnauthorized: false } } : { connectionString });
-      await pool.query(
+      const result = await pool.query(
         `UPDATE incoming_messages SET is_deleted = true
          WHERE (
            user_id = $1 AND (
@@ -5764,13 +5823,33 @@ app.delete("/api/v2/account/:userId", authenticateToken, requireRole(['admin','s
                $2 = ANY(cp.assigned_phone_numbers) OR LOWER(incoming_messages.business) = LOWER(cp.business_name)
              )
            ) AND (
-             regexp_replace(receiver, '[^0-9]', '', 'g') = $2 OR regexp_replace(receiver, '[^0-9]', '', 'g') = ('1' || $2)
+              regexp_replace("from", '[^0-9]', '', 'g') = $2 OR regexp_replace("from", '[^0-9]', '', 'g') = ('1' || $2) OR
+              ('1' || regexp_replace("from", '[^0-9]', '', 'g')) = $2 OR
+              regexp_replace(receiver, '[^0-9]', '', 'g') = $2 OR regexp_replace(receiver, '[^0-9]', '', 'g') = ('1' || $2) OR
+              ('1' || regexp_replace(receiver, '[^0-9]', '', 'g')) = $2
            )
         `,
         [targetUserId, digits]
       );
+      try {
+        if ((result.rowCount || 0) === 0 && (req.user.role === 'admin' || req.user.role === 'supervisor')) {
+          const result2 = await pool.query(
+            `UPDATE incoming_messages SET is_deleted = true
+             WHERE (
+               regexp_replace("from", '[^0-9]', '', 'g') = $1 OR regexp_replace(receiver, '[^0-9]', '', 'g') = $1 OR
+               regexp_replace("from", '[^0-9]', '', 'g') = ('1' || $1) OR regexp_replace(receiver, '[^0-9]', '', 'g') = ('1' || $1) OR
+               ('1' || regexp_replace("from", '[^0-9]', '', 'g')) = $1 OR ('1' || regexp_replace(receiver, '[^0-9]', '', 'g')) = $1
+             )
+            `,
+            [digits]
+          );
+          res.json({ success: true, affected: result2.rowCount || 0, fallback: true });
+          await pool.end();
+          return;
+        }
+      } catch {}
       await pool.end();
-      res.json({ success: true });
+      res.json({ success: true, affected: result.rowCount || 0 });
     } catch (e: any) {
       res.status(500).json({ error: e?.message || 'Failed to delete conversation' });
     }
@@ -6155,6 +6234,13 @@ async function getParaphraserConfig() {
       await storage.setSystemConfig('paraphraser.provider', 'openrouter');
     }
     return { provider, model: modelCfg?.value || 'qwen/qwen3-coder:free', key: keyCfg?.value || String(process.env.OPENROUTER_API_KEY || ''), rules };
+  } else if (provider === 'deepseek') {
+    const modelCfg = await storage.getSystemConfig('paraphraser.deepseek.model');
+    const keyCfg = await storage.getSystemConfig('paraphraser.deepseek.key');
+    if (!keyCfg?.value && process.env.DEEPSEEK_API_KEY) {
+      await storage.setSystemConfig('paraphraser.deepseek.key', String(process.env.DEEPSEEK_API_KEY));
+    }
+    return { provider, model: modelCfg?.value || 'deepseek-chat', key: keyCfg?.value || String(process.env.DEEPSEEK_API_KEY || ''), rules };
   }
   // Auto-switch to OpenRouter if a key is available but provider is not set to openrouter
   const keyAvailable = String(process.env.OPENROUTER_API_KEY || '').trim().length > 0 || !!(await storage.getSystemConfig('paraphraser.openrouter.key'))?.value;
